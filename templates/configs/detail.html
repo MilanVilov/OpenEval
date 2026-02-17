@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}{{ config.name }} — ai-eval{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>{{ config.name }}</h1>
+    <div style="display:flex;gap:8px;">
+        <a href="/configs/{{ config.id }}/edit" class="btn-secondary">
+            <i data-lucide="pencil" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:4px;"></i>
+            Edit
+        </a>
+        <button class="btn-danger"
+                hx-delete="/configs/{{ config.id }}"
+                hx-confirm="Delete config '{{ config.name }}'?">
+            <i data-lucide="trash-2" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:4px;"></i>
+            Delete
+        </button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="form-group">
+        <span class="form-label">System Prompt</span>
+        <pre style="background:var(--bg-input);border:1px solid var(--border-primary);border-radius:6px;padding:12px;font-family:var(--font-mono);font-size:12px;line-height:1.6;white-space:pre-wrap;color:var(--text-primary);margin-top:4px;">{{ config.system_prompt }}</pre>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;" class="mb-4">
+        <div class="form-group">
+            <span class="form-label">Model</span>
+            <span style="font-size:13px;">{{ config.model }}</span>
+        </div>
+        <div class="form-group">
+            <span class="form-label">Temperature</span>
+            <span style="font-size:13px;">{{ config.temperature }}</span>
+        </div>
+        <div class="form-group">
+            <span class="form-label">Max Tokens</span>
+            <span style="font-size:13px;">{{ config.max_tokens if config.max_tokens else "—" }}</span>
+        </div>
+    </div>
+
+    <div class="form-group mb-4">
+        <span class="form-label">Tools</span>
+        <div style="margin-top:4px;display:flex;gap:6px;">
+            {% if config.tools %}
+                {% for tool in config.tools %}
+                <span class="badge badge-info">{{ tool }}</span>
+                {% endfor %}
+            {% else %}
+                <span class="text-muted" style="font-size:13px;">None</span>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if config.tool_options and config.tool_options.vector_store_id %}
+    <div class="form-group mb-4">
+        <span class="form-label">Vector Store ID</span>
+        <span style="font-size:13px;">{{ config.tool_options.vector_store_id }}</span>
+    </div>
+    {% endif %}
+
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;" class="mb-4">
+        <div class="form-group">
+            <span class="form-label">Comparer Type</span>
+            <span style="font-size:13px;">{{ config.comparer_type }}</span>
+        </div>
+        <div class="form-group">
+            <span class="form-label">Comparer Config</span>
+            <span style="font-size:13px;">
+                {% if config.comparer_config and config.comparer_config.threshold is defined %}
+                    threshold: {{ config.comparer_config.threshold }}
+                {% else %}
+                    —
+                {% endif %}
+            </span>
+        </div>
+        <div class="form-group">
+            <span class="form-label">Concurrency</span>
+            <span style="font-size:13px;">{{ config.concurrency }}</span>
+        </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;">
+        <div class="form-group">
+            <span class="form-label">Created</span>
+            <span style="font-size:13px;">{{ config.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+        </div>
+        <div class="form-group">
+            <span class="form-label">Updated</span>
+            <span style="font-size:13px;">{{ config.updated_at.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+        </div>
+    </div>
+</div>
+{% endblock %}

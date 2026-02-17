@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}Edit {{ config.name }} — ai-eval{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Edit Eval Config</h1>
+</div>
+
+<div class="card" x-data="{
+    tools: {{ config.tools | tojson }},
+    comparerType: '{{ config.comparer_type }}',
+    get showVectorStore() { return this.tools.includes('file_search'); },
+    get showThreshold() { return ['semantic_similarity', 'llm_judge'].includes(this.comparerType); }
+}">
+    <form action="/configs/{{ config.id }}" method="POST">
+        <div class="form-group">
+            <label class="form-label" for="name">Name</label>
+            <input class="input" type="text" id="name" name="name" required
+                   value="{{ config.name }}" style="width:100%;">
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="system_prompt">System Prompt</label>
+            <textarea class="textarea" id="system_prompt" name="system_prompt" rows="6"
+                      required style="width:100%;">{{ config.system_prompt }}</textarea>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="model">Model</label>
+            <select class="input" id="model" name="model">
+                {% for m in ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", "o4-mini"] %}
+                <option value="{{ m }}" {% if config.model == m %}selected{% endif %}>{{ m }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div style="display:flex;gap:16px;">
+            <div class="form-group">
+                <label class="form-label" for="temperature">Temperature</label>
+                <input class="input" type="number" id="temperature" name="temperature"
+                       value="{{ config.temperature }}" step="0.1" min="0" max="2" style="width:100px;">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="max_tokens">Max Tokens</label>
+                <input class="input" type="number" id="max_tokens" name="max_tokens"
+                       value="{{ config.max_tokens if config.max_tokens else '' }}"
+                       placeholder="—" style="width:120px;">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="concurrency">Concurrency</label>
+                <input class="input" type="number" id="concurrency" name="concurrency"
+                       value="{{ config.concurrency }}" min="1" max="50" style="width:80px;">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Tools</label>
+            <div style="display:flex;gap:16px;margin-top:4px;">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:var(--text-primary);font-size:13px;">
+                    <input type="checkbox" name="tools" value="file_search"
+                           x-model="tools"> file_search
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:var(--text-primary);font-size:13px;">
+                    <input type="checkbox" name="tools" value="code_interpreter"
+                           x-model="tools"> code_interpreter
+                </label>
+            </div>
+        </div>
+
+        <div class="form-group" x-show="showVectorStore" x-cloak>
+            <label class="form-label" for="vector_store_id">Vector Store</label>
+            <select class="input" id="vector_store_id" name="vector_store_id">
+                <option value="">— None —</option>
+                {% for vs in vector_stores %}
+                <option value="{{ vs.openai_vector_store_id }}"
+                    {% if config.tool_options and config.tool_options.vector_store_id == vs.openai_vector_store_id %}selected{% endif %}>
+                    {{ vs.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="comparer_type">Comparer Type</label>
+            <select class="input" id="comparer_type" name="comparer_type" x-model="comparerType">
+                <option value="exact_match">exact_match</option>
+                <option value="pattern_match">pattern_match</option>
+                <option value="semantic_similarity">semantic_similarity</option>
+                <option value="llm_judge">llm_judge</option>
+                <option value="json_schema_match">json_schema_match</option>
+            </select>
+        </div>
+
+        <div class="form-group" x-show="showThreshold" x-cloak>
+            <label class="form-label" for="comparer_config_threshold">Comparer Threshold</label>
+            <input class="input" type="number" id="comparer_config_threshold"
+                   name="comparer_config_threshold" step="0.01" min="0" max="1"
+                   value="{{ config.comparer_config.threshold if config.comparer_config and config.comparer_config.threshold is defined else '' }}"
+                   placeholder="0.8" style="width:120px;">
+        </div>
+
+        <div class="form-actions">
+            <a href="/configs/{{ config.id }}" class="btn-secondary">Cancel</a>
+            <button type="submit" class="btn-primary">Save Changes</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

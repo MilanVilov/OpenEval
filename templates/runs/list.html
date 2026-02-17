@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}Eval Runs — ai-eval{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Eval Runs</h1>
+    <div style="display:flex;gap:8px;">
+        <a href="/runs/compare" class="btn-secondary">
+            <i data-lucide="columns" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:4px;"></i>
+            Compare Runs
+        </a>
+        <a href="/runs/new" class="btn-primary">
+            <i data-lucide="plus" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:4px;"></i>
+            New Run
+        </a>
+    </div>
+</div>
+
+{% if runs %}
+<div class="card">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Config</th>
+                <th>Dataset</th>
+                <th>Status</th>
+                <th>Progress</th>
+                <th>Accuracy</th>
+                <th>Started</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for run in runs %}
+            <tr>
+                <td><a href="/configs/{{ run.config.id }}">{{ run.config.name }}</a></td>
+                <td><a href="/datasets/{{ run.dataset.id }}">{{ run.dataset.name }}</a></td>
+                <td>
+                    {% if run.status == "completed" %}
+                    <span class="badge badge-success">completed</span>
+                    {% elif run.status == "running" %}
+                    <span class="badge badge-warning">running</span>
+                    {% elif run.status == "failed" %}
+                    <span class="badge badge-error">failed</span>
+                    {% else %}
+                    <span class="badge badge-info">pending</span>
+                    {% endif %}
+                </td>
+                <td>{{ run.progress }} / {{ run.total_rows }}</td>
+                <td>
+                    {% if run.summary and run.summary.accuracy is defined %}
+                    {{ "%.1f"|format(run.summary.accuracy * 100) }}%
+                    {% else %}
+                    —
+                    {% endif %}
+                </td>
+                <td>{{ run.started_at.strftime('%Y-%m-%d %H:%M') if run.started_at else "—" }}</td>
+                <td style="text-align:right;">
+                    <a href="/runs/{{ run.id }}" class="btn-secondary btn-sm">View</a>
+                    <button class="btn-danger btn-sm"
+                            hx-delete="/runs/{{ run.id }}"
+                            hx-confirm="Delete this run?">
+                        Delete
+                    </button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state mt-4">
+    <p class="text-muted">No evaluation runs yet.</p>
+    <a href="/runs/new" class="btn-primary mt-2">Start your first run</a>
+</div>
+{% endif %}
+{% endblock %}

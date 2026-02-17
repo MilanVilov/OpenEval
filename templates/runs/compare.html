@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{% block title %}Compare Runs — ai-eval{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Compare Runs</h1>
+</div>
+
+<!-- Run selector form -->
+<div class="card mb-4">
+    <form action="/runs/compare" method="GET" style="display:flex;gap:16px;align-items:flex-end;">
+        <div class="form-group" style="flex:1;margin-bottom:0;">
+            <label class="form-label">Run A</label>
+            <select class="input" name="run_a" style="width:100%;">
+                <option value="">— Select —</option>
+                {% for run in runs %}
+                <option value="{{ run.id }}" {% if selected_a == run.id %}selected{% endif %}>
+                    {{ run.config.name }} × {{ run.dataset.name }} ({{ run.created_at.strftime('%Y-%m-%d %H:%M') }})
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group" style="flex:1;margin-bottom:0;">
+            <label class="form-label">Run B</label>
+            <select class="input" name="run_b" style="width:100%;">
+                <option value="">— Select —</option>
+                {% for run in runs %}
+                <option value="{{ run.id }}" {% if selected_b == run.id %}selected{% endif %}>
+                    {{ run.config.name }} × {{ run.dataset.name }} ({{ run.created_at.strftime('%Y-%m-%d %H:%M') }})
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="btn-primary" style="margin-bottom:0;">Compare</button>
+    </form>
+</div>
+
+{% if run_a and run_b %}
+<!-- Side-by-side summary stats -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;" class="mb-4">
+    <!-- Run A summary -->
+    <div class="card">
+        <h3 class="mb-2">{{ run_a.config.name }}</h3>
+        <div class="stat-grid" style="grid-template-columns:repeat(3,1fr);">
+            <div class="stat-card">
+                <div class="stat-label">Accuracy</div>
+                <div class="stat-value">
+                    {% if run_a.summary and run_a.summary.accuracy is defined %}
+                    {{ "%.1f"|format(run_a.summary.accuracy * 100) }}%
+                    {% else %}—{% endif %}
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Avg Latency</div>
+                <div class="stat-value">
+                    {% if run_a.summary and run_a.summary.avg_latency_ms is defined %}
+                    {{ "%.0f"|format(run_a.summary.avg_latency_ms) }}ms
+                    {% else %}—{% endif %}
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Passed</div>
+                <div class="stat-value">
+                    {% if run_a.summary %}
+                    {{ run_a.summary.passed }} / {{ run_a.summary.total }}
+                    {% else %}—{% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Run B summary -->
+    <div class="card">
+        <h3 class="mb-2">{{ run_b.config.name }}</h3>
+        <div class="stat-grid" style="grid-template-columns:repeat(3,1fr);">
+            <div class="stat-card">
+                <div class="stat-label">Accuracy</div>
+                <div class="stat-value">
+                    {% if run_b.summary and run_b.summary.accuracy is defined %}
+                    {{ "%.1f"|format(run_b.summary.accuracy * 100) }}%
+                    {% else %}—{% endif %}
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Avg Latency</div>
+                <div class="stat-value">
+                    {% if run_b.summary and run_b.summary.avg_latency_ms is defined %}
+                    {{ "%.0f"|format(run_b.summary.avg_latency_ms) }}ms
+                    {% else %}—{% endif %}
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Passed</div>
+                <div class="stat-value">
+                    {% if run_b.summary %}
+                    {{ run_b.summary.passed }} / {{ run_b.summary.total }}
+                    {% else %}—{% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Row-by-row comparison -->
+<div class="card">
+    <h3 class="mb-2">Row-by-Row Comparison</h3>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Input</th>
+                <th>A: Output</th>
+                <th>A: Score</th>
+                <th>B: Output</th>
+                <th>B: Score</th>
+                <th>Winner</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for i in range(results_a|length) %}
+            {% set ra = results_a[i] %}
+            {% set rb = results_b[i] if i < results_b|length else none %}
+            <tr>
+                <td>{{ ra.row_index }}</td>
+                <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ ra.input_data }}">{{ ra.input_data[:60] }}</td>
+                <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ ra.actual_output }}">{{ (ra.actual_output or "—")[:60] }}</td>
+                <td>
+                    {% if ra.passed is true %}<span class="badge badge-success">{{ "%.2f"|format(ra.comparer_score) if ra.comparer_score is not none else "Pass" }}</span>
+                    {% elif ra.passed is false %}<span class="badge badge-error">{{ "%.2f"|format(ra.comparer_score) if ra.comparer_score is not none else "Fail" }}</span>
+                    {% else %}—{% endif %}
+                </td>
+                <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                    {% if rb %}{{ (rb.actual_output or "—")[:60] }}{% else %}—{% endif %}
+                </td>
+                <td>
+                    {% if rb %}
+                        {% if rb.passed is true %}<span class="badge badge-success">{{ "%.2f"|format(rb.comparer_score) if rb.comparer_score is not none else "Pass" }}</span>
+                        {% elif rb.passed is false %}<span class="badge badge-error">{{ "%.2f"|format(rb.comparer_score) if rb.comparer_score is not none else "Fail" }}</span>
+                        {% else %}—{% endif %}
+                    {% else %}—{% endif %}
+                </td>
+                <td>
+                    {% if ra.comparer_score is not none and rb and rb.comparer_score is not none %}
+                        {% if ra.comparer_score > rb.comparer_score %}
+                            <span class="text-success">A</span>
+                        {% elif rb.comparer_score > ra.comparer_score %}
+                            <span class="text-success">B</span>
+                        {% else %}
+                            <span class="text-muted">Tie</span>
+                        {% endif %}
+                    {% else %}—{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% elif not run_a and not run_b %}
+<div class="empty-state mt-4">
+    <p class="text-muted">Select two runs above to compare them side by side.</p>
+</div>
+{% endif %}
+{% endblock %}

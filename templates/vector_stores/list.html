@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}Vector Stores — ai-eval{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Vector Stores</h1>
+    <a href="/vector-stores/new" class="btn-primary">
+        <i data-lucide="plus" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:4px;"></i>
+        New Store
+    </a>
+</div>
+
+{% if stores %}
+<div class="card">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>OpenAI ID</th>
+                <th>Status</th>
+                <th>Files</th>
+                <th>Created</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for store in stores %}
+            <tr>
+                <td><a href="/vector-stores/{{ store.id }}">{{ store.name }}</a></td>
+                <td style="font-family:monospace;font-size:12px;">{{ store.openai_vector_store_id }}</td>
+                <td>
+                    {% if store.status == "completed" %}
+                    <span class="badge badge-success">{{ store.status }}</span>
+                    {% elif store.status == "in_progress" %}
+                    <span class="badge badge-warning">{{ store.status }}</span>
+                    {% else %}
+                    <span class="badge badge-info">{{ store.status }}</span>
+                    {% endif %}
+                </td>
+                <td>{{ store.file_count }}</td>
+                <td>{{ store.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td style="text-align:right;">
+                    <a href="/vector-stores/{{ store.id }}" class="btn-secondary btn-sm">View</a>
+                    <button class="btn-danger btn-sm"
+                            hx-delete="/vector-stores/{{ store.id }}"
+                            hx-confirm="Delete vector store '{{ store.name }}'?">
+                        Delete
+                    </button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state mt-4">
+    <p class="text-muted">No vector stores yet.</p>
+    <a href="/vector-stores/new" class="btn-primary mt-2">Create your first vector store</a>
+</div>
+{% endif %}
+{% endblock %}

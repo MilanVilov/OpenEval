@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Eval Configs — ai-eval{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Eval Configs</h1>
+    <a href="/configs/new" class="btn-primary">
+        <i data-lucide="plus" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:4px;"></i>
+        New Config
+    </a>
+</div>
+
+{% if configs %}
+<div class="card">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Model</th>
+                <th>Comparer</th>
+                <th>Created</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for config in configs %}
+            <tr>
+                <td><a href="/configs/{{ config.id }}">{{ config.name }}</a></td>
+                <td>{{ config.model }}</td>
+                <td>{{ config.comparer_type }}</td>
+                <td>{{ config.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td style="text-align:right;">
+                    <a href="/configs/{{ config.id }}" class="btn-secondary btn-sm">View</a>
+                    <button class="btn-danger btn-sm"
+                            hx-delete="/configs/{{ config.id }}"
+                            hx-confirm="Delete config '{{ config.name }}'?">
+                        Delete
+                    </button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state mt-4">
+    <p class="text-muted">No evaluation configs yet.</p>
+    <a href="/configs/new" class="btn-primary mt-2">Create your first config</a>
+</div>
+{% endif %}
+{% endblock %}

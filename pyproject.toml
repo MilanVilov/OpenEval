@@ -1,0 +1,53 @@
+[project]
+name = "ai-eval"
+version = "0.1.0"
+description = "AI prompt & tool evaluation framework"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "sqlalchemy[asyncio]",
+    "aiosqlite",
+    "alembic",
+    "jinja2",
+    "python-multipart",
+    "httpx",
+    "openai",
+    "pydantic-settings",
+]
+
+[project.scripts]
+ai-eval = "ai_eval.app:create_app"
+
+[project.entry-points."ai_eval.comparers"]
+exact_match = "ai_eval.comparers.exact_match:ExactMatchComparer"
+pattern_match = "ai_eval.comparers.pattern_match:PatternMatchComparer"
+semantic_similarity = "ai_eval.comparers.semantic_similarity:SemanticSimilarityComparer"
+llm_judge = "ai_eval.comparers.llm_judge:LlmJudgeComparer"
+json_schema_match = "ai_eval.comparers.json_schema_match:JsonSchemaMatchComparer"
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+    "ruff",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 99
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "N", "UP", "B", "SIM", "C90", "RUF"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 8
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

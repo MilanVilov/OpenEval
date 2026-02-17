@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}{{ dataset.name }} — ai-eval{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>{{ dataset.name }}</h1>
+    <button class="btn-danger"
+            hx-delete="/datasets/{{ dataset.id }}"
+            hx-confirm="Delete dataset '{{ dataset.name }}'?">
+        <i data-lucide="trash-2" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:4px;"></i>
+        Delete
+    </button>
+</div>
+
+<div class="stat-grid mb-4">
+    <div class="stat-card">
+        <div class="stat-value">{{ dataset.row_count }}</div>
+        <div class="stat-label">Rows</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ dataset.columns | length }}</div>
+        <div class="stat-label">Columns</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ dataset.created_at.strftime('%Y-%m-%d') }}</div>
+        <div class="stat-label">Created</div>
+    </div>
+</div>
+
+<div class="card">
+    <h3 style="margin:0 0 12px;font-size:14px;font-weight:600;color:var(--text-primary);">
+        Preview (first 5 rows)
+    </h3>
+    {% if preview %}
+    <div style="overflow-x:auto;">
+        <table class="table">
+            <thead>
+                <tr>
+                    {% for col in dataset.columns %}
+                    <th>{{ col }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in preview %}
+                <tr>
+                    {% for col in dataset.columns %}
+                    <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ row[col] }}</td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted" style="font-size:13px;">No rows to preview.</p>
+    {% endif %}
+</div>
+{% endblock %}

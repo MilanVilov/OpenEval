@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}New Eval Run — ai-eval{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>New Eval Run</h1>
+</div>
+
+<div class="card">
+    <form action="/runs" method="POST">
+        <div class="form-group">
+            <label class="form-label" for="eval_config_id">Eval Config</label>
+            <select class="input" id="eval_config_id" name="eval_config_id" required style="width:100%;">
+                <option value="">— Select a config —</option>
+                {% for config in configs %}
+                <option value="{{ config.id }}">{{ config.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="dataset_id">Dataset</label>
+            <select class="input" id="dataset_id" name="dataset_id" required style="width:100%;">
+                <option value="">— Select a dataset —</option>
+                {% for dataset in datasets %}
+                <option value="{{ dataset.id }}">{{ dataset.name }} ({{ dataset.row_count }} rows)</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-actions">
+            <a href="/runs" class="btn-secondary">Cancel</a>
+            <button type="submit" class="btn-primary">
+                <i data-lucide="play" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:4px;"></i>
+                Start Run
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
