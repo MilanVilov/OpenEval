@@ -13,6 +13,11 @@ Skills are authoritative reference documents that define conventions, patterns, 
 | Skill | File | When to use |
 |-------|------|-------------|
 | UI Design | `skills/ui-design.md` | Any frontend work: templates, CSS, HTML, components |
+| Python Code Quality | `skills/python-code-quality.md` | All Python code: functions, classes, architecture, testing |
+| KISS & YAGNI | `skills/kiss-yagni.md` | All code and architecture decisions: simplicity, no speculative features |
+| API & Routing | `skills/api-routing.md` | FastAPI routers, endpoints, HTMX interactions, URL design |
+| Git Workflow | `skills/git-workflow.md` | Commits, branches, PRs, .gitignore |
+| Testing Strategy | `skills/testing-strategy.md` | Writing tests: what to test, mocking, fixtures, assertions |
 
 ## Project Context
 
