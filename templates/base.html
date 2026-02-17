@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}OpenEval{% endblock %}</title>
+
+    <!-- Inter font from Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <!-- App CSS -->
+    <link rel="stylesheet" href="/static/css/style.css">
+
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+
+    <!-- Alpine.js -->
+    <script defer src="https://unpkg.com/alpinejs@3.14.8/dist/cdn.min.js"></script>
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+
+    {% block head %}{% endblock %}
+</head>
+<body hx-boost="true">
+    <div class="app-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-brand">
+                <i data-lucide="cpu" style="width:18px;height:18px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>
+                <span>OpenEval</span>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="/" class="nav-item {% if active_page == 'dashboard' %}active{% endif %}">
+                    <i data-lucide="layout-dashboard" class="nav-icon"></i>
+                    Dashboard
+                </a>
+                <a href="/configs" class="nav-item {% if active_page == 'configs' %}active{% endif %}">
+                    <i data-lucide="settings-2" class="nav-icon"></i>
+                    Eval Configs
+                </a>
+                <a href="/datasets" class="nav-item {% if active_page == 'datasets' %}active{% endif %}">
+                    <i data-lucide="database" class="nav-icon"></i>
+                    Datasets
+                </a>
+                <a href="/vector-stores" class="nav-item {% if active_page == 'vector_stores' %}active{% endif %}">
+                    <i data-lucide="hard-drive" class="nav-icon"></i>
+                    Vector Stores
+                </a>
+                <a href="/runs" class="nav-item {% if active_page == 'runs' %}active{% endif %}">
+                    <i data-lucide="play-circle" class="nav-icon"></i>
+                    Eval Runs
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main content -->
+        <main class="main-content">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <!-- Initialize Lucide icons -->
+    <script>lucide.createIcons();</script>
+
+    <!-- Re-init Lucide icons after HTMX swaps -->
+    <script>
+        document.body.addEventListener('htmx:afterSwap', function() {
+            lucide.createIcons();
+        });
+    </script>
+
+    <script src="/static/js/app.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

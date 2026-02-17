@@ -1,0 +1,40 @@
+<div id="results-table">
+    {% if results %}
+    <table class="table">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Input</th>
+                <th>Expected</th>
+                <th>Actual</th>
+                <th>Score</th>
+                <th>Pass</th>
+                <th>Latency</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in results %}
+            <tr>
+                <td>{{ r.row_index }}</td>
+                <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ r.input_data }}">{{ r.input_data[:80] }}</td>
+                <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ r.expected_output }}">{{ r.expected_output[:80] }}</td>
+                <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ r.actual_output }}">{{ (r.actual_output or "—")[:80] }}</td>
+                <td>{{ "%.2f"|format(r.comparer_score) if r.comparer_score is not none else "—" }}</td>
+                <td>
+                    {% if r.passed is true %}
+                    <span class="badge badge-success">Pass</span>
+                    {% elif r.passed is false %}
+                    <span class="badge badge-error">Fail</span>
+                    {% else %}
+                    <span class="text-muted">—</span>
+                    {% endif %}
+                </td>
+                <td>{{ r.latency_ms if r.latency_ms else "—" }}ms</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="text-muted" style="padding:16px;">No results{% if failed_only %} matching filter{% endif %}.</p>
+    {% endif %}
+</div>

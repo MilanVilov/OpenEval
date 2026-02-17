@@ -1,0 +1,39 @@
+import { apiFetch, downloadFile } from './client';
+import type { Dataset, DatasetDetail } from '../types/dataset';
+
+export function listDatasets(): Promise<Dataset[]> {
+  return apiFetch('/datasets');
+}
+
+export function getDataset(id: string): Promise<DatasetDetail> {
+  return apiFetch(`/datasets/${id}`);
+}
+
+export function uploadDataset(name: string, file: File): Promise<Dataset> {
+  const form = new FormData();
+  form.append('name', name);
+  form.append('file', file);
+  return apiFetch('/datasets', {
+    method: 'POST',
+    headers: {},
+    body: form,
+  });
+}
+
+export function updateDatasetRows(
+  id: string,
+  rows: Record<string, string>[],
+): Promise<DatasetDetail> {
+  return apiFetch(`/datasets/${id}/rows`, {
+    method: 'PUT',
+    body: JSON.stringify({ rows }),
+  });
+}
+
+export function deleteDataset(id: string): Promise<void> {
+  return apiFetch(`/datasets/${id}`, { method: 'DELETE' });
+}
+
+export function exportDataset(id: string): Promise<void> {
+  return downloadFile(`/datasets/${id}/export`);
+}

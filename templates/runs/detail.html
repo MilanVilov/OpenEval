@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}Run: {{ run.config.name }} × {{ run.dataset.name }} — OpenEval{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Run: {{ run.config.name }} × {{ run.dataset.name }}</h1>
+    <button class="btn-danger"
+            hx-delete="/runs/{{ run.id }}"
+            hx-confirm="Delete this run? All results will be lost.">
+        <i data-lucide="trash-2" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:4px;"></i>
+        Delete
+    </button>
+</div>
+
+<!-- Stat grid -->
+<div class="stat-grid mb-4">
+    <div class="stat-card">
+        <div class="stat-label">Status</div>
+        <div class="stat-value">
+            {% if run.status == "completed" %}
+            <span class="badge badge-success">completed</span>
+            {% elif run.status == "running" %}
+            <span class="badge badge-warning">running</span>
+            {% elif run.status == "failed" %}
+            <span class="badge badge-error">failed</span>
+            {% else %}
+            <span class="badge badge-info">pending</span>
+            {% endif %}
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Accuracy</div>
+        <div class="stat-value">
+            {% if run.summary and run.summary.accuracy is defined %}
+            {{ "%.1f"|format(run.summary.accuracy * 100) }}%
+            {% else %}
+            —
+            {% endif %}
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Avg Latency</div>
+        <div class="stat-value">
+            {% if run.summary and run.summary.avg_latency_ms is defined %}
+            {{ "%.0f"|format(run.summary.avg_latency_ms) }}ms
+            {% else %}
+            —
+            {% endif %}
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Total Rows</div>
+        <div class="stat-value">{{ run.total_rows }}</div>
+    </div>
+</div>
+
+<!-- Progress -->
+<div class="card mb-4">
+    <h3 class="mb-2">Progress</h3>
+    {% include "runs/partials/progress.html" %}
+</div>
+
+<!-- Results -->
+<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;" class="mb-2">
+        <h3>Results</h3>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:var(--text-primary);font-size:13px;">
+            <input type="checkbox"
+                   hx-get="/runs/{{ run.id }}/results"
+                   hx-target="#results-table"
+                   hx-swap="outerHTML"
+                   hx-include="this"
+                   name="failed_only"
+                   value="true">
+            Show failed only
+        </label>
+    </div>
+    <div hx-get="/runs/{{ run.id }}/results" hx-trigger="load" hx-swap="outerHTML">
+        <div id="results-table">
+            <p class="text-muted" style="padding:16px;">Loading results...</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}{{ store.name }} — OpenEval{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>{{ store.name }}</h1>
+    <button class="btn-danger"
+            hx-delete="/vector-stores/{{ store.id }}"
+            hx-confirm="Delete vector store '{{ store.name }}'? This will also remove it from OpenAI.">
+        <i data-lucide="trash-2" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:4px;"></i>
+        Delete
+    </button>
+</div>
+
+<div class="card mb-4">
+    <div class="stat-grid">
+        <div class="stat-card">
+            <div class="stat-value" style="font-family:monospace;font-size:13px;">{{ store.openai_vector_store_id }}</div>
+            <div class="stat-label">OpenAI Store ID</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">
+                {% if store.status == "completed" %}
+                <span class="badge badge-success">{{ store.status }}</span>
+                {% elif store.status == "in_progress" %}
+                <span class="badge badge-warning">{{ store.status }}</span>
+                {% else %}
+                <span class="badge badge-info">{{ store.status }}</span>
+                {% endif %}
+            </div>
+            <div class="stat-label">Status</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ store.file_count }}</div>
+            <div class="stat-label">File Count</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ store.created_at.strftime('%Y-%m-%d') }}</div>
+            <div class="stat-label">Created</div>
+        </div>
+    </div>
+</div>
+
+{% if error %}
+<div class="card mb-3" style="border:1px solid var(--danger);background:rgba(248,81,73,0.08);">
+    <p style="color:var(--danger);margin:0;font-size:13px;">
+        <i data-lucide="alert-circle" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:4px;"></i>
+        {{ error }}
+    </p>
+</div>
+{% endif %}
+
+<div class="card">
+    <h3 style="margin:0 0 12px;font-size:14px;font-weight:600;color:var(--text-primary);">
+        <i data-lucide="upload" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:4px;"></i>
+        Upload File
+    </h3>
+    <form action="/vector-stores/{{ store.id }}/files" method="POST" enctype="multipart/form-data">
+        <div class="form-group">
+            <label class="form-label" for="file">File</label>
+            <input class="input" type="file" id="file" name="file" required
+                   accept=".txt,.md,.pdf,.csv,.json,.jsonl,.html,.docx"
+                   style="width:100%;padding:8px;cursor:pointer;">
+            <p class="text-muted mt-1" style="font-size:12px;">
+                Supported formats: TXT, MD, PDF, CSV, JSON, JSONL, HTML, DOCX
+            </p>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn-primary">
+                <i data-lucide="upload" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:4px;"></i>
+                Upload
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

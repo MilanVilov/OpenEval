@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard — OpenEval{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Dashboard</h1>
+    <a href="/runs/new" class="btn-primary">New Eval Run</a>
+</div>
+
+{% if recent_runs %}
+<div class="card mt-4">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Config</th>
+                <th>Dataset</th>
+                <th>Status</th>
+                <th>Accuracy</th>
+                <th>Started</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for run in recent_runs %}
+            <tr>
+                <td>{{ run.config.name }}</td>
+                <td>{{ run.dataset.name }}</td>
+                <td>
+                    {% if run.status == 'completed' %}
+                        <span class="badge badge-success">Completed</span>
+                    {% elif run.status == 'running' %}
+                        <span class="badge badge-warning">Running</span>
+                    {% elif run.status == 'failed' %}
+                        <span class="badge badge-error">Failed</span>
+                    {% else %}
+                        <span class="badge badge-info">Pending</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if run.summary and run.summary.accuracy is defined %}
+                        {{ "%.1f"|format(run.summary.accuracy * 100) }}%
+                    {% else %}
+                        —
+                    {% endif %}
+                </td>
+                <td>
+                    {% if run.started_at %}
+                        {{ run.started_at.strftime('%Y-%m-%d %H:%M') }}
+                    {% else %}
+                        —
+                    {% endif %}
+                </td>
+                <td>
+                    <a href="/runs/{{ run.id }}" class="btn-secondary btn-sm">View</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state mt-4">
+    <p class="text-muted">No evaluation runs yet.</p>
+    <a href="/runs/new" class="btn-primary mt-2">Start your first eval</a>
+</div>
+{% endif %}
+{% endblock %}
