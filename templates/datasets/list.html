@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Datasets — OpenEval{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Datasets</h1>
+    <a href="/datasets/new" class="btn-primary">
+        <i data-lucide="upload" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:4px;"></i>
+        Upload Dataset
+    </a>
+</div>
+
+{% if datasets %}
+<div class="card">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Rows</th>
+                <th>Columns</th>
+                <th>Created</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for dataset in datasets %}
+            <tr>
+                <td><a href="/datasets/{{ dataset.id }}">{{ dataset.name }}</a></td>
+                <td>{{ dataset.row_count }}</td>
+                <td>{{ dataset.columns | length }}</td>
+                <td>{{ dataset.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td style="text-align:right;">
+                    <a href="/datasets/{{ dataset.id }}" class="btn-secondary btn-sm">View</a>
+                    <button class="btn-danger btn-sm"
+                            hx-delete="/datasets/{{ dataset.id }}"
+                            hx-confirm="Delete dataset '{{ dataset.name }}'?">
+                        Delete
+                    </button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state mt-4">
+    <p class="text-muted">No datasets uploaded yet.</p>
+    <a href="/datasets/new" class="btn-primary mt-2">Upload your first dataset</a>
+</div>
+{% endif %}
+{% endblock %}

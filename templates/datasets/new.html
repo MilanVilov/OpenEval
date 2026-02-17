@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Dataset — OpenEval{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Upload Dataset</h1>
+</div>
+
+{% if error %}
+<div class="card mb-3" style="border:1px solid var(--danger);background:rgba(248,81,73,0.08);">
+    <p style="color:var(--danger);margin:0;font-size:13px;">
+        <i data-lucide="alert-circle" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:4px;"></i>
+        {{ error }}
+    </p>
+</div>
+{% endif %}
+
+<div class="card">
+    <form action="/datasets" method="POST" enctype="multipart/form-data">
+        <div class="form-group">
+            <label class="form-label" for="name">Name</label>
+            <input class="input" type="text" id="name" name="name" required
+                   placeholder="e.g. Customer Support Q&A" style="width:100%;"
+                   value="{{ name if name else '' }}">
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="file">CSV File</label>
+            <input class="input" type="file" id="file" name="file" accept=".csv" required
+                   style="width:100%;padding:8px;cursor:pointer;">
+            <p class="text-muted mt-1" style="font-size:12px;">
+                CSV must include <code style="color:var(--accent);font-size:12px;">input</code> and
+                <code style="color:var(--accent);font-size:12px;">expected_output</code> columns.
+            </p>
+        </div>
+
+        <div class="form-actions">
+            <a href="/datasets" class="btn-secondary">Cancel</a>
+            <button type="submit" class="btn-primary">
+                <i data-lucide="upload" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:4px;"></i>
+                Upload
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

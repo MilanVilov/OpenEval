@@ -1,0 +1,19 @@
+{% if run.status in ["pending", "running"] %}
+<div hx-get="/runs/{{ run.id }}/progress" hx-trigger="every 2s" hx-swap="outerHTML">
+    <div class="progress-bar mb-2">
+        <div class="progress-bar-fill" style="width: {{ (run.progress / run.total_rows * 100) if run.total_rows > 0 else 0 }}%"></div>
+    </div>
+    <span class="text-muted" style="font-size:12px;">{{ run.progress }} / {{ run.total_rows }} rows processed</span>
+</div>
+{% else %}
+<div>
+    {% if run.status == "completed" %}
+    <span class="badge badge-success">Completed</span>
+    {% elif run.status == "failed" %}
+    <span class="badge badge-error">Failed</span>
+    {% endif %}
+    <span class="text-muted" style="font-size:12px;margin-left:8px;">
+        {{ run.total_rows }} / {{ run.total_rows }} rows processed
+    </span>
+</div>
+{% endif %}

@@ -1,0 +1,21 @@
+{
+  "type": "object",
+  "properties": {
+    "reasoning": {
+      "type": "string",
+      "description": "Brief explanation of how the answer was determined"
+    },
+    "confidence": {
+      "type": "number",
+      "description": "Confidence percentage for the answer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "answer": {
+      "type": "string",
+      "description": "The short factual answer"
+    }
+  },
+  "additionalProperties": false,
+  "required": ["answer", "reasoning", "confidence"]
+}
