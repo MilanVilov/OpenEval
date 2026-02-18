@@ -37,7 +37,9 @@ class EvalConfig(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
-    runs: Mapped[list["EvalRun"]] = relationship(back_populates="config")
+    runs: Mapped[list["EvalRun"]] = relationship(
+        back_populates="config", cascade="all, delete-orphan", passive_deletes=True,
+    )
 
     def __repr__(self) -> str:
         return f"<EvalConfig id={self.id!r} name={self.name!r}>"
@@ -55,7 +57,9 @@ class Dataset(Base):
     columns: Mapped[list] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
-    runs: Mapped[list["EvalRun"]] = relationship(back_populates="dataset")
+    runs: Mapped[list["EvalRun"]] = relationship(
+        back_populates="dataset", cascade="all, delete-orphan", passive_deletes=True,
+    )
 
     def __repr__(self) -> str:
         return f"<Dataset id={self.id!r} name={self.name!r}>"
@@ -99,7 +103,9 @@ class EvalRun(Base):
 
     config: Mapped["EvalConfig"] = relationship(back_populates="runs")
     dataset: Mapped["Dataset"] = relationship(back_populates="runs")
-    results: Mapped[list["EvalResult"]] = relationship(back_populates="run")
+    results: Mapped[list["EvalResult"]] = relationship(
+        back_populates="run", cascade="all, delete-orphan", passive_deletes=True,
+    )
 
     __table_args__ = (
         Index("ix_eval_runs_eval_config_id", "eval_config_id"),

@@ -1,11 +1,14 @@
 """OpenAI Responses API provider."""
 
+import logging
 import time
 
 from openai import AsyncOpenAI
 
 from ai_eval.config import get_settings
 from ai_eval.providers.base import BaseLLMProvider, LLMResponse
+
+logger = logging.getLogger(__name__)
 
 
 class OpenAIProvider(BaseLLMProvider):
@@ -62,6 +65,15 @@ class OpenAIProvider(BaseLLMProvider):
             kwargs["reasoning"] = reasoning_config
         if response_format:
             kwargs["text"] = {"format": response_format}
+
+        # Log the request for debugging (tools, model, etc.)
+        logger.info(
+            "OpenAI request: model=%s tools=%s reasoning=%s text_format=%s",
+            kwargs.get("model"),
+            kwargs.get("tools"),
+            kwargs.get("reasoning"),
+            kwargs.get("text"),
+        )
 
         start = time.perf_counter()
         response = await self._client.responses.create(**kwargs)

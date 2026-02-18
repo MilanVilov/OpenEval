@@ -3,6 +3,7 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from ai_eval.config import get_settings
@@ -11,12 +12,20 @@ _engine = None
 _session_factory: async_sessionmaker[AsyncSession] | None = None
 
 
+def _set_sqlite_pragma(dbapi_connection, connection_record):
+    """Enable foreign key enforcement for SQLite connections."""
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
+
+
 def get_engine():
     """Return the async engine, creating it lazily on first call."""
     global _engine
     if _engine is None:
         settings = get_settings()
         _engine = create_async_engine(settings.database_url, echo=False)
+        event.listen(_engine.sync_engine, "connect", _set_sqlite_pragma)
     return _engine
 
 
