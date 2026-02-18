@@ -19,6 +19,7 @@ import { VectorStoreDetail } from '@/pages/vector-stores/VectorStoreDetail';
 import { ContainerList } from '@/pages/containers/ContainerList';
 import { ContainerNew } from '@/pages/containers/ContainerNew';
 import { ContainerDetail } from '@/pages/containers/ContainerDetail';
+import { Playground } from '@/pages/playground/Playground';
 
 export function App() {
   return (
@@ -44,6 +45,7 @@ export function App() {
             <Route path="/containers" element={<ContainerList />} />
             <Route path="/containers/new" element={<ContainerNew />} />
             <Route path="/containers/:id" element={<ContainerDetail />} />
+            <Route path="/playground" element={<Playground />} />
           </Route>
         </Routes>
       </BrowserRouter>

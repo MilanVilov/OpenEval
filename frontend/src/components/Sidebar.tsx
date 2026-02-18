@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { BarChart3, Settings, Play, Database, FileText, Terminal } from 'lucide-react';
+import { BarChart3, Settings, Play, Database, FileText, Terminal, MessageSquareCode } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 interface NavItemProps {
@@ -40,6 +40,10 @@ export function Sidebar() {
       <NavItem to="/runs" icon={<Play className="h-4 w-4" />} label="Runs" />
       <NavItem to="/vector-stores" icon={<FileText className="h-4 w-4" />} label="Vector Stores" />
       <NavItem to="/containers" icon={<Terminal className="h-4 w-4" />} label="Containers" />
+      <div className="mt-4 mb-1 px-3">
+        <p className="text-xs text-foreground-secondary uppercase tracking-wider">Tools</p>
+      </div>
+      <NavItem to="/playground" icon={<MessageSquareCode className="h-4 w-4" />} label="Playground" />
     </aside>
   );
 }

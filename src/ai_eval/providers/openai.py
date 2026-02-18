@@ -88,11 +88,23 @@ class OpenAIProvider(BaseLLMProvider):
             "output_tokens": response.usage.output_tokens if response.usage else 0,
         }
 
+        # Serialize output items for full response visibility
+        output_items = []
+        for item in response.output:
+            try:
+                output_items.append(item.model_dump())
+            except Exception:
+                output_items.append({"type": getattr(item, "type", "unknown")})
+
         return LLMResponse(
             text=text,
             latency_ms=latency_ms,
             token_usage=token_usage,
-            raw_response={"id": response.id, "model": response.model},
+            raw_response={
+                "id": response.id,
+                "model": response.model,
+                "output": output_items,
+            },
         )
 
     def _build_tools(self, tools: list, tool_options: dict) -> list:
