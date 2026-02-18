@@ -79,8 +79,13 @@ export function ConfigDetail() {
             </div>
             {config.reasoning_config && (
               <div>
-                <p className="text-xs text-foreground-secondary uppercase">Reasoning Effort</p>
-                <Badge>{config.reasoning_config.effort}</Badge>
+                <p className="text-xs text-foreground-secondary uppercase">Reasoning</p>
+                <div className="flex gap-1">
+                  <Badge>effort: {config.reasoning_config.effort}</Badge>
+                  {(config.reasoning_config as Record<string, string>).summary && (
+                    <Badge>summary: {(config.reasoning_config as Record<string, string>).summary}</Badge>
+                  )}
+                </div>
               </div>
             )}
             {config.response_format && (
@@ -105,6 +110,11 @@ export function ConfigDetail() {
                 {config.tools.includes('shell') && (
                   <p className="text-xs text-foreground-secondary mt-1">
                     Container: <span className="font-mono">{(config.tool_options as Record<string, string>)?.container_id || 'Auto (ephemeral)'}</span>
+                  </p>
+                )}
+                {(config.tool_options as Record<string, string>)?.tool_choice && (
+                  <p className="text-xs text-foreground-secondary mt-1">
+                    Tool Choice: <span className="font-mono">{(config.tool_options as Record<string, string>).tool_choice}</span>
                   </p>
                 )}
               </div>

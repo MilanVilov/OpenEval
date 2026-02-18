@@ -53,6 +53,7 @@ export function ConfigEdit() {
   const [comparerTypes, setComparerTypes] = useState<Set<string>>(new Set(['exact_match']));
   const [concurrency, setConcurrency] = useState('5');
   const [reasoningEffort, setReasoningEffort] = useState('medium');
+  const [reasoningSummary, setReasoningSummary] = useState('auto');
   const [responseFormatType, setResponseFormatType] = useState('text');
   const [jsonSchemaName, setJsonSchemaName] = useState('');
   const [jsonSchemaBody, setJsonSchemaBody] = useState('');
@@ -62,6 +63,7 @@ export function ConfigEdit() {
   const [shellEnabled, setShellEnabled] = useState(false);
   const [containerId, setContainerId] = useState('');
   const [containers, setContainers] = useState<Container[]>([]);
+  const [toolChoice, setToolChoice] = useState('auto');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -90,6 +92,10 @@ export function ConfigEdit() {
         if (config.reasoning_config?.effort) {
           setReasoningEffort(config.reasoning_config.effort);
         }
+        if (config.reasoning_config) {
+          const summary = (config.reasoning_config as Record<string, string>).summary;
+          setReasoningSummary(summary ?? 'null');
+        }
         if (config.response_format) {
           const fmt = config.response_format as Record<string, unknown>;
           const fmtType = (fmt.type as string) || 'text';
@@ -107,6 +113,9 @@ export function ConfigEdit() {
         if (config.tools && config.tools.includes('shell')) {
           setShellEnabled(true);
           setContainerId((config.tool_options as Record<string, string>)?.container_id || '');
+        }
+        if ((config.tool_options as Record<string, string>)?.tool_choice) {
+          setToolChoice((config.tool_options as Record<string, string>).tool_choice);
         }
       })
       .catch((e: Error) => setError(e.message))
@@ -147,6 +156,12 @@ export function ConfigEdit() {
           toolOptions.container_id = containerId;
         }
       }
+      if (tools.length > 0 && toolChoice !== 'auto') {
+        toolOptions.tool_choice = toolChoice;
+      }
+      const reasoningConfig = isReasoningModel
+        ? { effort: reasoningEffort, ...(reasoningSummary !== 'null' ? { summary: reasoningSummary } : {}) }
+        : null;
       await updateConfig(id, {
         name,
         system_prompt: systemPrompt,
@@ -156,7 +171,7 @@ export function ConfigEdit() {
         tools,
         tool_options: toolOptions,
         concurrency: parseInt(concurrency, 10),
-        reasoning_config: isReasoningModel ? { effort: reasoningEffort } : null,
+        reasoning_config: reasoningConfig,
         response_format: buildResponseFormat(),
       });
       navigate(`/configs/${id}`);
@@ -205,6 +220,7 @@ export function ConfigEdit() {
         </div>
 
         {isReasoningModel && (
+          <>
           <div className="space-y-2">
             <Label>Reasoning Effort</Label>
             <Select value={reasoningEffort} onChange={(e) => setReasoningEffort(e.target.value)}>
@@ -214,6 +230,17 @@ export function ConfigEdit() {
             </Select>
             <p className="text-xs text-foreground-secondary">Controls how much reasoning compute the model uses</p>
           </div>
+          <div className="space-y-2">
+            <Label>Reasoning Summary</Label>
+            <Select value={reasoningSummary} onChange={(e) => setReasoningSummary(e.target.value)}>
+              <option value="auto">Auto</option>
+              <option value="concise">Concise</option>
+              <option value="detailed">Detailed</option>
+              <option value="null">None (disabled)</option>
+            </Select>
+            <p className="text-xs text-foreground-secondary">Controls whether and how the model summarizes its reasoning</p>
+          </div>
+          </>
         )}
 
         <div className="space-y-2">
@@ -267,6 +294,18 @@ export function ConfigEdit() {
           </label>
           <p className="text-xs text-foreground-secondary">Enable the model to run shell commands in an OpenAI-hosted container</p>
         </div>
+
+        {(fileSearchEnabled || shellEnabled) && (
+          <div className="space-y-2">
+            <Label>Tool Choice</Label>
+            <Select value={toolChoice} onChange={(e) => setToolChoice(e.target.value)}>
+              <option value="auto">Auto (model decides)</option>
+              <option value="required">Required (must use a tool)</option>
+              <option value="none">None (tools available but suppressed)</option>
+            </Select>
+            <p className="text-xs text-foreground-secondary">Controls whether the model must, may, or must not call tools</p>
+          </div>
+        )}
 
         {fileSearchEnabled && (
           <div className="space-y-2 rounded-md border border-border p-4">

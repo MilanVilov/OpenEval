@@ -61,6 +61,10 @@ class OpenAIProvider(BaseLLMProvider):
             kwargs["max_output_tokens"] = max_tokens
         if api_tools:
             kwargs["tools"] = api_tools
+            # tool_choice: "auto" (default), "required", or "none"
+            tool_choice = tool_options.get("tool_choice")
+            if tool_choice and tool_choice != "auto":
+                kwargs["tool_choice"] = tool_choice
         if reasoning_config:
             kwargs["reasoning"] = reasoning_config
         if response_format:
