@@ -9,6 +9,7 @@ export interface PlaygroundResponse {
   text: string;
   latency_ms: number;
   token_usage: { input_tokens: number; output_tokens: number };
+  raw_request: Record<string, unknown>;
   raw_response: Record<string, unknown>;
 }
 

@@ -42,5 +42,6 @@ async def run_playground(
         text=result.text,
         latency_ms=result.latency_ms,
         token_usage=result.token_usage,
+        raw_request=result.raw_request or {},
         raw_response=result.raw_response or {},
     )

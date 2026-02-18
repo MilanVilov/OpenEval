@@ -19,6 +19,7 @@ export function Playground() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<PlaygroundResponse | null>(null);
+  const [rawTab, setRawTab] = useState<'request' | 'response'>('response');
 
   useEffect(() => {
     listConfigs()
@@ -124,14 +125,39 @@ export function Playground() {
                 <OutputItemCard key={idx} item={item} />
               ))}
 
-              {/* Raw JSON */}
+              {/* Raw JSON with tabs */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-sm">Raw Response</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setRawTab('request')}
+                      className={`text-sm font-medium px-2 py-1 rounded transition-colors ${
+                        rawTab === 'request'
+                          ? 'bg-accent-muted text-foreground'
+                          : 'text-foreground-secondary hover:text-foreground'
+                      }`}
+                    >
+                      Raw Request
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRawTab('response')}
+                      className={`text-sm font-medium px-2 py-1 rounded transition-colors ${
+                        rawTab === 'response'
+                          ? 'bg-accent-muted text-foreground'
+                          : 'text-foreground-secondary hover:text-foreground'
+                      }`}
+                    >
+                      Raw Response
+                    </button>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <pre className="text-xs font-mono bg-background-input p-3 rounded overflow-auto max-h-[400px] whitespace-pre-wrap">
-                    {JSON.stringify(result.raw_response, null, 2)}
+                    {rawTab === 'request'
+                      ? JSON.stringify(result.raw_request, null, 2)
+                      : JSON.stringify(result.raw_response, null, 2)}
                   </pre>
                 </CardContent>
               </Card>

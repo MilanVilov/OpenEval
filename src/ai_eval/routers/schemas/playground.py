@@ -16,4 +16,5 @@ class PlaygroundResponse(BaseModel):
     text: str
     latency_ms: int
     token_usage: dict
+    raw_request: dict
     raw_response: dict

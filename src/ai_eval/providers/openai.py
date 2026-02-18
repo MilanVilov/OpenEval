@@ -79,6 +79,9 @@ class OpenAIProvider(BaseLLMProvider):
             kwargs.get("text"),
         )
 
+        # Snapshot request kwargs for debugging
+        raw_request = {k: v for k, v in kwargs.items()}
+
         start = time.perf_counter()
         response = await self._client.responses.create(**kwargs)
         latency_ms = int((time.perf_counter() - start) * 1000)
@@ -109,6 +112,7 @@ class OpenAIProvider(BaseLLMProvider):
                 "model": response.model,
                 "output": output_items,
             },
+            raw_request=raw_request,
         )
 
     def _build_tools(self, tools: list, tool_options: dict) -> list:

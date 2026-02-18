@@ -12,6 +12,7 @@ class LLMResponse:
     latency_ms: int
     token_usage: dict  # {"input_tokens": int, "output_tokens": int}
     raw_response: dict | None = None
+    raw_request: dict | None = None
 
 
 class BaseLLMProvider(ABC):
