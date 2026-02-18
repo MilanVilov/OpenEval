@@ -2,7 +2,9 @@ import { useState, useEffect, type FormEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getConfig, updateConfig } from '@/api/configs';
 import { listVectorStores } from '@/api/vectorStores';
+import { listContainers } from '@/api/containers';
 import type { VectorStore } from '@/types/vectorStore';
+import type { Container } from '@/types/container';
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -57,6 +59,9 @@ export function ConfigEdit() {
   const [fileSearchEnabled, setFileSearchEnabled] = useState(false);
   const [vectorStoreId, setVectorStoreId] = useState('');
   const [vectorStores, setVectorStores] = useState<VectorStore[]>([]);
+  const [shellEnabled, setShellEnabled] = useState(false);
+  const [containerId, setContainerId] = useState('');
+  const [containers, setContainers] = useState<Container[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -66,6 +71,9 @@ export function ConfigEdit() {
   useEffect(() => {
     listVectorStores()
       .then(setVectorStores)
+      .catch(() => {/* ignore */});
+    listContainers()
+      .then(setContainers)
       .catch(() => {/* ignore */});
   }, []);
 
@@ -95,6 +103,10 @@ export function ConfigEdit() {
         if (config.tools && config.tools.includes('file_search')) {
           setFileSearchEnabled(true);
           setVectorStoreId((config.tool_options as Record<string, string>)?.vector_store_id || '');
+        }
+        if (config.tools && config.tools.includes('shell')) {
+          setShellEnabled(true);
+          setContainerId((config.tool_options as Record<string, string>)?.container_id || '');
         }
       })
       .catch((e: Error) => setError(e.message))
@@ -127,6 +139,12 @@ export function ConfigEdit() {
         tools.push('file_search');
         if (vectorStoreId) {
           toolOptions.vector_store_id = vectorStoreId;
+        }
+      }
+      if (shellEnabled) {
+        tools.push('shell');
+        if (containerId) {
+          toolOptions.container_id = containerId;
         }
       }
       await updateConfig(id, {
@@ -238,6 +256,16 @@ export function ConfigEdit() {
             File Search
           </label>
           <p className="text-xs text-foreground-secondary">Enable the model to search uploaded files in a vector store for relevant information</p>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={shellEnabled}
+              onChange={(e) => setShellEnabled(e.target.checked)}
+              className="rounded border-border"
+            />
+            Shell
+          </label>
+          <p className="text-xs text-foreground-secondary">Enable the model to run shell commands in an OpenAI-hosted container</p>
         </div>
 
         {fileSearchEnabled && (
@@ -251,6 +279,21 @@ export function ConfigEdit() {
             </Select>
             <p className="text-xs text-foreground-secondary">
               Select the vector store to search. <a href="/vector-stores/new" className="text-accent-blue hover:underline">Create a new one</a> if needed.
+            </p>
+          </div>
+        )}
+
+        {shellEnabled && (
+          <div className="space-y-2 rounded-md border border-border p-4">
+            <Label>Container</Label>
+            <Select value={containerId} onChange={(e) => setContainerId(e.target.value)}>
+              <option value="">— Auto (ephemeral container) —</option>
+              {containers.map((c) => (
+                <option key={c.id} value={c.openai_container_id}>{c.name} ({c.file_count} files)</option>
+              ))}
+            </Select>
+            <p className="text-xs text-foreground-secondary">
+              Select a container with pre-uploaded files, or leave as Auto. <a href="/containers/new" className="text-accent-blue hover:underline">Create a new one</a> if needed.
             </p>
           </div>
         )}

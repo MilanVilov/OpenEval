@@ -107,6 +107,17 @@ class OpenAIProvider(BaseLLMProvider):
                 api_tools.append(tool_spec)
             elif tool_name == "code_interpreter":
                 api_tools.append({"type": "code_interpreter"})
+            elif tool_name == "shell":
+                shell_spec: dict = {"type": "shell"}
+                container_id = tool_options.get("container_id")
+                if container_id:
+                    shell_spec["environment"] = {
+                        "type": "container_reference",
+                        "container_id": container_id,
+                    }
+                else:
+                    shell_spec["environment"] = {"type": "container_auto"}
+                api_tools.append(shell_spec)
         return api_tools
 
     def _extract_text(self, response: object) -> str:

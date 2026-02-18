@@ -102,6 +102,11 @@ export function ConfigDetail() {
                     Vector Store: <span className="font-mono">{(config.tool_options as Record<string, string>).vector_store_id}</span>
                   </p>
                 )}
+                {config.tools.includes('shell') && (
+                  <p className="text-xs text-foreground-secondary mt-1">
+                    Container: <span className="font-mono">{(config.tool_options as Record<string, string>)?.container_id || 'Auto (ephemeral)'}</span>
+                  </p>
+                )}
               </div>
             )}
           </CardContent>

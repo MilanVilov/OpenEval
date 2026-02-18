@@ -16,6 +16,9 @@ import { RunCompare } from '@/pages/runs/RunCompare';
 import { VectorStoreList } from '@/pages/vector-stores/VectorStoreList';
 import { VectorStoreNew } from '@/pages/vector-stores/VectorStoreNew';
 import { VectorStoreDetail } from '@/pages/vector-stores/VectorStoreDetail';
+import { ContainerList } from '@/pages/containers/ContainerList';
+import { ContainerNew } from '@/pages/containers/ContainerNew';
+import { ContainerDetail } from '@/pages/containers/ContainerDetail';
 
 export function App() {
   return (
@@ -38,6 +41,9 @@ export function App() {
             <Route path="/vector-stores" element={<VectorStoreList />} />
             <Route path="/vector-stores/new" element={<VectorStoreNew />} />
             <Route path="/vector-stores/:id" element={<VectorStoreDetail />} />
+            <Route path="/containers" element={<ContainerList />} />
+            <Route path="/containers/new" element={<ContainerNew />} />
+            <Route path="/containers/:id" element={<ContainerDetail />} />
           </Route>
         </Routes>
       </BrowserRouter>

@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from ai_eval.db.models import Dataset, EvalConfig, EvalResult, EvalRun, VectorStore
+from ai_eval.db.models import Container, Dataset, EvalConfig, EvalResult, EvalRun, VectorStore
 
 # ---------------------------------------------------------------------------
 # EvalConfig
@@ -197,6 +197,66 @@ class VectorStoreRepository:
         if store is None:
             return False
         await self._session.delete(store)
+        await self._session.commit()
+        return True
+
+
+# ---------------------------------------------------------------------------
+# Container
+# ---------------------------------------------------------------------------
+
+
+class ContainerRepository:
+    """Data-access helpers for :class:`Container`."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def create(
+        self,
+        *,
+        openai_container_id: str,
+        name: str,
+        status: str = "active",
+    ) -> Container:
+        """Insert a new container reference."""
+        container = Container(
+            openai_container_id=openai_container_id,
+            name=name,
+            status=status,
+        )
+        self._session.add(container)
+        await self._session.commit()
+        await self._session.refresh(container)
+        return container
+
+    async def get_by_id(self, container_id: str) -> Container | None:
+        """Return a container by primary key, or ``None``."""
+        return await self._session.get(Container, container_id)
+
+    async def list_all(self) -> list[Container]:
+        """Return every container ordered by newest first."""
+        stmt = select(Container).order_by(Container.created_at.desc())
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def update(self, container_id: str, **fields: object) -> Container | None:
+        """Update arbitrary fields on a container. Returns ``None`` if not found."""
+        container = await self.get_by_id(container_id)
+        if container is None:
+            return None
+        for key, value in fields.items():
+            setattr(container, key, value)
+        await self._session.commit()
+        await self._session.refresh(container)
+        return container
+
+    async def delete(self, container_id: str) -> bool:
+        """Delete a container. Returns ``True`` if it existed."""
+        container = await self.get_by_id(container_id)
+        if container is None:
+            return False
+        await self._session.delete(container)
         await self._session.commit()
         return True
 

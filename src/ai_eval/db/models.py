@@ -81,6 +81,22 @@ class VectorStore(Base):
         return f"<VectorStore id={self.id!r} name={self.name!r}>"
 
 
+class Container(Base):
+    """Reference to an OpenAI container for the shell tool."""
+
+    __tablename__ = "containers"
+
+    id: Mapped[str] = mapped_column(primary_key=True, default=_new_id)
+    openai_container_id: Mapped[str]
+    name: Mapped[str]
+    file_count: Mapped[int] = mapped_column(default=0)
+    status: Mapped[str] = mapped_column(default="active")
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+    def __repr__(self) -> str:
+        return f"<Container id={self.id!r} name={self.name!r}>"
+
+
 class EvalRun(Base):
     """A single execution of an evaluation configuration against a dataset."""
 
