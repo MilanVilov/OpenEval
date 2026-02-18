@@ -10,17 +10,17 @@ An open-source AI prompt & tool evaluation framework. Configure prompts, models,
 - **Parallel Evaluation** — Run evals with configurable concurrency via asyncio
 - **5 Built-in Comparers** — exact_match, pattern_match, json_schema_match, semantic_similarity, llm_judge
 - **Plugin System** — Add custom comparers via Python entry points
-- **Live Progress** — Real-time progress tracking with HTMX polling
+- **Live Progress** — Real-time progress tracking with polling
 - **Run Comparison** — Side-by-side comparison of two evaluation runs
 - **Dark UI** — Cursor Dark Midnight theme with responsive layout
 
 ## Tech Stack
 
 - **Backend**: Python 3.12+, FastAPI, SQLAlchemy (async), SQLite, Alembic
-- **Frontend**: Jinja2 + HTMX + Alpine.js
+- **Frontend**: React 19 (Vite + TypeScript) + Tailwind CSS
 - **AI**: OpenAI Responses API
 - **Package Manager**: uv
-- **Container**: Docker
+- **Container**: Docker (multi-stage build with Node.js + Python)
 
 ## Quick Start
 
@@ -35,8 +35,15 @@ cd ai-eval
 cp .env.example .env
 # Edit .env and set OPENAI_API_KEY
 
-# Start the app
-docker compose up --build
+# If using Colima (macOS without Docker Desktop):
+colima start
+
+# Build and run
+docker build -t ai-eval .
+docker run -p 8000:8000 --env-file .env ai-eval
+
+# Or with docker-compose (if available):
+docker-compose up --build
 ```
 
 Open http://localhost:8000
@@ -55,10 +62,17 @@ export OPENAI_API_KEY=sk-...
 export DATABASE_URL=sqlite+aiosqlite:///data/ai_eval.db
 
 # Run database migrations
+mkdir -p data
 uv run alembic upgrade head
 
-# Start the dev server
+# Start the backend dev server
 uv run uvicorn ai_eval.app:create_app --factory --reload --host 0.0.0.0 --port 8000
+
+# In a separate terminal, start the React frontend dev server
+cd frontend
+npm install
+npm run dev
+# Frontend runs at http://localhost:5173 with API proxy to :8000
 ```
 
 ## Usage
@@ -124,8 +138,7 @@ ai-eval/
 │   ├── providers/          # LLM provider abstraction
 │   ├── routers/            # FastAPI route handlers
 │   └── services/           # CSV parser, eval runner, OpenAI client
-├── templates/              # Jinja2 templates
-├── static/css/             # Dark midnight theme CSS
+├── frontend/               # React SPA (Vite + TypeScript + Tailwind)
 ├── alembic/                # Database migrations
 ├── tests/                  # Test suite
 ├── Dockerfile

@@ -16,6 +16,8 @@ class CreateConfigRequest(BaseModel):
     comparer_type: str
     comparer_config: dict = {}
     concurrency: int = 5
+    reasoning_config: dict | None = None
+    response_format: dict | None = None
 
 
 class UpdateConfigRequest(BaseModel):
@@ -31,6 +33,8 @@ class UpdateConfigRequest(BaseModel):
     comparer_type: str | None = None
     comparer_config: dict | None = None
     concurrency: int | None = None
+    reasoning_config: dict | None = None
+    response_format: dict | None = None
 
 
 class ConfigResponse(BaseModel):
@@ -47,6 +51,8 @@ class ConfigResponse(BaseModel):
     comparer_type: str
     comparer_config: dict
     concurrency: int
+    reasoning_config: dict | None = None
+    response_format: dict | None = None
     created_at: str
     updated_at: str
 

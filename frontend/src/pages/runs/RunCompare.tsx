@@ -95,15 +95,15 @@ export function RunCompare() {
                   return (
                     <TableRow key={ra.id}>
                       <TableCell>{ra.row_index}</TableCell>
-                      <TableCell className="max-w-[150px] truncate">{ra.input_data}</TableCell>
-                      <TableCell className="max-w-[150px] truncate">{ra.expected_output}</TableCell>
-                      <TableCell className="max-w-[150px] truncate">{ra.actual_output}</TableCell>
+                      <TableCell className="min-w-[150px] max-w-[300px] whitespace-pre-wrap break-words">{ra.input_data}</TableCell>
+                      <TableCell className="min-w-[150px] max-w-[300px] whitespace-pre-wrap break-words">{ra.expected_output}</TableCell>
+                      <TableCell className="min-w-[150px] max-w-[300px] whitespace-pre-wrap break-words">{ra.actual_output}</TableCell>
                       <TableCell>
                         <Badge variant={ra.passed ? 'success' : 'error'}>
                           {ra.passed ? '✓' : '✗'}
                         </Badge>
                       </TableCell>
-                      <TableCell className="max-w-[150px] truncate">{rb?.actual_output ?? '—'}</TableCell>
+                      <TableCell className="min-w-[150px] max-w-[300px] whitespace-pre-wrap break-words">{rb?.actual_output ?? '—'}</TableCell>
                       <TableCell>
                         {rb ? (
                           <Badge variant={rb.passed ? 'success' : 'error'}>

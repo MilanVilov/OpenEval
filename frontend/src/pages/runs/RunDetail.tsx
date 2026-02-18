@@ -140,9 +140,9 @@ export function RunDetail() {
                   {filteredResults.map((result) => (
                     <TableRow key={result.id}>
                       <TableCell>{result.row_index}</TableCell>
-                      <TableCell className="max-w-[200px] truncate">{result.input_data}</TableCell>
-                      <TableCell className="max-w-[200px] truncate">{result.expected_output}</TableCell>
-                      <TableCell className="max-w-[200px] truncate">{result.actual_output}</TableCell>
+                      <TableCell className="min-w-[200px] max-w-[400px] whitespace-pre-wrap break-words">{result.input_data}</TableCell>
+                      <TableCell className="min-w-[200px] max-w-[400px] whitespace-pre-wrap break-words">{result.expected_output}</TableCell>
+                      <TableCell className="min-w-[200px] max-w-[400px] whitespace-pre-wrap break-words">{result.actual_output}</TableCell>
                       <TableCell>
                         <Badge variant={result.passed ? 'success' : 'error'}>
                           {result.passed ? 'Pass' : 'Fail'}

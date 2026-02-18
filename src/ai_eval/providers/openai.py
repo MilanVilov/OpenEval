@@ -24,6 +24,8 @@ class OpenAIProvider(BaseLLMProvider):
         max_tokens: int | None = None,
         tools: list | None = None,
         tool_options: dict | None = None,
+        reasoning_config: dict | None = None,
+        response_format: dict | None = None,
     ) -> LLMResponse:
         """Call the OpenAI Responses API."""
         tool_options = tool_options or {}
@@ -37,16 +39,29 @@ class OpenAIProvider(BaseLLMProvider):
         # Build tools list for the Responses API
         api_tools = self._build_tools(tools or [], tool_options)
 
+        # Models that use reasoning and don't support temperature
+        _reasoning_models = {
+            "o3", "o3-pro", "o3-mini", "o4-mini",
+            "gpt-5.2", "gpt-5.2-pro", "gpt-5.1",
+            "gpt-5", "gpt-5-mini", "gpt-5-nano",
+        }
+        is_reasoning = model in _reasoning_models or reasoning_config is not None
+
         # Build request kwargs
         kwargs: dict = {
             "model": model,
             "input": input_messages,
-            "temperature": temperature,
         }
+        if not is_reasoning:
+            kwargs["temperature"] = temperature
         if max_tokens is not None:
             kwargs["max_output_tokens"] = max_tokens
         if api_tools:
             kwargs["tools"] = api_tools
+        if reasoning_config:
+            kwargs["reasoning"] = reasoning_config
+        if response_format:
+            kwargs["text"] = {"format": response_format}
 
         start = time.perf_counter()
         response = await self._client.responses.create(**kwargs)

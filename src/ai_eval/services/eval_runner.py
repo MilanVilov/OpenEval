@@ -85,6 +85,8 @@ async def run_evaluation(run_id: str) -> None:
                         max_tokens=config.max_tokens,
                         tools=config.tools,
                         tool_options=config.tool_options,
+                        reasoning_config=config.reasoning_config,
+                        response_format=config.response_format,
                     )
                     result_kwargs["actual_output"] = llm_response.text
                     result_kwargs["latency_ms"] = llm_response.latency_ms

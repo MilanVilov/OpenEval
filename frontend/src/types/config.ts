@@ -10,6 +10,8 @@ export interface EvalConfig {
   comparer_type: string;
   comparer_config: Record<string, unknown>;
   concurrency: number;
+  reasoning_config: Record<string, string> | null;
+  response_format: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
 }
@@ -25,4 +27,6 @@ export interface CreateConfigRequest {
   comparer_type: string;
   comparer_config: Record<string, unknown>;
   concurrency: number;
+  reasoning_config?: Record<string, string> | null;
+  response_format?: Record<string, unknown> | null;
 }

@@ -28,6 +28,8 @@ class BaseLLMProvider(ABC):
         max_tokens: int | None = None,
         tools: list | None = None,
         tool_options: dict | None = None,
+        reasoning_config: dict | None = None,
+        response_format: dict | None = None,
     ) -> LLMResponse:
         """Send a prompt to the LLM and return a standardized response.
 
@@ -39,6 +41,8 @@ class BaseLLMProvider(ABC):
             max_tokens: Maximum tokens in the response.
             tools: List of tool names to enable (e.g. ["file_search", "code_interpreter"]).
             tool_options: Additional tool config (e.g. {"vector_store_id": "vs_xxx"}).
+            reasoning_config: Reasoning configuration (e.g. {"effort": "medium"}).
+            response_format: Response format configuration (e.g. {"type": "json_object"}).
 
         Returns:
             LLMResponse with generated text and metadata.

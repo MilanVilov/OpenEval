@@ -73,6 +73,18 @@ export function ConfigDetail() {
               <p className="text-xs text-foreground-secondary uppercase">Concurrency</p>
               <p className="text-sm">{config.concurrency}</p>
             </div>
+            {config.reasoning_config && (
+              <div>
+                <p className="text-xs text-foreground-secondary uppercase">Reasoning Effort</p>
+                <Badge>{config.reasoning_config.effort}</Badge>
+              </div>
+            )}
+            {config.response_format && (
+              <div>
+                <p className="text-xs text-foreground-secondary uppercase">Response Format</p>
+                <Badge>{(config.response_format as Record<string, unknown>).type as string}</Badge>
+              </div>
+            )}
           </CardContent>
         </Card>
 
