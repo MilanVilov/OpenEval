@@ -1,3 +1,15 @@
+# Stage 1: Build React frontend
+FROM node:20-slim AS frontend-build
+
+WORKDIR /app/frontend
+
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+
+COPY frontend/ .
+RUN npm run build
+
+# Stage 2: Python runtime
 FROM python:3.12-slim
 
 # Install uv
@@ -5,19 +17,20 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 WORKDIR /app
 
-# Copy dependency files first for layer caching
+# Copy dependency files and source
 COPY pyproject.toml .
 COPY README.md .
+COPY src/ src/
 
-# Install dependencies
+# Install package and dependencies
 RUN uv pip install --system --no-cache .
 
-# Copy application code
-COPY src/ src/
-COPY templates/ templates/
-COPY static/ static/
+# Copy remaining files
 COPY alembic/ alembic/
 COPY alembic.ini .
+
+# Copy built frontend from stage 1
+COPY --from=frontend-build /app/frontend/dist frontend/dist
 
 # Copy entrypoint
 COPY entrypoint.sh .

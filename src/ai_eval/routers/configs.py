@@ -1,158 +1,102 @@
-"""EvalConfig CRUD routes."""
+"""EvalConfig CRUD routes — JSON API."""
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ai_eval.app import templates
-from ai_eval.db.repositories import ConfigRepository, VectorStoreRepository
+from ai_eval.db.repositories import ConfigRepository
 from ai_eval.db.session import get_session
+from ai_eval.routers.schemas.configs import (
+    ConfigResponse,
+    CreateConfigRequest,
+    UpdateConfigRequest,
+)
 
-router = APIRouter(prefix="/configs", tags=["configs"])
+router = APIRouter(prefix="/api/configs", tags=["configs"])
 
 
-@router.get("", response_class=HTMLResponse)
-async def list_configs(request: Request, session: AsyncSession = Depends(get_session)):
-    """List all evaluation configurations."""
-    configs = await ConfigRepository(session).list_all()
-    return templates.TemplateResponse(
-        "configs/list.html",
-        {"request": request, "active_page": "configs", "configs": configs},
+def _config_to_response(config: object) -> ConfigResponse:
+    """Convert an EvalConfig ORM object to a ConfigResponse."""
+    return ConfigResponse(
+        id=config.id,
+        name=config.name,
+        system_prompt=config.system_prompt,
+        model=config.model,
+        temperature=config.temperature,
+        max_tokens=config.max_tokens,
+        tools=config.tools,
+        tool_options=config.tool_options,
+        comparer_type=config.comparer_type,
+        comparer_config=config.comparer_config,
+        concurrency=config.concurrency,
+        created_at=str(config.created_at),
+        updated_at=str(config.updated_at),
     )
 
 
-@router.get("/new", response_class=HTMLResponse)
-async def new_config(request: Request, session: AsyncSession = Depends(get_session)):
-    """Render the create-config form."""
-    vector_stores = await VectorStoreRepository(session).list_all()
-    return templates.TemplateResponse(
-        "configs/new.html",
-        {"request": request, "active_page": "configs", "vector_stores": vector_stores},
-    )
-
-
-@router.post("", response_class=HTMLResponse)
-async def create_config(
-    request: Request,
+@router.get("", response_model=list[ConfigResponse])
+async def list_configs(
     session: AsyncSession = Depends(get_session),
-    name: str = Form(...),
-    system_prompt: str = Form(...),
-    model: str = Form("gpt-4o"),
-    temperature: float = Form(0.7),
-    max_tokens: str = Form(""),
-    comparer_type: str = Form(...),
-    comparer_config_threshold: str = Form(""),
-    concurrency: int = Form(5),
-    vector_store_id: str = Form(""),
-):
+) -> list[ConfigResponse]:
+    """List all eval configurations."""
+    configs = await ConfigRepository(session).list_all()
+    return [_config_to_response(c) for c in configs]
+
+
+@router.post("", response_model=ConfigResponse, status_code=201)
+async def create_config(
+    body: CreateConfigRequest,
+    session: AsyncSession = Depends(get_session),
+) -> ConfigResponse:
     """Create a new evaluation configuration."""
-    form_data = await request.form()
-    tools = form_data.getlist("tools")
-
-    tool_options: dict = {}
-    if "file_search" in tools and vector_store_id:
-        tool_options["vector_store_id"] = vector_store_id
-
-    comparer_config: dict = {}
-    if comparer_config_threshold:
-        comparer_config["threshold"] = float(comparer_config_threshold)
-
     config = await ConfigRepository(session).create(
-        name=name,
-        system_prompt=system_prompt,
-        model=model,
-        temperature=temperature,
-        max_tokens=int(max_tokens) if max_tokens else None,
-        tools=list(tools),
-        tool_options=tool_options,
-        comparer_type=comparer_type,
-        comparer_config=comparer_config,
-        concurrency=concurrency,
+        name=body.name,
+        system_prompt=body.system_prompt,
+        model=body.model,
+        temperature=body.temperature,
+        max_tokens=body.max_tokens,
+        tools=body.tools,
+        tool_options=body.tool_options,
+        comparer_type=body.comparer_type,
+        comparer_config=body.comparer_config,
+        concurrency=body.concurrency,
     )
-    return RedirectResponse(f"/configs/{config.id}", status_code=303)
+    return _config_to_response(config)
 
 
-@router.get("/{config_id}", response_class=HTMLResponse)
-async def detail_config(
-    config_id: str, request: Request, session: AsyncSession = Depends(get_session),
-):
-    """Show a single evaluation configuration."""
+@router.get("/{config_id}", response_model=ConfigResponse)
+async def get_config(
+    config_id: str,
+    session: AsyncSession = Depends(get_session),
+) -> ConfigResponse:
+    """Return a single eval configuration."""
     config = await ConfigRepository(session).get_by_id(config_id)
     if not config:
-        raise HTTPException(status_code=404, detail="Config not found")
-    return templates.TemplateResponse(
-        "configs/detail.html",
-        {"request": request, "active_page": "configs", "config": config},
-    )
+        raise HTTPException(status_code=404, detail="Configuration not found")
+    return _config_to_response(config)
 
 
-@router.get("/{config_id}/edit", response_class=HTMLResponse)
-async def edit_config_form(
-    config_id: str, request: Request, session: AsyncSession = Depends(get_session),
-):
-    """Render the edit-config form."""
-    config = await ConfigRepository(session).get_by_id(config_id)
-    if not config:
-        raise HTTPException(status_code=404, detail="Config not found")
-    vector_stores = await VectorStoreRepository(session).list_all()
-    return templates.TemplateResponse(
-        "configs/edit.html",
-        {"request": request, "active_page": "configs", "config": config, "vector_stores": vector_stores},
-    )
-
-
-@router.post("/{config_id}", response_class=HTMLResponse)
+@router.put("/{config_id}", response_model=ConfigResponse)
 async def update_config(
     config_id: str,
-    request: Request,
+    body: UpdateConfigRequest,
     session: AsyncSession = Depends(get_session),
-    name: str = Form(...),
-    system_prompt: str = Form(...),
-    model: str = Form("gpt-4o"),
-    temperature: float = Form(0.7),
-    max_tokens: str = Form(""),
-    comparer_type: str = Form(...),
-    comparer_config_threshold: str = Form(""),
-    concurrency: int = Form(5),
-    vector_store_id: str = Form(""),
-):
+) -> ConfigResponse:
     """Update an existing evaluation configuration."""
-    form_data = await request.form()
-    tools = form_data.getlist("tools")
-
-    tool_options: dict = {}
-    if "file_search" in tools and vector_store_id:
-        tool_options["vector_store_id"] = vector_store_id
-
-    comparer_config: dict = {}
-    if comparer_config_threshold:
-        comparer_config["threshold"] = float(comparer_config_threshold)
-
-    repo = ConfigRepository(session)
-    config = await repo.update(
-        config_id,
-        name=name,
-        system_prompt=system_prompt,
-        model=model,
-        temperature=temperature,
-        max_tokens=int(max_tokens) if max_tokens else None,
-        tools=list(tools),
-        tool_options=tool_options,
-        comparer_type=comparer_type,
-        comparer_config=comparer_config,
-        concurrency=concurrency,
-    )
+    fields = body.model_dump(exclude_unset=True)
+    if not fields:
+        raise HTTPException(status_code=422, detail="No fields to update")
+    config = await ConfigRepository(session).update(config_id, **fields)
     if not config:
-        raise HTTPException(status_code=404, detail="Config not found")
-    return RedirectResponse(f"/configs/{config.id}", status_code=303)
+        raise HTTPException(status_code=404, detail="Configuration not found")
+    return _config_to_response(config)
 
 
-@router.delete("/{config_id}")
+@router.delete("/{config_id}", status_code=204)
 async def delete_config(
-    config_id: str, session: AsyncSession = Depends(get_session),
-):
+    config_id: str,
+    session: AsyncSession = Depends(get_session),
+) -> None:
     """Delete an evaluation configuration."""
     deleted = await ConfigRepository(session).delete(config_id)
     if not deleted:
-        raise HTTPException(status_code=404, detail="Config not found")
-    return Response(status_code=200, headers={"HX-Redirect": "/configs"})
+        raise HTTPException(status_code=404, detail="Configuration not found")

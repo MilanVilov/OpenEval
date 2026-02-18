@@ -8,6 +8,7 @@ services:
       - DATABASE_URL=sqlite+aiosqlite:///./data/ai_eval.db
       - UPLOAD_DIR=./data/uploads
       - PORT=${PORT:-8000}
+      - CORS_ORIGINS=${CORS_ORIGINS:-}
     volumes:
       - ai-eval-data:/app/data
 

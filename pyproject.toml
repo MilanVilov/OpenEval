@@ -10,7 +10,6 @@ dependencies = [
     "sqlalchemy[asyncio]",
     "aiosqlite",
     "alembic",
-    "jinja2",
     "python-multipart",
     "httpx",
     "openai",
