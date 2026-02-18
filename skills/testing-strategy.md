@@ -1,56 +1,53 @@
 # Skill: Testing Strategy — What, How, and When to Test
 
-This skill defines testing conventions for ai-eval. All tests use pytest and follow these patterns.
+**Tests are written in the same PR as the feature. A feature without tests is not done.**
+
+This skill defines testing conventions for ai-eval. Backend tests use pytest; frontend E2E tests use Playwright.
 
 ---
 
 ## Test Pyramid
 
 ```
-         ╱  E2E (few)  ╲        Browser-level, Docker required
-        ╱ Integration    ╲      Real DB, real templates, mocked OpenAI
-       ╱   Unit (most)    ╲    Pure logic, no I/O, no DB
+         ╱  E2E — Playwright (few)  ╲     Full user flows in browser
+        ╱  Integration — pytest      ╲    API → service → repo → SQLite
+       ╱   Unit — pytest (most)       ╲   Pure logic, no I/O
 ```
 
-| Layer | What it tests | I/O allowed | Count |
-|---|---|---|---|
-| **Unit** | Single function/class in isolation | No | Most tests (~70%) |
-| **Integration** | Router → service → repository → SQLite | Real SQLite (in-memory) | Some (~25%) |
-| **E2E** | Full user flows via HTTP | Everything | Few (~5%) |
+| Layer | Tool | What it tests | I/O | Count |
+|---|---|---|---|---|
+| **Unit** | pytest | Comparers, parsers, pure functions | No | ~60% |
+| **Integration** | pytest + httpx | API endpoints → DB round-trips | In-memory SQLite | ~25% |
+| **E2E** | Playwright | Full user flows via browser | Everything | ~15% |
 
 ---
 
 ## File Structure
 
-Mirror the source tree under `tests/`:
-
 ```
-tests/
-├── conftest.py                    # Shared fixtures (db session, client, factories)
+tests/                          # Backend tests (pytest)
+├── conftest.py
 ├── comparers/
 │   ├── test_exact_match.py
-│   ├── test_pattern_match.py
-│   ├── test_semantic_similarity.py
-│   ├── test_llm_judge.py
-│   └── test_json_schema_match.py
+│   └── ...
 ├── services/
-│   ├── test_eval_runner.py
-│   ├── test_dataset_parser.py
-│   └── test_vector_store_service.py
 ├── db/
-│   └── test_repositories.py
-├── routers/
-│   ├── test_configs.py
-│   ├── test_datasets.py
-│   ├── test_runs.py
-│   └── test_vector_stores.py
+├── routers/                    # API endpoint tests
+│   ├── test_configs_api.py
+│   └── ...
 └── providers/
-    └── test_openai.py
+
+frontend/e2e/                   # Frontend tests (Playwright)
+├── configs.spec.ts
+├── datasets.spec.ts
+├── runs.spec.ts
+├── vector-stores.spec.ts
+└── fixtures/                   # Test helpers, page objects
 ```
 
 ---
 
-## Naming Convention
+## Backend Test Naming
 
 ```python
 def test_<unit>_<scenario>[_<expected>]():
@@ -85,7 +82,7 @@ def test_create_run_nonexistent_config_returns_404():
 | **Dataset parser** | Valid CSV parsed correctly. Missing columns rejected. Empty files rejected. Large row counts handled. |
 | **Repositories** | CRUD operations return correct data. Filters work. Not-found returns `None`. |
 | **Services** | Business logic correctness. Error propagation. Concurrency behavior (semaphore respected). |
-| **Route handlers** | Status codes (200, 303, 404, 422). Correct template rendered. Redirect targets. |
+| **Route handlers** | Status codes (200, 201, 204, 404, 422). **JSON response body shape matches Pydantic schema.** Correct data returned. No HTML assertions. |
 
 ### Don't Test
 
@@ -95,11 +92,11 @@ def test_create_run_nonexistent_config_returns_404():
 | Pydantic Settings loading | Pydantic already tests this |
 | Third-party library internals | Not our code |
 | Private helper functions directly | Test them through the public function that calls them |
-| Jinja2 template rendering details | Integration tests cover this via HTTP responses |
+| React component rendering details | E2E tests cover user-visible behavior |
 
 ---
 
-## Fixtures
+## Backend Fixtures
 
 ### Shared Fixtures (`conftest.py`)
 
@@ -109,7 +106,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from httpx import AsyncClient, ASGITransport
 
 from ai_eval.app import create_app
-from ai_eval.db.session import Base
+from ai_eval.db.session import Base, get_session
 
 
 @pytest.fixture
@@ -125,7 +122,7 @@ async def db_session():
 
 @pytest.fixture
 async def client(db_session):
-    """Test HTTP client with overridden DB dependency."""
+    """Test HTTP client for JSON API testing."""
     app = create_app()
     app.dependency_overrides[get_session] = lambda: db_session
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
@@ -155,12 +152,63 @@ def make_eval_config():
     return _make
 ```
 
+### Test Examples — JSON API
+
+```python
+async def test_list_configs_empty(client):
+    response = await client.get("/api/configs")
+    assert response.status_code == 200
+    assert response.json() == []
+
+async def test_create_config(client):
+    response = await client.post("/api/configs", json={
+        "name": "Test", "system_prompt": "...", "model": "gpt-4.1",
+        "comparer_type": "exact_match"
+    })
+    assert response.status_code == 201
+    data = response.json()
+    assert data["name"] == "Test"
+    assert "id" in data
+```
+
 ### Rules
 
 - **Every fixture has a docstring.**
 - **Fixtures are in `conftest.py`** at the appropriate directory level — shared fixtures at `tests/conftest.py`, module-specific fixtures in their own `conftest.py`.
 - **No `setUp`/`tearDown`** methods — use pytest fixtures exclusively.
 - **Async fixtures** use `@pytest.fixture` (pytest-asyncio auto mode).
+
+---
+
+## Playwright E2E Tests
+
+### Configuration
+
+- Directory: `frontend/e2e/`
+- Config: `frontend/playwright.config.ts`
+- Naming: `<resource>.spec.ts`
+
+### Pattern
+
+```ts
+import { test, expect } from '@playwright/test';
+
+test('create eval config', async ({ page }) => {
+  await page.goto('/configs/new');
+  await page.fill('[name="name"]', 'Test Config');
+  await page.fill('[name="system_prompt"]', 'You are helpful.');
+  await page.click('button[type="submit"]');
+  await expect(page).toHaveURL(/\/configs\/.+/);
+  await expect(page.locator('h1')).toContainText('Test Config');
+});
+```
+
+### Guidelines
+
+- Mock API when testing frontend in isolation: `page.route('/api/**', ...)`
+- Test against real backend for true E2E.
+- Use page objects in `frontend/e2e/fixtures/` for shared interactions.
+- Keep tests independent — each test starts from a clean state.
 
 ---
 
@@ -218,6 +266,7 @@ async def test_eval_runner_calls_openai(make_eval_config):
 - Use plain `assert`, not `self.assertEqual`.
 - Use `pytest.raises` for expected exceptions.
 - Use `pytest.approx` for floating-point comparisons.
+- For Playwright: use `expect()` matchers.
 
 ```python
 async def test_semantic_similarity_above_threshold():
@@ -230,33 +279,6 @@ async def test_parse_csv_missing_column_raises():
     with pytest.raises(DatasetValidationError, match="Missing required column: input"):
         parse_csv(bad_csv_content)
 ```
-
----
-
-## Test Execution
-
-```bash
-# Run all tests
-uv run pytest
-
-# Run with coverage
-uv run pytest --cov=ai_eval --cov-report=term-missing
-
-# Run a specific test file
-uv run pytest tests/comparers/test_exact_match.py
-
-# Run tests matching a keyword
-uv run pytest -k "llm_judge"
-
-# Run with verbose output
-uv run pytest -v
-```
-
-### CI Requirements
-
-- All tests must pass before merge.
-- Coverage target: **80%** minimum (enforced in CI, not a hard gate initially).
-- Tests must complete in under **60 seconds** (excluding E2E).
 
 ---
 
@@ -273,11 +295,41 @@ uv run pytest -v
 
 ---
 
+## Test Execution
+
+```bash
+# Backend
+uv run pytest
+uv run pytest --cov=ai_eval --cov-report=term-missing
+
+# Run a specific test file
+uv run pytest tests/comparers/test_exact_match.py
+
+# Run tests matching a keyword
+uv run pytest -k "llm_judge"
+
+# Run with verbose output
+uv run pytest -v
+
+# Frontend E2E
+cd frontend && npx playwright test
+npx playwright test --ui  # interactive mode
+```
+
+### CI Requirements
+
+- All tests (backend + Playwright) must pass before merge.
+- Coverage target: **80%** minimum (enforced in CI, not a hard gate initially).
+- Backend tests must complete in under **60 seconds** (excluding E2E).
+
+---
+
 ## Do's and Don'ts
 
 ### Do
 
-- Write tests before or alongside the code (not weeks later).
+- Write tests with every feature — in the same PR.
+- Test JSON response shapes against expected structure.
 - Use factories for test data — avoid duplicating setup.
 - Test edge cases and error paths, not just the happy path.
 - Keep tests independent — no test should depend on another test's state.
@@ -290,3 +342,4 @@ uv run pytest -v
 - Don't create shared mutable state between tests.
 - Don't ignore flaky tests — fix or remove them.
 - Don't test that Python works (e.g. testing that `dict.get` returns `None` for missing keys).
+- Don't skip tests for "simple" features — they still need coverage.

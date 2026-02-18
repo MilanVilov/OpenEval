@@ -38,6 +38,8 @@ Use the module or area affected:
 | `db` | Models, repositories, migrations |
 | `api` | Routers, endpoints |
 | `ui` | Templates, CSS, static assets |
+| `frontend` | React components, pages, hooks, API client |
+| `e2e` | Playwright tests |
 | `config` | Settings, env vars |
 | `docker` | Dockerfile, docker-compose |
 
@@ -50,6 +52,8 @@ refactor(db): extract vector store repository from monolith
 docs: update PRD with vector store management section
 test(comparers): add tests for semantic similarity threshold
 chore(docker): pin Python base image to 3.12.8-slim
+feat(frontend): add eval config creation form
+test(e2e): add Playwright tests for dataset upload flow
 ```
 
 ### Rules
@@ -75,6 +79,8 @@ fix/csv-upload-encoding
 refactor/split-repositories
 chore/ci-docker-build
 docs/contributing-guide
+feat/frontend-config-page
+test/e2e-run-flow
 ```
 
 ### Rules
@@ -133,7 +139,7 @@ How this was tested (manual, unit tests, etc.).
 
 - **One concern per PR.** Don't mix features.
 - **Small PRs** — under 400 lines changed. Split large work into stacked PRs.
-- **All tests pass** before requesting review.
+- **All tests (backend + Playwright) must pass** before merge.
 - **Self-review first** — read your own diff before asking others.
 - **Squash merge** into main to keep history clean.
 
@@ -169,6 +175,15 @@ uploads/
 # OS
 .DS_Store
 Thumbs.db
+
+# Frontend
+node_modules/
+frontend/dist/
+frontend/.env.local
+
+# Playwright
+frontend/test-results/
+frontend/playwright-report/
 ```
 
 ### Rules
@@ -176,6 +191,7 @@ Thumbs.db
 - **Never commit secrets** (`.env`, API keys).
 - **Never commit app data** (SQLite databases, uploaded files).
 - **Never commit IDE settings** unless the team explicitly agrees.
+- **Never commit `node_modules/`** or build artifacts.
 
 ---
 

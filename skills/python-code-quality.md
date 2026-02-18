@@ -45,7 +45,7 @@ async def save_dataset(dataset: Dataset) -> Dataset:
 **Rules:**
 - Functions do one thing. If you use "and" to describe it, split it.
 - Classes represent one concept. If the class has methods that don't use the same set of attributes, split it.
-- Routers only handle HTTP — no business logic, no direct DB queries.
+- Routers only handle HTTP — no business logic, no direct DB queries. Routers parse the JSON request body, call a service, return a Pydantic response model.
 - Services contain business logic — no HTTP concerns, no SQL.
 - Repositories handle data access — no business logic.
 
@@ -261,12 +261,50 @@ class CompareResult:
 
 ---
 
+## Pydantic Schema Conventions
+
+Request and response schemas for API endpoints live in `src/ai_eval/routers/schemas/`, one file per resource.
+
+- Use `model_config = {"from_attributes": True}` on response models for ORM model conversion.
+- Separate Create/Update request models from Response models — do not reuse the same model for both.
+- Name schemas clearly: `CreateConfigRequest`, `UpdateConfigRequest`, `ConfigResponse`.
+
+```python
+# src/ai_eval/routers/schemas/configs.py
+from pydantic import BaseModel
+
+
+class CreateConfigRequest(BaseModel):
+    """Schema for creating a new eval configuration."""
+    name: str
+    system_prompt: str
+    model: str
+    temperature: float = 0.0
+    comparer_type: str
+
+
+class ConfigResponse(BaseModel):
+    """Schema for returning an eval configuration."""
+    id: str
+    name: str
+    system_prompt: str
+    model: str
+    temperature: float
+    comparer_type: str
+    created_at: str
+
+    model_config = {"from_attributes": True}
+```
+
+---
+
 ## Error Handling
 
 - Use **specific exceptions**, never bare `except:` or `except Exception:` (unless re-raising).
 - Define custom exceptions for domain errors: `DatasetValidationError`, `ComparerError`, `OpenAIClientError`.
 - Let unexpected exceptions propagate — don't swallow them.
 - Always include context in error messages.
+- Return JSON error responses from API endpoints — never HTML.
 
 ```python
 # BAD
@@ -315,6 +353,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ai_eval.db.repositories import ConfigRepository
+from ai_eval.routers.schemas.configs import ConfigResponse, CreateConfigRequest
 from ai_eval.services.eval_runner import EvalRunner
 ```
 
@@ -423,12 +462,16 @@ def get_status_label(status: str) -> str:
 
 ## Testing Conventions
 
+**Every feature must include tests. A feature without tests is not done. No PR will be accepted without accompanying tests.**
+
 - Test file mirrors source: `src/ai_eval/services/eval_runner.py` → `tests/services/test_eval_runner.py`.
 - Test function names: `test_<function>_<scenario>` — `test_parse_csv_missing_columns_raises`.
 - One assertion per test (or closely related assertions).
 - Use `pytest.fixture` for shared setup — no `setUp` methods.
 - Mock external dependencies (OpenAI, filesystem), never mock the thing you're testing.
 - Use `pytest.raises` for expected exceptions.
+- Backend tests use `pytest` + `pytest-asyncio`.
+- Frontend tests use Playwright for E2E testing.
 
 ```python
 async def test_exact_match_comparer_case_insensitive() -> None:
@@ -479,6 +522,8 @@ max-complexity = 8
 - Keep every function under 20 lines of logic.
 - Inject dependencies — never reach into global state from services.
 - Write type hints on everything — let the type checker find bugs.
+- Return Pydantic response models from all route handlers.
+- Write tests for every feature — untested code is incomplete code.
 
 ### Don't
 
@@ -489,3 +534,5 @@ max-complexity = 8
 - Don't use `# type: ignore` without a specific error code and comment.
 - Don't use inheritance for code reuse — prefer composition. Inheritance is for polymorphism only (comparers, providers).
 - Don't write "utils" or "helpers" modules — name the module after what it does.
+- Don't return HTML from route handlers — return Pydantic models.
+- Don't use `Form()`, `TemplateResponse`, `HTMLResponse`, or `RedirectResponse`.

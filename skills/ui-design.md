@@ -1,6 +1,6 @@
-# Skill: UI Design — Cursor Dark Midnight Theme
+# Skill: UI Design — Dark Midnight Theme with Tailwind + Shadcn/ui
 
-This skill defines the visual design system for all ai-eval frontend pages. Every template, CSS rule, and HTML component MUST follow these specifications.
+This skill defines the visual design system for all ai-eval frontend pages. Every React component, Tailwind class, and Shadcn/ui usage MUST follow these specifications.
 
 ---
 
@@ -14,377 +14,510 @@ This skill defines the visual design system for all ai-eval frontend pages. Ever
 - **Soft radius, no hard edges** — 6–8px radius on interactive elements.
 - **Subtle elevation via shadow, not color lift** — depth comes from shadow opacity, not brighter surfaces.
 - **Restrained color usage** — semantic colors (red/green/amber) only for status; everything else is monochromatic + blue accent.
+- **Tailwind-first** — use utility classes for all styling. Custom CSS is a last resort.
+- **Shadcn/ui components** — use the component library for all standard UI elements. Don't reinvent buttons, inputs, cards, etc.
 
 ---
 
 ## Color Palette
 
-### Backgrounds
+All theme colors are defined in `tailwind.config.ts` and mapped to CSS variables in `globals.css` for Shadcn/ui integration.
 
-| Token | Hex | Usage |
-|-------|-----|-------|
-| `--bg-primary` | `#0d1117` | Page body, deepest background |
-| `--bg-secondary` | `#14141b` | Sidebar, panel surfaces |
-| `--bg-card` | `#1a1a24` | Cards, dropdowns, elevated containers |
-| `--bg-input` | `#1c1c28` | Form fields, search bars |
-| `--bg-hover` | `#1e1e2e` | Hover state for rows, list items |
+### Tailwind Config
 
-### Borders
+```ts
+// tailwind.config.ts
+import type { Config } from 'tailwindcss';
 
-| Token | Hex | Usage |
-|-------|-----|-------|
-| `--border-primary` | `#2a2a3c` | Panel dividers, card borders |
-| `--border-muted` | `#1e1e2e` | Subtle separators, table row dividers |
-| `--border-focus` | `#3b82f6` | Input focus ring |
-| `--border-hover` | `#2e2e42` | Interactive element hover border |
+export default {
+  darkMode: 'class',
+  content: ['./index.html', './src/**/*.{ts,tsx}'],
+  theme: {
+    extend: {
+      colors: {
+        background: {
+          DEFAULT: '#0d1117',
+          secondary: '#14141b',
+          card: '#1a1a24',
+          input: '#1c1c28',
+          hover: '#1e1e2e',
+        },
+        border: {
+          DEFAULT: '#2a2a3c',
+          muted: '#1e1e2e',
+          focus: '#3b82f6',
+          hover: '#2e2e42',
+        },
+        foreground: {
+          DEFAULT: '#e4e4e8',
+          secondary: '#8b8b9e',
+          disabled: '#4a4a5c',
+          link: '#60a5fa',
+        },
+        accent: {
+          DEFAULT: '#3b82f6',
+          secondary: '#6366f1',
+          purple: '#8b5cf6',
+          muted: 'rgba(59,130,246,0.12)',
+        },
+        success: '#22c55e',
+        error: '#ef4444',
+        warning: '#f59e0b',
+        info: '#3b82f6',
+      },
+      fontFamily: {
+        sans: ['"Inter"', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'system-ui', 'sans-serif'],
+        mono: ['"SF Mono"', '"Fira Code"', '"JetBrains Mono"', 'Menlo', 'Monaco', 'monospace'],
+      },
+      fontSize: {
+        xs: ['11px', { lineHeight: '1.5' }],
+        sm: ['13px', { lineHeight: '1.5' }],
+        base: ['14px', { lineHeight: '1.5' }],
+        lg: ['16px', { lineHeight: '1.5' }],
+        xl: ['20px', { lineHeight: '1.4' }],
+      },
+      borderRadius: {
+        sm: '4px',
+        DEFAULT: '6px',
+        md: '8px',
+        lg: '12px',
+        full: '9999px',
+      },
+      boxShadow: {
+        subtle: '0 1px 2px rgba(0,0,0,0.3)',
+        medium: '0 4px 12px rgba(0,0,0,0.4)',
+        heavy: '0 8px 30px rgba(0,0,0,0.5)',
+      },
+      spacing: {
+        '1': '4px',
+        '2': '8px',
+        '3': '12px',
+        '4': '16px',
+        '5': '20px',
+        '6': '24px',
+      },
+    },
+  },
+  plugins: [require('tailwindcss-animate')],
+} satisfies Config;
+```
 
-### Text
+### CSS Variables for Shadcn/ui (`globals.css`)
 
-| Token | Hex | Usage |
-|-------|-----|-------|
-| `--text-primary` | `#e4e4e8` | Body text, headings |
-| `--text-secondary` | `#8b8b9e` | Descriptions, labels, metadata |
-| `--text-disabled` | `#4a4a5c` | Inactive elements |
-| `--text-link` | `#60a5fa` | Hyperlinks |
+Shadcn/ui reads its colors from CSS variables. Map the theme tokens here:
 
-### Accent
+```css
+/* frontend/src/globals.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-| Token | Hex | Usage |
-|-------|-----|-------|
-| `--accent-primary` | `#3b82f6` | Primary buttons, active indicators, focus rings |
-| `--accent-secondary` | `#6366f1` | Hover on accent elements, AI feature highlights |
-| `--accent-purple` | `#8b5cf6` | Gradient endpoint, special features |
-| `--accent-muted` | `rgba(59,130,246,0.12)` | Selected item backgrounds, badges |
+@layer base {
+  :root {
+    /* Backgrounds */
+    --background: 222 22% 7%;          /* #0d1117 */
+    --secondary: 240 16% 9%;           /* #14141b */
+    --card: 240 16% 12%;               /* #1a1a24 */
+    --input: 240 16% 13%;              /* #1c1c28 */
+    --muted: 240 16% 15%;              /* #1e1e2e */
 
-### Semantic / Status
+    /* Foreground */
+    --foreground: 240 5% 91%;          /* #e4e4e8 */
+    --muted-foreground: 240 10% 58%;   /* #8b8b9e */
 
-| Token | Hex | Usage |
-|-------|-----|-------|
-| `--color-success` | `#22c55e` | Passed evals, success states |
-| `--color-error` | `#ef4444` | Failed evals, errors, destructive actions |
-| `--color-warning` | `#f59e0b` | Warnings, caution states |
-| `--color-info` | `#3b82f6` | Informational badges |
+    /* Borders */
+    --border: 240 18% 20%;             /* #2a2a3c */
+    --ring: 217 91% 60%;               /* #3b82f6 */
+
+    /* Accent / Primary */
+    --primary: 217 91% 60%;            /* #3b82f6 */
+    --primary-foreground: 0 0% 100%;   /* #ffffff */
+
+    /* Destructive */
+    --destructive: 0 84% 60%;          /* #ef4444 */
+    --destructive-foreground: 0 0% 100%;
+
+    /* Popover */
+    --popover: 240 16% 12%;            /* #1a1a24 */
+    --popover-foreground: 240 5% 91%;  /* #e4e4e8 */
+
+    /* Radius */
+    --radius: 6px;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans text-sm antialiased;
+  }
+}
+
+/* Scrollbar styling */
+@layer base {
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.14);
+  }
+}
+```
+
+### Quick Reference Table
+
+| Token | Hex | Tailwind class |
+|-------|-----|----------------|
+| Background | `#0d1117` | `bg-background` |
+| Secondary bg | `#14141b` | `bg-background-secondary` |
+| Card bg | `#1a1a24` | `bg-background-card` |
+| Input bg | `#1c1c28` | `bg-background-input` |
+| Hover bg | `#1e1e2e` | `bg-background-hover` |
+| Border | `#2a2a3c` | `border-border` |
+| Border muted | `#1e1e2e` | `border-border-muted` |
+| Border focus | `#3b82f6` | `border-border-focus` / `ring-border-focus` |
+| Text primary | `#e4e4e8` | `text-foreground` |
+| Text secondary | `#8b8b9e` | `text-foreground-secondary` |
+| Text disabled | `#4a4a5c` | `text-foreground-disabled` |
+| Link | `#60a5fa` | `text-foreground-link` |
+| Accent | `#3b82f6` | `bg-accent` / `text-accent` |
+| Accent secondary | `#6366f1` | `bg-accent-secondary` |
+| Accent purple | `#8b5cf6` | `bg-accent-purple` |
+| Accent muted | `rgba(59,130,246,0.12)` | `bg-accent-muted` |
+| Success | `#22c55e` | `text-success` / `bg-success` |
+| Error | `#ef4444` | `text-error` / `bg-error` |
+| Warning | `#f59e0b` | `text-warning` / `bg-warning` |
+| Info | `#3b82f6` | `text-info` / `bg-info` |
 
 ---
 
 ## Typography
 
-| Property | Value |
-|----------|-------|
-| **UI font stack** | `"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif` |
-| **Mono font stack** | `"SF Mono", "Fira Code", "JetBrains Mono", Menlo, Monaco, monospace` |
-| **Base font size** | `13px` |
-| **Line height** | `1.5` |
-| **Font weight (normal)** | `400` |
-| **Font weight (semibold)** | `500` (headings, labels, active tabs) |
-| **Font weight (bold)** | `600` (page titles, emphasis) |
-| **Letter spacing** | `0` to `0.01em` |
+### Font Stacks
+
+| Purpose | Tailwind class | Fonts |
+|---------|---------------|-------|
+| UI text | `font-sans` | Inter, -apple-system, BlinkMacSystemFont, Segoe UI, system-ui, sans-serif |
+| Code/prompts | `font-mono` | SF Mono, Fira Code, JetBrains Mono, Menlo, Monaco, monospace |
 
 ### Heading Scale
 
-| Level | Size | Weight |
-|-------|------|--------|
-| Page title (`h1`) | `20px` | `600` |
-| Section title (`h2`) | `16px` | `600` |
-| Subsection (`h3`) | `14px` | `500` |
-| Body | `13px` | `400` |
-| Small/caption | `11px` | `400`–`500` |
+| Level | Tailwind classes | Size | Weight |
+|-------|-----------------|------|--------|
+| Page title (`h1`) | `text-xl font-semibold` | 20px | 600 |
+| Section title (`h2`) | `text-lg font-semibold` | 16px | 600 |
+| Subsection (`h3`) | `text-base font-medium` | 14px | 500 |
+| Body | `text-sm font-normal` | 13px | 400 |
+| Small/caption | `text-xs font-normal` or `text-xs font-medium` | 11px | 400–500 |
+
+### Usage
+
+```tsx
+<h1 className="text-xl font-semibold text-foreground">Eval Runs</h1>
+<p className="text-sm text-foreground-secondary">Select a configuration to run.</p>
+<span className="text-xs font-medium uppercase tracking-wide text-foreground-secondary">Status</span>
+```
 
 ---
 
 ## Spacing
 
-Base unit: **4px**. All spacing must be a multiple of 4.
+Base unit: **4px**. All spacing must be a multiple of 4. The Tailwind config maps spacing values directly:
 
-| Token | Value | Usage |
-|-------|-------|-------|
-| `--space-1` | `4px` | Tight gaps, icon-to-text |
-| `--space-2` | `8px` | Between related elements |
-| `--space-3` | `12px` | Section gaps |
-| `--space-4` | `16px` | Card inner padding, standard gap |
-| `--space-5` | `20px` | Card inner padding (large), page padding |
-| `--space-6` | `24px` | Page-level margins |
+| Tailwind class | Value | Usage |
+|----------------|-------|-------|
+| `p-1` / `gap-1` | 4px | Tight gaps, icon-to-text |
+| `p-2` / `gap-2` | 8px | Between related elements |
+| `p-3` / `gap-3` | 12px | Section gaps |
+| `p-4` / `gap-4` | 16px | Card inner padding, standard gap |
+| `p-5` / `gap-5` | 20px | Card inner padding (large), page padding |
+| `p-6` / `gap-6` | 24px | Page-level margins |
 
 ---
 
 ## Border Radius
 
-| Element | Radius |
-|---------|--------|
-| Buttons | `6px` |
-| Input fields | `6px` |
-| Cards, panels | `8px` |
-| Dropdowns, modals | `12px` |
-| Tooltips, badges | `4px` |
-| Pills, tags | `9999px` |
+| Element | Tailwind class | Value |
+|---------|---------------|-------|
+| Badges, tooltips | `rounded-sm` | 4px |
+| Buttons, inputs | `rounded` | 6px |
+| Cards, panels | `rounded-md` | 8px |
+| Dropdowns, modals | `rounded-lg` | 12px |
+| Pills, tags | `rounded-full` | 9999px |
 
 ---
 
 ## Components
 
-### Buttons
+All standard UI elements use Shadcn/ui components. Customize with Tailwind classes.
 
-**Primary:**
-```css
-.btn-primary {
-  background: var(--accent-primary);    /* #3b82f6 */
-  color: #ffffff;
-  border: none;
-  border-radius: 6px;
-  padding: 8px 16px;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 150ms ease;
-}
-.btn-primary:hover {
-  background: #2563eb;
-}
+### Button
+
+```tsx
+import { Button } from '@/components/ui/button';
+
+// Primary action
+<Button>Create Config</Button>
+
+// Secondary / outline
+<Button variant="outline">Cancel</Button>
+
+// Ghost (minimal)
+<Button variant="ghost">Settings</Button>
+
+// Danger / destructive
+<Button variant="destructive">Delete Run</Button>
+
+// With icon
+import { Play } from 'lucide-react';
+<Button>
+  <Play className="mr-2 h-4 w-4" />
+  Start Run
+</Button>
+
+// Small variant
+<Button size="sm">View</Button>
 ```
 
-**Secondary / Ghost:**
-```css
-.btn-secondary {
-  background: transparent;
-  color: var(--text-primary);           /* #e4e4e8 */
-  border: 1px solid var(--border-primary); /* #2a2a3c */
-  border-radius: 6px;
-  padding: 8px 16px;
-  font-size: 13px;
-  font-weight: 400;
-  cursor: pointer;
-  transition: all 150ms ease;
-}
-.btn-secondary:hover {
-  background: var(--bg-hover);          /* #1e1e2e */
-  border-color: var(--border-hover);    /* #2e2e42 */
-}
-```
+### Input
 
-**Danger:**
-```css
-.btn-danger {
-  background: transparent;
-  color: var(--color-error);            /* #ef4444 */
-  border: 1px solid var(--color-error);
-  border-radius: 6px;
-  padding: 8px 16px;
-  font-size: 13px;
-  font-weight: 500;
-  transition: all 150ms ease;
-}
-.btn-danger:hover {
-  background: rgba(239, 68, 68, 0.1);
-}
-```
+```tsx
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
-### Input Fields
-
-```css
-.input {
-  background: var(--bg-input);          /* #1c1c28 */
-  color: var(--text-primary);           /* #e4e4e8 */
-  border: 1px solid var(--border-primary); /* #2a2a3c */
-  border-radius: 6px;
-  padding: 8px 12px;
-  font-size: 13px;
-  font-family: inherit;
-  transition: border-color 150ms ease, box-shadow 150ms ease;
-}
-.input:focus {
-  border-color: var(--border-focus);    /* #3b82f6 */
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
-  outline: none;
-}
-.input::placeholder {
-  color: var(--text-disabled);          /* #4a4a5c */
-}
+<div className="space-y-2">
+  <Label className="text-xs font-medium uppercase tracking-wide text-foreground-secondary">
+    Config Name
+  </Label>
+  <Input
+    placeholder="My eval config"
+    className="bg-background-input border-border"
+  />
+</div>
 ```
 
 ### Textarea (Prompt Editor)
 
-Same as input, but with:
-```css
-.textarea {
-  min-height: 120px;
-  resize: vertical;
-  font-family: var(--font-mono);        /* monospace for prompts */
-  line-height: 1.6;
+```tsx
+import { Textarea } from '@/components/ui/textarea';
+
+<Textarea
+  placeholder="Enter your prompt template..."
+  className="bg-background-input border-border font-mono min-h-[120px]"
+/>
+```
+
+### Card
+
+```tsx
+import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
+
+<Card className="bg-background-card border-border-muted">
+  <CardHeader>
+    <CardTitle className="text-lg font-semibold">Eval Config</CardTitle>
+  </CardHeader>
+  <CardContent>
+    <p className="text-sm text-foreground-secondary">
+      Configure your evaluation parameters.
+    </p>
+  </CardContent>
+  <CardFooter className="flex justify-end gap-2">
+    <Button variant="outline">Cancel</Button>
+    <Button>Save</Button>
+  </CardFooter>
+</Card>
+```
+
+### Table
+
+```tsx
+import {
+  Table, TableHeader, TableBody, TableRow,
+  TableHead, TableCell,
+} from '@/components/ui/table';
+
+<Table>
+  <TableHeader>
+    <TableRow className="bg-background-secondary border-border">
+      <TableHead className="text-xs font-semibold uppercase tracking-wide text-foreground-secondary">
+        Name
+      </TableHead>
+      <TableHead className="text-xs font-semibold uppercase tracking-wide text-foreground-secondary">
+        Status
+      </TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    <TableRow className="border-border-muted hover:bg-[rgba(255,255,255,0.03)]">
+      <TableCell className="text-sm">My Config</TableCell>
+      <TableCell><StatusBadge status="passed" /></TableCell>
+    </TableRow>
+  </TableBody>
+</Table>
+```
+
+### Badge
+
+```tsx
+import { Badge } from '@/components/ui/badge';
+
+// Status badges — use inline Tailwind for semantic colors
+<Badge className="bg-success/10 text-success border-0">Passed</Badge>
+<Badge className="bg-error/10 text-error border-0">Failed</Badge>
+<Badge className="bg-warning/10 text-warning border-0">Running</Badge>
+<Badge className="bg-info/10 text-foreground-link border-0">Pending</Badge>
+
+// Reusable pattern:
+interface StatusBadgeProps {
+  status: 'passed' | 'failed' | 'running' | 'pending';
+}
+
+const statusStyles: Record<string, string> = {
+  passed: 'bg-success/10 text-success',
+  failed: 'bg-error/10 text-error',
+  running: 'bg-warning/10 text-warning',
+  pending: 'bg-info/10 text-foreground-link',
+};
+
+export function StatusBadge({ status }: StatusBadgeProps) {
+  return (
+    <Badge className={`${statusStyles[status]} border-0 rounded-full`}>
+      {status}
+    </Badge>
+  );
 }
 ```
 
-### Cards
+### Progress
 
-```css
-.card {
-  background: var(--bg-card);           /* #1a1a24 */
-  border: 1px solid var(--border-muted); /* #1e1e2e */
-  border-radius: 8px;
-  padding: 20px;
-}
-```
+```tsx
+import { Progress } from '@/components/ui/progress';
 
-### Tables
-
-```css
-.table {
-  width: 100%;
-  border-collapse: collapse;
-}
-.table th {
-  background: var(--bg-secondary);      /* #14141b */
-  color: var(--text-secondary);         /* #8b8b9e */
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 10px 16px;
-  text-align: left;
-  border-bottom: 1px solid var(--border-primary);
-}
-.table td {
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--border-muted); /* #1e1e2e */
-  font-size: 13px;
-  color: var(--text-primary);
-}
-.table tr:hover td {
-  background: rgba(255, 255, 255, 0.03);
-}
+<Progress
+  value={75}
+  className="h-1.5 bg-background-input [&>div]:bg-gradient-to-r [&>div]:from-accent [&>div]:to-accent-purple"
+/>
 ```
 
 ### Select / Dropdown
 
-Same styling as `.input`. Use Alpine.js for custom dropdowns where needed.
+```tsx
+import {
+  Select, SelectTrigger, SelectValue,
+  SelectContent, SelectItem,
+} from '@/components/ui/select';
 
-### Badges / Pills
-
-```css
-.badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 8px;
-  border-radius: 9999px;
-  font-size: 11px;
-  font-weight: 500;
-}
-.badge-success {
-  background: rgba(34, 197, 94, 0.12);
-  color: #22c55e;
-}
-.badge-error {
-  background: rgba(239, 68, 68, 0.12);
-  color: #ef4444;
-}
-.badge-info {
-  background: rgba(59, 130, 246, 0.12);
-  color: #60a5fa;
-}
-.badge-warning {
-  background: rgba(245, 158, 11, 0.12);
-  color: #f59e0b;
-}
+<Select>
+  <SelectTrigger className="bg-background-input border-border">
+    <SelectValue placeholder="Choose a model" />
+  </SelectTrigger>
+  <SelectContent className="bg-background-card border-border">
+    <SelectItem value="gpt-4o">GPT-4o</SelectItem>
+    <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
+  </SelectContent>
+</Select>
 ```
 
-### Progress Bar
+### Dialog / Modal
 
-```css
-.progress-bar {
-  width: 100%;
-  height: 6px;
-  background: var(--bg-input);
-  border-radius: 9999px;
-  overflow: hidden;
-}
-.progress-bar-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--accent-primary), var(--accent-purple));
-  border-radius: 9999px;
-  transition: width 300ms ease;
-}
+```tsx
+import {
+  Dialog, DialogTrigger, DialogContent,
+  DialogHeader, DialogTitle, DialogFooter,
+} from '@/components/ui/dialog';
+
+<Dialog>
+  <DialogTrigger asChild>
+    <Button variant="destructive">Delete</Button>
+  </DialogTrigger>
+  <DialogContent className="bg-background-card border-border">
+    <DialogHeader>
+      <DialogTitle>Confirm Deletion</DialogTitle>
+    </DialogHeader>
+    <p className="text-sm text-foreground-secondary">
+      This action cannot be undone.
+    </p>
+    <DialogFooter>
+      <Button variant="outline">Cancel</Button>
+      <Button variant="destructive">Delete</Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
 ```
 
 ### Summary Stats (Run Detail)
 
-Use a horizontal row of stat cards:
-```css
-.stat-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-muted);
-  border-radius: 8px;
-  padding: 16px 20px;
-  text-align: center;
+```tsx
+interface StatCardProps {
+  label: string;
+  value: string | number;
 }
-.stat-card .stat-value {
-  font-size: 24px;
-  font-weight: 600;
-  color: var(--text-primary);
+
+export function StatCard({ label, value }: StatCardProps) {
+  return (
+    <Card className="bg-background-card border-border-muted text-center p-4">
+      <div className="text-2xl font-semibold text-foreground">{value}</div>
+      <div className="text-xs font-medium uppercase tracking-wide text-foreground-secondary mt-1">
+        {label}
+      </div>
+    </Card>
+  );
 }
-.stat-card .stat-label {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-top: 4px;
-}
+
+// Usage: 4-column grid
+<div className="grid grid-cols-4 gap-4">
+  <StatCard label="Total" value={100} />
+  <StatCard label="Passed" value={87} />
+  <StatCard label="Failed" value={13} />
+  <StatCard label="Avg Score" value="0.87" />
+</div>
 ```
 
 ### Navigation / Sidebar
 
-```css
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-radius: 6px;
-  color: var(--text-secondary);
-  font-size: 13px;
-  font-weight: 400;
-  transition: all 150ms ease;
-  text-decoration: none;
-}
-.nav-item:hover {
-  color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.04);
-}
-.nav-item.active {
-  color: var(--text-primary);
-  background: var(--accent-muted);      /* rgba(59,130,246,0.12) */
-  border-left: 2px solid var(--accent-primary);
-}
-```
+```tsx
+import { NavLink } from 'react-router-dom';
+import { BarChart3, Settings, Play, Database, FileText } from 'lucide-react';
 
----
-
-## Shadows
-
-| Level | Value | Usage |
-|-------|-------|-------|
-| Subtle | `0 1px 2px rgba(0,0,0,0.3)` | Cards resting state |
-| Medium | `0 4px 12px rgba(0,0,0,0.4)` | Dropdowns, popovers |
-| Heavy | `0 8px 30px rgba(0,0,0,0.5)` | Modals |
-| Backdrop | `rgba(0,0,0,0.6)` | Modal overlay |
-
----
-
-## Scrollbars
-
-```css
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+interface NavItemProps {
+  to: string;
+  icon: React.ReactNode;
+  label: string;
 }
-::-webkit-scrollbar-track {
-  background: transparent;
+
+function NavItem({ to, icon, label }: NavItemProps) {
+  return (
+    <NavLink
+      to={to}
+      className={({ isActive }) =>
+        `flex items-center gap-2 rounded px-3 py-2 text-sm transition-all duration-150
+         ${isActive
+           ? 'bg-accent-muted text-foreground border-l-2 border-accent'
+           : 'text-foreground-secondary hover:text-foreground hover:bg-[rgba(255,255,255,0.04)]'
+         }`
+      }
+    >
+      {icon}
+      {label}
+    </NavLink>
+  );
 }
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.14);
+
+export function Sidebar() {
+  return (
+    <aside className="flex w-[220px] flex-col bg-background-secondary border-r border-border p-4 gap-1">
+      <NavItem to="/" icon={<BarChart3 className="h-4 w-4" />} label="Dashboard" />
+      <NavItem to="/configs" icon={<Settings className="h-4 w-4" />} label="Configs" />
+      <NavItem to="/datasets" icon={<Database className="h-4 w-4" />} label="Datasets" />
+      <NavItem to="/runs" icon={<Play className="h-4 w-4" />} label="Runs" />
+      <NavItem to="/vector-stores" icon={<FileText className="h-4 w-4" />} label="Vector Stores" />
+    </aside>
+  );
 }
 ```
 
@@ -392,47 +525,145 @@ Use a horizontal row of stat cards:
 
 ## Layout Patterns
 
-### Page Layout
+### App Shell
 
-- Sidebar: 220px wide, fixed, `var(--bg-secondary)` background.
-- Main content: flex-grow, padded `24px`, max-width `1200px` for readability.
-- Top bar: optional, same `var(--bg-secondary)`, 48px height, page title + breadcrumb.
+```tsx
+// AppLayout.tsx
+import { Outlet } from 'react-router-dom';
+import { Sidebar } from '@/components/Sidebar';
+
+export function AppLayout() {
+  return (
+    <div className="flex h-screen bg-background">
+      <Sidebar />
+      <main className="flex-1 overflow-y-auto p-6">
+        <div className="mx-auto max-w-[1200px]">
+          <Outlet />
+        </div>
+      </main>
+    </div>
+  );
+}
+```
+
+### Page Header
+
+```tsx
+interface PageHeaderProps {
+  title: string;
+  description?: string;
+  action?: React.ReactNode;
+}
+
+export function PageHeader({ title, description, action }: PageHeaderProps) {
+  return (
+    <div className="flex items-center justify-between mb-6">
+      <div>
+        <h1 className="text-xl font-semibold text-foreground">{title}</h1>
+        {description && (
+          <p className="text-sm text-foreground-secondary mt-1">{description}</p>
+        )}
+      </div>
+      {action}
+    </div>
+  );
+}
+```
 
 ### Form Layout
 
-- Labels above inputs, `var(--text-secondary)`, `11px`, `font-weight: 500`, uppercase.
-- Vertical gap between form groups: `16px`.
-- Action buttons at bottom, right-aligned, primary + secondary pair.
+```tsx
+<form className="space-y-4 max-w-[600px]">
+  <div className="space-y-2">
+    <Label className="text-xs font-medium uppercase tracking-wide text-foreground-secondary">
+      Name
+    </Label>
+    <Input className="bg-background-input border-border" />
+  </div>
 
-### Grid
+  <div className="space-y-2">
+    <Label className="text-xs font-medium uppercase tracking-wide text-foreground-secondary">
+      Prompt Template
+    </Label>
+    <Textarea className="bg-background-input border-border font-mono min-h-[120px]" />
+  </div>
 
-- Use CSS Grid or Flexbox with `gap: 16px`.
-- Stat cards in run detail: 4-column grid on desktop, 2-column on mobile.
-- Results table: full-width, no horizontal scroll (truncate long text with `…`).
+  <div className="flex justify-end gap-2 pt-4">
+    <Button variant="outline">Cancel</Button>
+    <Button type="submit">Save</Button>
+  </div>
+</form>
+```
+
+### Responsive Grid
+
+```tsx
+// Stat cards: 4-col desktop, 2-col mobile
+<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+  {stats.map(s => <StatCard key={s.label} {...s} />)}
+</div>
+
+// Content cards: 3-col desktop, 1-col mobile
+<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+  {items.map(item => <ItemCard key={item.id} {...item} />)}
+</div>
+```
+
+---
+
+## Shadows
+
+Use the custom shadow utilities defined in `tailwind.config.ts`:
+
+| Tailwind class | Value | Usage |
+|----------------|-------|-------|
+| `shadow-subtle` | `0 1px 2px rgba(0,0,0,0.3)` | Cards resting state |
+| `shadow-medium` | `0 4px 12px rgba(0,0,0,0.4)` | Dropdowns, popovers |
+| `shadow-heavy` | `0 8px 30px rgba(0,0,0,0.5)` | Modals |
+
+Modal backdrop: Shadcn/ui `DialogOverlay` uses `bg-black/60` by default — keep this.
 
 ---
 
 ## Transitions
 
-All interactive state changes use `150ms ease`:
+All interactive state changes use `duration-150 ease`:
 
-```css
-* {
-  transition-duration: 150ms;
-  transition-timing-function: ease;
-}
+```tsx
+// Applied via Tailwind on interactive elements
+<button className="transition-all duration-150 ease-in-out ...">
+
+// Or on specific properties
+<div className="transition-colors duration-150 ...">
 ```
 
-Apply to: `background`, `border-color`, `color`, `box-shadow`, `opacity`, `transform`.
+Properties to transition: `background`, `border-color`, `color`, `box-shadow`, `opacity`, `transform`.
 
 ---
 
 ## Icons
 
-- Use **Lucide Icons** (the open-source fork of Feather Icons).
-- Size: 16px for inline, 20px for nav/action buttons.
-- Color: inherits from text color (`currentColor`).
-- Stroke width: 1.5–2px.
+Use **Lucide React** (ships with Shadcn/ui):
+
+```tsx
+import { Settings, Play, FileText, Trash2, Plus, Search } from 'lucide-react';
+
+// Inline icon (16px)
+<Settings className="h-4 w-4" />
+
+// Nav / action button icon (20px)
+<Play className="h-5 w-5" />
+
+// Icon inherits text color via currentColor
+<span className="text-foreground-secondary">
+  <FileText className="h-4 w-4" />
+</span>
+```
+
+Icon sizing rules:
+- **16px** (`h-4 w-4`): inline with text, table cells, badges
+- **20px** (`h-5 w-5`): navigation items, action buttons
+- Stroke width: use Lucide defaults (2px). Do not override.
 
 ---
 
@@ -440,17 +671,25 @@ Apply to: `background`, `border-color`, `color`, `box-shadow`, `opacity`, `trans
 
 ### Do
 
-- Use CSS custom properties (the tokens above) for all colors.
-- Keep surfaces dark — never use backgrounds lighter than `#1e1e2e`.
+- Use Tailwind utility classes for all styling. No inline `style` props.
+- Use Shadcn/ui components for all standard UI elements (Button, Input, Card, Table, Dialog, Select, Badge, Progress, etc.).
+- Use the theme colors via Tailwind classes (`bg-background-card`, `text-foreground-secondary`, etc.).
+- Keep surfaces dark — never use backgrounds lighter than `#1e1e2e` (`bg-background-hover`).
 - Use the accent blue sparingly — only for interactive elements and active states.
 - Match the 4px spacing grid exactly.
-- Use `font-weight: 500` or `600` for emphasis, never `700`+ (too heavy for this theme).
+- Use `font-medium` or `font-semibold` for emphasis, never `font-bold` or heavier.
+- Compose Shadcn/ui components with `className` overrides for theme customization.
+- Use the `cn()` utility from `@/lib/utils` for conditional class merging.
 
 ### Don't
 
+- Never write custom CSS when a Tailwind utility exists.
+- Never build a custom component when Shadcn/ui already provides one.
+- Never use `style={{}}` inline styles in JSX.
 - Never use pure white (`#ffffff`) for backgrounds or large text areas.
 - Never use pure black (`#000000`) for backgrounds — always add the blue tint.
 - Don't use bright/saturated colors for non-status purposes.
-- Don't round corners above `12px` (except pills at `9999px`).
-- Don't use box shadows lighter than `rgba(0,0,0,0.3)` — they'll look washed out.
-- Don't mix font families — body is Inter, code is monospace. No exceptions.
+- Don't round corners above `rounded-lg` (12px) except `rounded-full` for pills.
+- Don't use shadow values lighter than `rgba(0,0,0,0.3)`.
+- Don't mix font families — body is `font-sans` (Inter), code is `font-mono`. No exceptions.
+- Don't import CSS files in components — all styling goes through Tailwind.

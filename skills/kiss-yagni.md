@@ -1,6 +1,6 @@
 # Skill: KISS & YAGNI — Simplicity-First Development
 
-This skill enforces the KISS (Keep It Simple, Stupid) and YAGNI (You Aren't Gonna Need It) principles across all ai-eval code. These apply to Python, templates, CSS, architecture decisions, and configuration.
+This skill enforces the KISS (Keep It Simple, Stupid) and YAGNI (You Aren't Gonna Need It) principles across all ai-eval code. These apply to Python, React components, CSS, architecture decisions, and configuration.
 
 ---
 
@@ -77,6 +77,43 @@ def validate_row_count(count: int) -> None:
 
 ---
 
+## Frontend KISS Rules
+
+1. **Plain `fetch` over data-fetching libraries.** For this app's size, `fetch` + `useState`/`useEffect` is sufficient. No React Query, no SWR, no Axios.
+
+```tsx
+// BAD: adding a data-fetching library for a simple app
+import { useQuery } from '@tanstack/react-query';
+const { data } = useQuery(['configs'], fetchConfigs);
+
+// GOOD: plain fetch
+const [configs, setConfigs] = useState<Config[]>([]);
+useEffect(() => {
+  fetch('/api/configs').then(r => r.json()).then(setConfigs);
+}, []);
+```
+
+2. **`useState`/`useEffect` over state management libraries.** No Redux, no Zustand, no Jotai. Component-local state and prop drilling are fine for this app.
+
+3. **One component per file, under 100 lines.** If a component exceeds 100 lines, split it.
+
+4. **Tailwind classes over custom CSS files.** Use Tailwind utility classes directly. No custom CSS unless Tailwind genuinely can't express it.
+
+5. **Shadcn/ui components over custom implementations.** Don't build buttons, dialogs, tables, or form controls from scratch — use Shadcn/ui.
+
+```tsx
+// BAD: custom modal implementation
+function Modal({ open, children }) {
+  if (!open) return null;
+  return <div className="fixed inset-0 bg-black/50">...</div>;
+}
+
+// GOOD: use Shadcn/ui
+import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
+```
+
+---
+
 ## YAGNI — You Aren't Gonna Need It
 
 Don't build it until you need it. Speculative code is a maintenance burden.
@@ -121,7 +158,7 @@ async def create_run(config_id: str, dataset_id: str) -> EvalRun:
 
 ```python
 # BAD: making everything configurable from day 1
-HTMX_POLL_INTERVAL = int(os.getenv("HTMX_POLL_INTERVAL", "2000"))
+POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", "2000"))
 MAX_CSV_PREVIEW_ROWS = int(os.getenv("MAX_CSV_PREVIEW_ROWS", "10"))
 TABLE_PAGE_SIZE = int(os.getenv("TABLE_PAGE_SIZE", "50"))
 
@@ -163,16 +200,20 @@ These are common over-engineering traps. Do NOT build until there's a proven nee
 
 | Don't build | Instead |
 |---|---|
+| WebSocket for progress | `setInterval` + fetch polling is fine |
+| Redux / Zustand / Jotai | `useState` + `useEffect` is sufficient |
+| React Query / SWR | Plain fetch is fine for this app size |
+| CSS-in-JS (styled-components) | Tailwind CSS |
+| Server-side rendering (Next.js) | Vite SPA is sufficient |
+| Custom component library | Shadcn/ui covers all needs |
 | Event system / message bus | Direct function calls |
-| Caching layer | SQLite is fast enough for local use |
-| Rate limiter middleware | `asyncio.Semaphore` in the eval runner is sufficient |
-| Background job queue (Celery, etc.) | FastAPI `BackgroundTasks` |
-| User/role system | No auth — it's a shared local tool |
-| API versioning (`/v1/`, `/v2/`) | Single version, change in place |
-| WebSocket for progress | HTMX polling every 2s is fine |
-| Pagination framework | Simple limit/offset in SQL |
+| Caching layer | SQLite is fast enough |
+| Background job queue (Celery) | FastAPI BackgroundTasks |
+| User/role system | No auth |
+| API versioning | Single version |
+| Pagination framework | Simple limit/offset |
 | Custom ORM query builder | SQLAlchemy is the query builder |
-| Configuration file format (YAML/TOML) | Environment variables via Pydantic Settings |
+| Config file format (YAML) | Environment variables via Pydantic Settings |
 
 ---
 
@@ -194,6 +235,7 @@ Ask yourself:
 - Write the dumbest code that works, then stop.
 - Delete code that isn't earning its keep.
 - Use built-in Python features before reaching for a library.
+- Use Shadcn/ui components before building custom ones.
 - Hardcode first, configure later (only when needed).
 - Refactor to simplify, not to add flexibility.
 
@@ -205,3 +247,4 @@ Ask yourself:
 - Don't keep dead code, unused imports, or commented-out blocks.
 - Don't optimize performance before measuring a problem.
 - Don't design for scale you don't have — this app runs on one machine.
+- Don't install a library when plain `fetch` or `useState` will do.

@@ -2,9 +2,9 @@
 
 ## Overview
 
-**ai-eval** is an open-source evaluation framework for testing AI prompt configurations with OpenAI hosted tools (file_search, shell). Users configure a prompt, attach tools, upload a CSV dataset of input/expected-output pairs, and run batch evaluations. Results are compared using pluggable comparers (exact match, semantic similarity, LLM-as-judge, pattern match, JSON schema match) and displayed in a server-rendered web dashboard.
+**ai-eval** is an open-source evaluation framework for testing AI prompt configurations with OpenAI hosted tools (file_search, shell). Users configure a prompt, attach tools, upload a CSV dataset of input/expected-output pairs, and run batch evaluations. Results are compared using pluggable comparers (exact match, semantic similarity, LLM-as-judge, pattern match, JSON schema match) and displayed in a React single-page application that communicates with a FastAPI JSON API backend.
 
-The app is packaged as a Docker image. Run it locally or on a shared server — no user accounts, no auth. Anyone who can reach the URL can use it.
+The app is packaged as a Docker image with a multi-stage build: the React frontend is compiled to static assets and served by FastAPI. Run it locally or on a shared server — no user accounts, no auth. Anyone who can reach the URL can use it.
 
 ## Goals
 
@@ -27,15 +27,22 @@ The app is packaged as a Docker image. Run it locally or on a shared server — 
 
 | Layer | Choice |
 |---|---|
-| Language | Python 3.12+ |
-| Web framework | FastAPI |
-| Frontend | Jinja2 templates + HTMX + Alpine.js |
+| Language (backend) | Python 3.12+ |
+| Language (frontend) | TypeScript |
+| Web framework | FastAPI (JSON API, all endpoints prefixed `/api/`) |
+| Frontend framework | React 18+ (Vite) |
+| UI components | Shadcn/ui + Tailwind CSS |
+| Icons | Lucide React (bundled with Shadcn/ui) |
+| Client-side routing | React Router v6 |
+| Data fetching | Plain `fetch` + `useState` / `useEffect` |
 | Database | SQLite via SQLAlchemy (async) + Alembic migrations |
 | OpenAI SDK | `openai` Python SDK (Responses API) |
 | Task runner | `asyncio` with configurable concurrency (`asyncio.Semaphore`) |
-| Package manager | `uv` (with pyproject.toml) |
-| Container | Docker (single-stage build) |
-| Testing | pytest + pytest-asyncio |
+| Package manager (Python) | `uv` (with pyproject.toml) |
+| Package manager (frontend) | npm |
+| Container | Docker (multi-stage build) |
+| Backend testing | pytest + pytest-asyncio |
+| Frontend testing | Playwright (E2E) |
 
 ---
 
@@ -109,29 +116,39 @@ ai-eval/
 ├── docker-compose.yml
 ├── alembic/                    # DB migrations
 ├── alembic.ini
-├── static/                     # CSS, JS (HTMX, Alpine.js)
-├── templates/                  # Jinja2 templates
-│   ├── base.html
-│   ├── dashboard.html
-│   ├── configs/                # eval config CRUD pages
-│   ├── datasets/               # dataset upload & browse
-│   ├── vector_stores/          # vector store management
-│   ├── runs/                   # run list, detail, live progress
-│   └── components/             # reusable HTMX partials
+├── frontend/                   # React SPA (Vite + TypeScript)
+│   ├── src/
+│   │   ├── components/         # React components
+│   │   │   └── ui/             # Shadcn/ui components
+│   │   ├── pages/              # Page-level components
+│   │   ├── hooks/              # Custom React hooks
+│   │   ├── api/                # Typed fetch wrappers
+│   │   ├── types/              # TypeScript interfaces
+│   │   ├── lib/                # Utilities (cn(), etc.)
+│   │   ├── App.tsx
+│   │   └── main.tsx
+│   ├── e2e/                    # Playwright tests
+│   ├── public/
+│   ├── index.html
+│   ├── vite.config.ts
+│   ├── tailwind.config.ts
+│   ├── tsconfig.json
+│   ├── playwright.config.ts
+│   └── package.json
 ├── src/
 │   └── ai_eval/
 │       ├── __init__.py
-│       ├── app.py              # FastAPI app factory
-│       ├── config.py           # Settings (env vars, OpenAI key)
+│       ├── app.py              # FastAPI app factory, serves React build via StaticFiles
+│       ├── config.py           # Settings (env vars, OpenAI key, CORS origins)
 │       ├── db/
 │       │   ├── models.py       # SQLAlchemy ORM models
 │       │   ├── session.py      # async engine + session factory
 │       │   └── repositories.py # data access layer
 │       ├── routers/
-│       │   ├── configs.py      # EvalConfig CRUD endpoints
-│       │   ├── datasets.py     # Dataset upload/list endpoints
-│       │   ├── vector_stores.py# Vector store CRUD + file upload
-│       │   └── runs.py         # Run trigger, status, results
+│       │   ├── configs.py      # /api/configs — EvalConfig CRUD (JSON)
+│       │   ├── datasets.py     # /api/datasets — Dataset upload/list (JSON)
+│       │   ├── vector_stores.py# /api/vector-stores — Vector store CRUD (JSON)
+│       │   └── runs.py         # /api/runs — Run trigger, status, results (JSON)
 │       ├── services/
 │       │   ├── eval_runner.py  # Orchestrates a run (parallel execution)
 │       │   ├── openai_client.py# Thin wrapper around OpenAI Responses API
@@ -151,6 +168,12 @@ ai-eval/
 └── tests/
 ```
 
+### API Design
+
+All backend routers return JSON via Pydantic response models. Every endpoint is prefixed with `/api/`. The FastAPI app serves the compiled React build via `StaticFiles` at `/` — a catch-all route returns `index.html` so React Router handles client-side navigation.
+
+During development, the Vite dev server runs on `:5173` and proxies `/api/` requests to FastAPI on `:8000`. CORS middleware is enabled on the FastAPI side to allow cross-origin requests from the Vite dev server.
+
 ---
 
 ## Comparer Plugin System
@@ -166,7 +189,7 @@ class ExactMatchComparer(BaseComparer):
 
 - **`BaseComparer`** defines: `compare(expected, actual, config) -> CompareResult` where `CompareResult` has `score: float`, `passed: bool`, `details: dict`.
 - **Registry** uses Python entry points (`[project.entry-points."ai_eval.comparers"]`) so external packages can register new comparers without modifying core code.
-- **Config schema**: each comparer can declare a `config_schema()` classmethod returning a JSON schema for its settings (rendered in the UI as a dynamic form).
+- **Config schema**: each comparer can declare a `config_schema()` classmethod returning a JSON schema for its settings. The React frontend renders a dynamic form from this schema.
 
 ### Built-in Comparers
 
@@ -204,24 +227,30 @@ Users can create and manage OpenAI vector stores directly from the UI:
 
 ### Tool Configuration
 
-- **file_search**: user picks a vector store from the UI dropdown (or pastes an ID manually). The store is attached to the Responses API call.
+- **file_search**: user picks a vector store from a React dropdown component (or pastes an ID manually). The store is attached to the Responses API call.
 - **shell**: enabled/disabled toggle. Runs in OpenAI's sandbox.
 
 ---
 
 ## Web UI Pages
 
-1. **Dashboard** (`/`) — overview: recent runs with pass rates, quick links to create config or start a run.
-2. **Eval Configs** (`/configs`) — list, create, edit, delete configs. Form includes: prompt editor (textarea), model selector, tool toggles, vector store picker (for file_search), comparer picker with dynamic config form.
-3. **Datasets** (`/datasets`) — upload CSV, preview first N rows, validate columns, delete.
+The frontend is a React SPA with client-side routing via React Router v6. Each page is a React component in `frontend/src/pages/`. Shared UI elements (layout, navigation, cards, tables, forms) are composed from Shadcn/ui components and custom React components in `frontend/src/components/`.
+
+Data fetching uses plain `fetch` calls wrapped in typed helper functions (`frontend/src/api/`), consumed via `useState` and `useEffect` hooks. No external state management libraries.
+
+### Pages
+
+1. **Dashboard** (`/`) — overview: recent runs with pass rates, quick links to create config or start a run. Uses `<Card>`, `<Badge>`, and `<Button>` components from Shadcn/ui.
+2. **Eval Configs** (`/configs`) — list, create, edit, delete configs. Form includes: prompt editor (textarea), model selector, tool toggles, vector store picker (for file_search), comparer picker with dynamic config form. Composed from `<Form>`, `<Select>`, `<Switch>`, `<Textarea>` Shadcn/ui components.
+3. **Datasets** (`/datasets`) — upload CSV, preview first N rows, validate columns, delete. File upload via `<Input type="file">` with drag-and-drop support.
 4. **Vector Stores** (`/vector-stores`) — create new store, upload files to existing store, list all stores with status, delete.
-5. **Run Eval** (`/runs/new`) — pick config + dataset, start run.
-6. **Run Detail** (`/runs/{id}`) — summary banner (total accuracy %, avg request time, pass/fail count) + live progress bar (HTMX polling) + results table with filter to show **failed comparisons only** + expandable per-row detail showing actual vs expected side-by-side.
+5. **Run Eval** (`/runs/new`) — pick config + dataset, start run. Dropdowns populated via API calls on mount.
+6. **Run Detail** (`/runs/:id`) — summary banner (total accuracy %, avg request time, pass/fail count) + live progress bar (React polls `GET /api/runs/{id}/progress` via `setInterval` + `fetch` every 2s) + results table with filter to show **failed comparisons only** + expandable per-row detail showing actual vs expected side-by-side.
 7. **Run Comparison** (`/runs/compare`) — side-by-side two runs on the same dataset.
 
 ### Run Detail — Summary Section
 
-Displayed prominently at the top of the run detail page:
+Displayed prominently at the top of the run detail page using a `<Card>` grid:
 
 | Metric | Description |
 |---|---|
@@ -230,7 +259,7 @@ Displayed prominently at the top of the run detail page:
 | **Pass / Fail Count** | e.g. "47 passed, 3 failed out of 50" |
 | **Avg Comparer Score** | Mean score (useful for non-binary comparers like semantic similarity) |
 
-Below the summary: a filterable results table. Default view shows all rows. A toggle/button to **"Show failures only"** filters to `passed=false`, making it easy to inspect what went wrong.
+Below the summary: a filterable results table using Shadcn/ui `<Table>`. Default view shows all rows. A toggle button to **"Show failures only"** filters to `passed=false`, making it easy to inspect what went wrong. Expandable rows use a collapsible component to show full actual vs. expected output.
 
 ---
 
@@ -250,14 +279,15 @@ Optional columns: `metadata` (JSON string), `tags` (comma-separated). Additional
 
 ## Eval Execution Flow
 
-1. User selects config + dataset, clicks "Run".
-2. Backend creates an `EvalRun` record (`status=pending`).
-3. `eval_runner.py` is invoked as a background task (FastAPI `BackgroundTasks`).
-4. Runner parses the dataset, creates a semaphore with configured concurrency.
-5. For each row, an async task: calls OpenAI → gets response → runs comparer → writes `EvalResult`.
-6. Progress is updated on `EvalRun` after each row completes.
-7. UI polls `/runs/{id}/progress` via HTMX every 2s to show live progress.
-8. On completion, runner computes summary stats (accuracy, avg latency, pass/fail counts) and writes them to `EvalRun.summary`.
+1. User selects config + dataset in the React UI, clicks "Run".
+2. Frontend sends `POST /api/runs` with `{ eval_config_id, dataset_id }`.
+3. Backend creates an `EvalRun` record (`status=pending`) and returns it as JSON.
+4. `eval_runner.py` is invoked as a background task (FastAPI `BackgroundTasks`).
+5. Runner parses the dataset, creates a semaphore with configured concurrency.
+6. For each row, an async task: calls OpenAI → gets response → runs comparer → writes `EvalResult`.
+7. Progress is updated on `EvalRun` after each row completes.
+8. React polls `GET /api/runs/{id}/progress` via `setInterval` + `fetch` every 2s to show live progress. The component clears the interval when status is `completed` or `failed`.
+9. On completion, runner computes summary stats (accuracy, avg latency, pass/fail counts) and writes them to `EvalRun.summary`.
 
 ---
 
@@ -273,16 +303,16 @@ All runtime configuration via environment variables (loaded with Pydantic Settin
 | `DEFAULT_CONCURRENCY` | Default parallel requests per run | `5` |
 | `HOST` | Server bind host | `0.0.0.0` |
 | `PORT` | Server bind port | `8000` |
+| `CORS_ORIGINS` | Allowed CORS origins (comma-separated) | `http://localhost:5173` |
 
 ---
 
 ## Docker Packaging
 
-### Dockerfile
+### Dockerfile (multi-stage)
 
-- Single-stage build based on `python:3.12-slim`.
-- Install dependencies via `uv pip install`.
-- Copy source, templates, static assets.
+- **Stage 1 — Frontend build**: based on `node:20-slim`. Copies `frontend/`, runs `npm ci && npm run build`. Produces optimized static assets in `frontend/dist/`.
+- **Stage 2 — Python runtime**: based on `python:3.12-slim`. Install Python dependencies via `uv pip install`. Copy source code. Copy built frontend assets from stage 1 into a location served by FastAPI `StaticFiles` (e.g. `/app/static/`).
 - `VOLUME /app/data` — persists SQLite DB + uploaded files across container restarts.
 - `EXPOSE 8000`.
 - Entrypoint: run Alembic migrations then start uvicorn.
@@ -315,14 +345,27 @@ docker run -p 8000:8000 -e OPENAI_API_KEY=sk-xxx -v ai-eval-data:/app/data ai-ev
 
 No user accounts. Whoever can reach `http://host:8000` has full access.
 
+### Development (without Docker)
+
+```bash
+# Terminal 1 — Backend
+uv run uvicorn ai_eval.app:create_app --factory --host 0.0.0.0 --port 8000 --reload
+
+# Terminal 2 — Frontend
+cd frontend && npm run dev
+# Vite dev server starts on http://localhost:5173
+# API requests are proxied to http://localhost:8000/api/
+```
+
 ---
 
 ## Extensibility Points
 
-1. **Comparers**: entry-point based plugin system. Install a pip package that registers a comparer, restart, it appears in the UI.
+1. **Comparers**: entry-point based plugin system. Install a pip package that registers a comparer, restart, it appears in the UI dropdown. The React frontend fetches available comparers from `GET /api/comparers` and renders config forms dynamically from JSON schemas.
 2. **Providers**: `providers/base.py` defines `LLMProvider` ABC. Only OpenAI ships in v1, but the interface is ready for others.
 3. **Dataset formats**: `dataset_parser.py` can be extended to support JSONL, Excel, etc.
 4. **Tool adapters**: tool configuration is JSON-based, new OpenAI tools can be added without code changes.
+5. **React components**: new page-level components are added in `frontend/src/pages/` and wired into React Router. Shared UI components live in `frontend/src/components/` with Shadcn/ui primitives in `frontend/src/components/ui/`.
 
 ---
 
@@ -331,33 +374,44 @@ No user accounts. Whoever can reach `http://host:8000` has full access.
 ### M1 — Foundation
 - Project scaffolding (pyproject.toml, Dockerfile, FastAPI app, SQLite + Alembic)
 - Data models + repositories
-- Basic Jinja2 layout + static assets (HTMX, Alpine.js)
-- Docker build working
+- React frontend scaffolding (Vite + TypeScript + Shadcn/ui + Tailwind CSS + React Router)
+- App shell with navigation layout, routing between empty page stubs
+- Docker multi-stage build working (frontend build → served by FastAPI)
+- CORS middleware configured for development
+- **Tests**: pytest conftest fixtures + DB session factory, Playwright config + smoke test (app loads, navigation renders)
 
 ### M2 — Core CRUD
-- EvalConfig create/edit/list/delete with web forms
-- Dataset upload (CSV), validation, preview
-- Vector store create/upload-files/list/delete via OpenAI API
+- EvalConfig create/edit/list/delete — FastAPI JSON endpoints + React forms
+- Dataset upload (CSV), validation, preview — API endpoint + React file upload page
+- Vector store create/upload-files/list/delete via OpenAI API — JSON endpoints + React pages
+- **Tests**: pytest for all CRUD repository methods and API endpoints (configs, datasets, vector stores), Playwright E2E for config create→list→edit→delete flow and dataset upload→preview flow
 
 ### M3 — Eval Engine
 - OpenAI Responses API client with file_search + shell support
 - Eval runner with async parallel execution
 - EvalResult recording
+- Run trigger endpoint (`POST /api/runs`) + progress endpoint (`GET /api/runs/{id}/progress`)
+- **Tests**: pytest for OpenAI client (mocked), eval runner (mocked provider), run creation endpoint; Playwright E2E for starting a run and verifying progress polling
 
 ### M4 — Comparers
 - Base comparer + registry + entry-point discovery
 - All 5 built-in comparers implemented
-- Comparer config rendered dynamically in UI
+- Comparer config schema exposed via `GET /api/comparers` endpoint
+- Dynamic comparer config form rendered in React from JSON schema
+- **Tests**: pytest for each comparer (unit tests with known inputs/outputs), registry discovery test, comparer API endpoint test; Playwright E2E for selecting a comparer and configuring it in the eval config form
 
 ### M5 — Results & Polish
 - Run detail page with summary banner (accuracy, avg request time, pass/fail)
-- Failures-only filter
-- Per-row result inspection (actual vs expected side-by-side)
+- Live progress bar via `setInterval` + `fetch` polling
+- Failures-only filter toggle
+- Per-row result inspection (actual vs expected side-by-side, collapsible rows)
 - Run comparison view
+- **Tests**: pytest for summary computation logic and results filtering endpoint; Playwright E2E for run detail page (progress bar, failures filter, row expansion) and run comparison view
 
 ### M6 — Open-Source Release
 - README with quickstart (docker compose up)
 - CONTRIBUTING.md
 - Comparer plugin development guide
 - LICENSE (MIT)
-- GitHub Actions CI (lint, test, docker build)
+- GitHub Actions CI (lint, pytest, Playwright E2E, docker build)
+- **Tests**: CI pipeline runs full pytest suite + Playwright E2E suite, Docker build smoke test in CI

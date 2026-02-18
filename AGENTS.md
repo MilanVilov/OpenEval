@@ -12,12 +12,13 @@ Skills are authoritative reference documents that define conventions, patterns, 
 
 | Skill | File | When to use |
 |-------|------|-------------|
-| UI Design | `skills/ui-design.md` | Any frontend work: templates, CSS, HTML, components |
+| UI Design | `skills/ui-design.md` | Tailwind theme, Shadcn/ui components, design tokens |
 | Python Code Quality | `skills/python-code-quality.md` | All Python code: functions, classes, architecture, testing |
 | KISS & YAGNI | `skills/kiss-yagni.md` | All code and architecture decisions: simplicity, no speculative features |
-| API & Routing | `skills/api-routing.md` | FastAPI routers, endpoints, HTMX interactions, URL design |
+| API & Routing | `skills/api-routing.md` | FastAPI JSON API, React Router, URL design |
 | Git Workflow | `skills/git-workflow.md` | Commits, branches, PRs, .gitignore |
 | Testing Strategy | `skills/testing-strategy.md` | Writing tests: what to test, mocking, fixtures, assertions |
+| Frontend Conventions | `skills/frontend-conventions.md` | React components, TypeScript, hooks, Shadcn/ui patterns |
 
 ## Project Context
 
@@ -25,15 +26,22 @@ ai-eval is an open-source AI prompt & tool evaluation framework. See `PRD.md` fo
 
 ### Tech Stack
 
-- **Language**: Python 3.12+
+- **Language**: Python 3.12+ (backend), TypeScript 5+ (frontend)
 - **Backend**: FastAPI + SQLAlchemy (async) + SQLite + Alembic
-- **Frontend**: Jinja2 templates + HTMX + Alpine.js
+- **Frontend**: React 18+ (Vite + TypeScript) + Shadcn/ui + Tailwind CSS
+- **Routing**: React Router v6 (client-side), FastAPI (API)
+- **Data Fetching**: Plain fetch + useState/useEffect
 - **OpenAI**: Responses API via `openai` Python SDK
-- **Package manager**: uv
-- **Container**: Docker
+- **Package managers**: uv (Python), npm (frontend)
+- **Testing**: pytest + pytest-asyncio (backend), Playwright (frontend E2E)
+- **Container**: Docker (multi-stage build)
 
 ### Architecture Rules
 
+- All API endpoints return JSON via Pydantic response models. Never return HTML from the backend.
+- API endpoints are prefixed with `/api/`.
+- Frontend is a separate Vite/React app in `frontend/`.
+- React components use Shadcn/ui primitives and Tailwind for styling.
 - All comparers inherit from `BaseComparer` in `src/ai_eval/comparers/base.py` and register via `@register_comparer` decorator.
 - New comparers can also register via Python entry points under `ai_eval.comparers`.
 - OpenAI interaction is isolated in `src/ai_eval/services/openai_client.py` and `src/ai_eval/providers/openai.py`.
@@ -47,24 +55,30 @@ ai-eval is an open-source AI prompt & tool evaluation framework. See `PRD.md` fo
 - Type hints on all function signatures.
 - Docstrings on all public classes and functions.
 - Tests go in `tests/` mirroring the `src/ai_eval/` structure.
-- Use `uv` for dependency management (pyproject.toml, not requirements.txt).
+- Use `uv` for Python deps, `npm` for frontend deps.
+- TypeScript: strict mode, no `any`, prefer `interface` over `type` for object shapes.
+- React: functional components only, named exports, one component per file.
+- Tests must be written alongside every feature — no feature is complete without tests.
 
 ### File Structure
 
 ```
 ai-eval/
-├── AGENTS.md              # This file
-├── PRD.md                 # Product requirements
-├── skills/                # Skill documents (MUST be consulted)
-│   └── ui-design.md       # UI/CSS design system
+├── AGENTS.md
+├── PRD.md
+├── skills/
 ├── pyproject.toml
 ├── Dockerfile
 ├── docker-compose.yml
 ├── alembic/
-├── static/
-├── templates/
-├── src/ai_eval/
-└── tests/
+├── src/ai_eval/          # Python backend
+├── frontend/             # React frontend
+│   ├── src/
+│   ├── e2e/              # Playwright tests
+│   ├── public/
+│   ├── package.json
+│   └── vite.config.ts
+└── tests/                # Python backend tests
 ```
 
 ### Key Principles
@@ -73,3 +87,4 @@ ai-eval/
 2. **No auth**: single shared app, anyone with network access can use it.
 3. **Docker-first**: the app must always build and run via `docker compose up`.
 4. **Skills are law**: when a skill document covers a topic, follow it precisely.
+5. **Test-driven**: every feature ships with tests.

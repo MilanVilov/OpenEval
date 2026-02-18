@@ -1,56 +1,72 @@
-# Skill: API & Routing — FastAPI + HTMX Conventions
+# Skill: API & Routing — FastAPI JSON API + React Router
 
-This skill defines how all FastAPI routers, endpoints, and HTMX interactions are structured in ai-eval. Follow these rules for every route handler and template interaction.
+This skill defines how all FastAPI API endpoints and React Router routes are structured in ai-eval. The backend is a pure JSON API; the frontend is a React SPA. Follow these rules for every route handler and frontend route.
 
 ---
 
 ## URL Conventions
 
-### Resource URLs
+### Backend API Routes
 
-Use plural nouns. RESTful structure for full-page routes, with HTMX fragment endpoints nested under the resource.
+All backend routes are prefixed with `/api/`. Use plural nouns. RESTful structure:
 
 | Pattern | Method | Purpose |
 |---|---|---|
-| `/{resources}` | GET | List page |
-| `/{resources}/new` | GET | Create form page |
-| `/{resources}` | POST | Create (form submit) |
-| `/{resources}/{id}` | GET | Detail page |
-| `/{resources}/{id}/edit` | GET | Edit form page |
-| `/{resources}/{id}` | PUT/PATCH | Update (form submit) |
-| `/{resources}/{id}` | DELETE | Delete |
-| `/{resources}/{id}/{fragment}` | GET | HTMX partial (e.g. progress, results table) |
+| `/api/{resources}` | GET | List (returns JSON array) |
+| `/api/{resources}` | POST | Create (accepts JSON body, returns created object) |
+| `/api/{resources}/{id}` | GET | Detail (returns JSON object) |
+| `/api/{resources}/{id}` | PUT | Update (accepts JSON body, returns updated object) |
+| `/api/{resources}/{id}` | DELETE | Delete (returns 204) |
+| `/api/{resources}/{id}/{sub}` | GET | Sub-resource (e.g. progress, results) |
 
-### Concrete Routes
+### Frontend Routes (React Router)
+
+Client-side routes have no prefix. React Router handles all navigation.
 
 ```
-GET   /                          → Dashboard
-GET   /configs                   → List eval configs
-GET   /configs/new               → Create config form
-POST  /configs                   → Create config
-GET   /configs/{id}              → Config detail
-GET   /configs/{id}/edit         → Edit config form
-PUT   /configs/{id}              → Update config
-DELETE /configs/{id}             → Delete config
+/                    → Dashboard
+/configs             → Config list
+/configs/new         → Create config form
+/configs/:id         → Config detail
+/configs/:id/edit    → Edit config
+/datasets            → Dataset list
+/datasets/:id        → Dataset detail
+/runs                → Run list
+/runs/new            → New run form
+/runs/:id            → Run detail
+/runs/compare        → Run comparison
+/vector-stores       → Vector store list
+/vector-stores/:id   → Vector store detail
+```
 
-GET   /datasets                  → List datasets
-POST  /datasets                  → Upload CSV
-GET   /datasets/{id}             → Dataset detail + preview
-DELETE /datasets/{id}            → Delete dataset
+### Concrete API Routes
 
-GET   /vector-stores             → List vector stores
-POST  /vector-stores             → Create vector store
-GET   /vector-stores/{id}        → Store detail
-POST  /vector-stores/{id}/files  → Upload file to store
-DELETE /vector-stores/{id}       → Delete store
+```
+GET    /api/configs              → List eval configs
+POST   /api/configs              → Create config
+GET    /api/configs/{id}         → Config detail
+PUT    /api/configs/{id}         → Update config
+DELETE /api/configs/{id}         → Delete config
 
-GET   /runs                      → List runs
-GET   /runs/new                  → New run form
-POST  /runs                      → Start run
-GET   /runs/{id}                 → Run detail (summary + results)
-GET   /runs/{id}/progress        → HTMX partial: progress bar + status
-GET   /runs/{id}/results         → HTMX partial: results table (with filter params)
-GET   /runs/compare              → Run comparison page
+GET    /api/datasets             → List datasets
+POST   /api/datasets             → Upload CSV (multipart form)
+GET    /api/datasets/{id}        → Dataset detail + preview rows
+DELETE /api/datasets/{id}        → Delete dataset
+
+GET    /api/vector-stores        → List vector stores
+POST   /api/vector-stores        → Create vector store
+GET    /api/vector-stores/{id}   → Store detail
+POST   /api/vector-stores/{id}/files → Upload file
+DELETE /api/vector-stores/{id}   → Delete store
+
+GET    /api/runs                 → List runs
+POST   /api/runs                 → Start run
+GET    /api/runs/{id}            → Run detail
+GET    /api/runs/{id}/progress   → Progress (for polling)
+GET    /api/runs/{id}/results    → Results (with filter query params)
+GET    /api/runs/compare         → Comparison data for two runs
+
+GET    /api/dashboard            → Dashboard summary data
 ```
 
 ---
@@ -61,161 +77,116 @@ Each router lives in its own file under `src/ai_eval/routers/`. One router per r
 
 ```python
 # src/ai_eval/routers/configs.py
-from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import APIRouter, Depends
+from ai_eval.db.repositories import ConfigRepository
+from ai_eval.routers.schemas.configs import ConfigResponse, CreateConfigRequest
 
-router = APIRouter(prefix="/configs", tags=["configs"])
+router = APIRouter(prefix="/api/configs", tags=["configs"])
 
 
-@router.get("", response_class=HTMLResponse)
-async def list_configs(request: Request, repo: ConfigRepository = Depends(get_config_repo)):
+@router.get("", response_model=list[ConfigResponse])
+async def list_configs(repo: ConfigRepository = Depends(get_config_repo)) -> list[ConfigResponse]:
     """List all eval configurations."""
     configs = await repo.list_all()
-    return templates.TemplateResponse("configs/list.html", {"request": request, "configs": configs})
+    return [ConfigResponse.model_validate(c) for c in configs]
 ```
 
 ### Rules
 
 - **One router per file**, one resource per router.
-- **Router prefix** matches the resource name: `prefix="/configs"`.
+- **Router prefix** includes `/api/`: `prefix="/api/configs"`.
 - **Tags** match the resource for OpenAPI docs.
 - **All handlers are `async def`.**
+- **Handlers return Pydantic models** — JSONResponse is implicit. Never return HTML.
 - **Handlers are thin** — max 10 lines of logic. Delegate to services/repositories.
 - **No business logic in handlers** — only: parse request → call service → return response.
 
 ---
 
-## Request/Response Patterns
+## Request/Response Schemas
 
-### Form Submissions (non-HTMX)
-
-Standard HTML forms use POST, return a redirect on success:
+Pydantic models for all request bodies and responses. Schemas live in `src/ai_eval/routers/schemas/`, one file per resource.
 
 ```python
-@router.post("", response_class=RedirectResponse)
-async def create_config(
-    request: Request,
-    name: str = Form(...),
-    system_prompt: str = Form(...),
-    model: str = Form(...),
-    repo: ConfigRepository = Depends(get_config_repo),
-):
-    """Create a new eval configuration."""
-    config = await repo.create(EvalConfig(name=name, system_prompt=system_prompt, model=model))
-    return RedirectResponse(url=f"/configs/{config.id}", status_code=303)
+# src/ai_eval/routers/schemas/configs.py
+from pydantic import BaseModel
+
+
+class CreateConfigRequest(BaseModel):
+    name: str
+    system_prompt: str
+    model: str
+    temperature: float = 0.0
+    comparer_type: str
+    comparer_config: dict = {}
+    concurrency: int = 5
+
+
+class ConfigResponse(BaseModel):
+    id: str
+    name: str
+    system_prompt: str
+    model: str
+    temperature: float
+    comparer_type: str
+    created_at: str
+
+    model_config = {"from_attributes": True}
 ```
 
-**POST-Redirect-GET pattern**: always redirect after a successful POST to prevent double-submission.
+### Rules
 
-### HTMX Partials
-
-HTMX endpoints return HTML fragments (not full pages):
-
-```python
-@router.get("/{run_id}/progress", response_class=HTMLResponse)
-async def run_progress(request: Request, run_id: str, repo: RunRepository = Depends(get_run_repo)):
-    """Return progress bar fragment for HTMX polling."""
-    run = await repo.get_by_id(run_id)
-    return templates.TemplateResponse("components/progress_bar.html", {"request": request, "run": run})
-```
-
-### Detecting HTMX Requests
-
-Use the `HX-Request` header to decide between full page and fragment:
-
-```python
-def is_htmx(request: Request) -> bool:
-    """Check if the request was made by HTMX."""
-    return request.headers.get("HX-Request") == "true"
-```
+- Separate Create/Update request models from Response models.
+- Use `model_config = {"from_attributes": True}` for ORM model conversion.
+- Use `response_model=` on the route decorator for automatic serialization and OpenAPI docs.
+- Never return raw dicts — always use a Pydantic response model.
 
 ---
 
-## HTMX Conventions
+## Error Handling
 
-### Polling
-
-For live progress (eval runs):
-
-```html
-<div hx-get="/runs/{{ run.id }}/progress"
-     hx-trigger="every 2s"
-     hx-swap="outerHTML">
-  {% include "components/progress_bar.html" %}
-</div>
-```
-
-Stop polling when complete — the fragment returned should not include `hx-trigger` when the run is finished.
-
-### Form Submission
-
-For inline actions (delete, toggle):
-
-```html
-<button hx-delete="/configs/{{ config.id }}"
-        hx-confirm="Delete this configuration?"
-        hx-target="closest tr"
-        hx-swap="outerHTML swap:300ms">
-  Delete
-</button>
-```
-
-### Fragment Targets
-
-- Use `hx-target` to specify where the response goes.
-- Use `hx-swap="outerHTML"` for replacing elements, `"innerHTML"` for filling containers.
-- Use `hx-swap="outerHTML swap:300ms"` for deletions (allows CSS fade-out).
-
-### Loading Indicators
-
-Use `hx-indicator` for buttons that trigger API calls:
-
-```html
-<button hx-post="/runs" class="btn-primary" hx-indicator="#spinner">
-  Start Run
-  <span id="spinner" class="htmx-indicator">...</span>
-</button>
-```
-
----
-
-## Error Handling in Routes
-
-### Validation Errors
-
-Re-render the form with error messages — don't redirect:
-
-```python
-@router.post("", response_class=HTMLResponse)
-async def create_config(request: Request, name: str = Form(...), ...):
-    errors = validate_config_form(name=name, ...)
-    if errors:
-        return templates.TemplateResponse(
-            "configs/new.html",
-            {"request": request, "errors": errors, "name": name, ...},
-            status_code=422,
-        )
-    ...
-```
+All error responses are JSON. Never return HTML.
 
 ### Not Found
 
-Raise `HTTPException(404)` — FastAPI will render the error page:
+Use `HTTPException` with a detail string (serialized as JSON automatically):
 
 ```python
+from fastapi import HTTPException
+
 config = await repo.get_by_id(config_id)
 if not config:
     raise HTTPException(status_code=404, detail="Configuration not found")
 ```
 
+### Validation Errors
+
+FastAPI handles Pydantic validation automatically — invalid request bodies return 422 with Pydantic error details.
+
 ### Server Errors
 
-Let unexpected exceptions propagate. Add a global exception handler that renders a user-friendly error page:
+Global exception handler returns JSON:
 
 ```python
-@app.exception_handler(500)
-async def server_error(request: Request, exc: Exception):
-    return templates.TemplateResponse("error.html", {"request": request, "error": str(exc)}, status_code=500)
+from fastapi.responses import JSONResponse
+
+@app.exception_handler(Exception)
+async def server_error(request, exc):
+    return JSONResponse(status_code=500, content={"detail": str(exc)})
+```
+
+---
+
+## Polling Pattern
+
+Progress endpoints return JSON with status, progress count, and total. The React frontend polls this every 2s via `setInterval`.
+
+```python
+@router.get("/{run_id}/progress", response_model=RunProgressResponse)
+async def run_progress(run_id: str, repo=Depends(get_run_repo)):
+    """Return current progress for an eval run."""
+    run = await repo.get_by_id(run_id)
+    return RunProgressResponse(status=run.status, progress=run.progress, total=run.total_rows)
 ```
 
 ---
@@ -239,24 +210,37 @@ async def get_openai_client(settings: Settings = Depends(get_settings)) -> OpenA
 - **Never instantiate dependencies inside handlers.** Always use `Depends()`.
 - **One dependency per concern** — don't combine repo + service in one dependency.
 - **Dependencies return concrete instances**, not ABCs (keep it simple).
+- No template dependencies — there are no templates.
 
 ---
 
-## Template Rendering
+## CORS Configuration
 
-Use Jinja2 `templates.TemplateResponse` for all HTML responses:
+Required for local development where the React dev server (`localhost:5173`) makes requests to the FastAPI backend (`localhost:8000`).
 
 ```python
-from fastapi.templating import Jinja2Templates
+from fastapi.middleware.cors import CORSMiddleware
 
-templates = Jinja2Templates(directory="templates")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,  # ["http://localhost:5173"] in dev
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 ```
 
-### Context Rules
+---
 
-- Always pass `request` in the context (required by Starlette).
-- Pass only the data the template needs — no entire database models with lazy-loaded relations.
-- Use descriptive context variable names: `configs`, `run`, `results`, not `data`, `items`, `obj`.
+## Static File Serving (Production)
+
+In production, serve the built React app as a static SPA. This must be mounted **after** all API routes.
+
+```python
+from fastapi.staticfiles import StaticFiles
+
+# In production, serve the built React app
+app.mount("/", StaticFiles(directory="frontend/dist", html=True), name="spa")
+```
 
 ---
 
@@ -264,16 +248,21 @@ templates = Jinja2Templates(directory="templates")
 
 ### Do
 
-- Use POST-Redirect-GET for form submissions.
+- Return JSON from all API endpoints.
+- Use Pydantic schemas for all request bodies and responses.
+- Prefix all backend routes with `/api/`.
 - Keep handlers under 10 lines of logic.
-- Return HTML fragments for HTMX requests, full pages for normal requests.
 - Use `Depends()` for all handler dependencies.
-- Validate input in the handler, delegate business logic to services.
+- Use `response_model=` on route decorators.
+- Validate input via Pydantic models — let FastAPI handle 422s.
 
 ### Don't
 
+- Don't return HTML from any endpoint.
+- Don't use `TemplateResponse` or `HTMLResponse`.
+- Don't use `Form()` parameters — use Pydantic `Body` / request models instead.
+- Don't use `RedirectResponse`.
+- Don't mix API and SPA serving logic.
 - Don't put SQL queries in route handlers.
-- Don't return JSON from page routes (this is an HTMX app, not a JSON API).
 - Don't use path parameters for filtering — use query parameters (`?status=failed`).
 - Don't create nested routers (`/configs/{id}/runs/{run_id}`) — keep URLs shallow.
-- Don't mix HTMX partial endpoints with full-page endpoints in confusing ways — clearly separate them.
