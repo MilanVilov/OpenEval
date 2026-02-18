@@ -28,6 +28,8 @@ def _config_to_response(config: object) -> ConfigResponse:
         comparer_type=config.comparer_type,
         comparer_config=config.comparer_config,
         concurrency=config.concurrency,
+        reasoning_config=config.reasoning_config,
+        response_format=config.response_format,
         created_at=str(config.created_at),
         updated_at=str(config.updated_at),
     )
@@ -59,6 +61,8 @@ async def create_config(
         comparer_type=body.comparer_type,
         comparer_config=body.comparer_config,
         concurrency=body.concurrency,
+        reasoning_config=body.reasoning_config,
+        response_format=body.response_format,
     )
     return _config_to_response(config)
 

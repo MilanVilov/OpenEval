@@ -97,11 +97,12 @@ export function RunDetail() {
       )}
 
       {run.summary && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
           <StatCard label="Accuracy" value={formatPercent(run.summary.accuracy)} />
           <StatCard label="Total" value={String(run.summary.total)} />
           <StatCard label="Passed" value={String(run.summary.passed)} />
           <StatCard label="Failed" value={String(run.summary.failed)} />
+          <StatCard label="Avg Latency" value={`${run.summary.avg_latency_ms}ms`} />
         </div>
       )}
 
@@ -134,6 +135,7 @@ export function RunDetail() {
                     <TableHead>Actual</TableHead>
                     <TableHead className="w-20">Match</TableHead>
                     <TableHead className="w-20">Score</TableHead>
+                    <TableHead className="w-24">Latency</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -142,13 +144,20 @@ export function RunDetail() {
                       <TableCell>{result.row_index}</TableCell>
                       <TableCell className="min-w-[200px] max-w-[400px] whitespace-pre-wrap break-words">{result.input_data}</TableCell>
                       <TableCell className="min-w-[200px] max-w-[400px] whitespace-pre-wrap break-words">{result.expected_output}</TableCell>
-                      <TableCell className="min-w-[200px] max-w-[400px] whitespace-pre-wrap break-words">{result.actual_output}</TableCell>
+                      <TableCell className="min-w-[200px] max-w-[400px] whitespace-pre-wrap break-words">
+                        {result.actual_output ?? (
+                          result.error ? (
+                            <span className="text-red-400 text-xs">{result.error}</span>
+                          ) : '—'
+                        )}
+                      </TableCell>
                       <TableCell>
                         <Badge variant={result.passed ? 'success' : 'error'}>
                           {result.passed ? 'Pass' : 'Fail'}
                         </Badge>
                       </TableCell>
                       <TableCell>{result.comparer_score != null ? result.comparer_score.toFixed(2) : '—'}</TableCell>
+                      <TableCell>{result.latency_ms != null ? `${result.latency_ms}ms` : '—'}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

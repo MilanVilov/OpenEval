@@ -36,6 +36,8 @@ class ConfigRepository:
         comparer_type: str,
         comparer_config: dict | None = None,
         concurrency: int = 5,
+        reasoning_config: dict | None = None,
+        response_format: dict | None = None,
     ) -> EvalConfig:
         """Insert a new evaluation configuration."""
         config = EvalConfig(
@@ -49,6 +51,8 @@ class ConfigRepository:
             comparer_type=comparer_type,
             comparer_config=comparer_config if comparer_config is not None else {},
             concurrency=concurrency,
+            reasoning_config=reasoning_config,
+            response_format=response_format,
         )
         self._session.add(config)
         await self._session.commit()
