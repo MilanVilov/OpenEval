@@ -6,7 +6,7 @@ export function AppLayout() {
     <div className="flex h-screen bg-background">
       <Sidebar />
       <main className="flex-1 overflow-y-auto p-6">
-        <div className="mx-auto max-w-[1200px]">
+        <div className="mx-auto max-w-[1600px]">
           <Outlet />
         </div>
       </main>

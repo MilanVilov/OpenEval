@@ -63,3 +63,4 @@ def _ensure_builtins_imported() -> None:
     import ai_eval.comparers.semantic_similarity  # noqa: F401
     import ai_eval.comparers.llm_judge  # noqa: F401
     import ai_eval.comparers.json_schema_match  # noqa: F401
+    import ai_eval.comparers.contact_reason  # noqa: F401

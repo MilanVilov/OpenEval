@@ -66,6 +66,17 @@ export function RunDetail() {
   const filteredResults = showFailuresOnly ? results.filter((r) => !r.passed) : results;
   const progressPct = progress ? Math.round((progress.progress / Math.max(progress.total_rows, 1)) * 100) : 0;
 
+  // Extract unique comparer names from results for dynamic columns
+  const comparerNames = Array.from(
+    new Set(
+      results.flatMap((r) =>
+        r.comparer_details && typeof r.comparer_details === 'object'
+          ? Object.keys(r.comparer_details)
+          : []
+      )
+    )
+  );
+
   return (
     <div>
       <PageHeader
@@ -133,7 +144,13 @@ export function RunDetail() {
                     <TableHead>Input</TableHead>
                     <TableHead>Expected</TableHead>
                     <TableHead>Actual</TableHead>
-                    <TableHead className="w-20">Match</TableHead>
+                    {comparerNames.length > 0 ? (
+                      comparerNames.map((name) => (
+                        <TableHead key={name} className="w-24 text-center">{name}</TableHead>
+                      ))
+                    ) : (
+                      <TableHead className="w-20">Match</TableHead>
+                    )}
                     <TableHead className="w-20">Score</TableHead>
                     <TableHead className="w-24">Latency</TableHead>
                   </TableRow>
@@ -151,11 +168,26 @@ export function RunDetail() {
                           ) : '—'
                         )}
                       </TableCell>
-                      <TableCell>
-                        <Badge variant={result.passed ? 'success' : 'error'}>
-                          {result.passed ? 'Pass' : 'Fail'}
-                        </Badge>
-                      </TableCell>
+                      {comparerNames.length > 0 ? (
+                        comparerNames.map((name) => {
+                          const detail = result.comparer_details?.[name] as Record<string, unknown> | undefined;
+                          if (!detail) return <TableCell key={name} className="text-center">—</TableCell>;
+                          const p = detail.passed as boolean | undefined;
+                          return (
+                            <TableCell key={name} className="text-center" title={JSON.stringify(detail, null, 2)}>
+                              <Badge variant={p ? 'success' : 'error'}>
+                                {p ? 'Pass' : 'Fail'}
+                              </Badge>
+                            </TableCell>
+                          );
+                        })
+                      ) : (
+                        <TableCell>
+                          <Badge variant={result.passed ? 'success' : 'error'}>
+                            {result.passed ? 'Pass' : 'Fail'}
+                          </Badge>
+                        </TableCell>
+                      )}
                       <TableCell>{result.comparer_score != null ? result.comparer_score.toFixed(2) : '—'}</TableCell>
                       <TableCell>{result.latency_ms != null ? `${result.latency_ms}ms` : '—'}</TableCell>
                     </TableRow>

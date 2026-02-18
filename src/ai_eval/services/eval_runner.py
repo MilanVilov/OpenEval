@@ -117,21 +117,35 @@ async def run_evaluation(run_id: str) -> None:
         # Run comparison pass (lazy import — registry created in T14)
         from ai_eval.comparers.registry import get_comparer
 
-        comparer = get_comparer(config.comparer_type, config.comparer_config)
+        # Support multiple comparers (comma-separated in comparer_type)
+        comparer_names = [c.strip() for c in config.comparer_type.split(",") if c.strip()]
+        comparers = [
+            (name, get_comparer(name, config.comparer_config))
+            for name in comparer_names
+        ]
 
         for result in valid_results:
             if result.actual_output is not None and result.error is None:
-                try:
-                    score, passed, details = await comparer.compare(
-                        expected=result.expected_output,
-                        actual=result.actual_output,
-                    )
-                    result.comparer_score = score
-                    result.passed = passed
-                    result.comparer_details = details
-                except Exception as exc:
-                    result.comparer_details = {"error": str(exc)}
-                    result.passed = False
+                all_details: dict = {}
+                all_scores: list[float] = []
+                all_passed: list[bool] = []
+
+                for cname, comparer in comparers:
+                    try:
+                        score, cpassed, details = await comparer.compare(
+                            expected=result.expected_output,
+                            actual=result.actual_output,
+                        )
+                        all_details[cname] = {"score": score, "passed": cpassed, **details}
+                        all_scores.append(score)
+                        all_passed.append(cpassed)
+                    except Exception as exc:
+                        all_details[cname] = {"error": str(exc), "passed": False}
+                        all_passed.append(False)
+
+                result.comparer_score = sum(all_scores) / max(len(all_scores), 1) if all_scores else 0.0
+                result.passed = all(all_passed) if all_passed else False
+                result.comparer_details = all_details
 
         # Batch insert results
         if valid_results:

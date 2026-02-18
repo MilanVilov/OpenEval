@@ -1,6 +1,8 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getConfig, updateConfig } from '@/api/configs';
+import { listVectorStores } from '@/api/vectorStores';
+import type { VectorStore } from '@/types/vectorStore';
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -46,17 +48,26 @@ export function ConfigEdit() {
   const [systemPrompt, setSystemPrompt] = useState('');
   const [model, setModel] = useState('gpt-4.1');
   const [temperature, setTemperature] = useState('0.7');
-  const [comparerType, setComparerType] = useState('exact_match');
+  const [comparerTypes, setComparerTypes] = useState<Set<string>>(new Set(['exact_match']));
   const [concurrency, setConcurrency] = useState('5');
   const [reasoningEffort, setReasoningEffort] = useState('medium');
   const [responseFormatType, setResponseFormatType] = useState('text');
   const [jsonSchemaName, setJsonSchemaName] = useState('');
   const [jsonSchemaBody, setJsonSchemaBody] = useState('');
+  const [fileSearchEnabled, setFileSearchEnabled] = useState(false);
+  const [vectorStoreId, setVectorStoreId] = useState('');
+  const [vectorStores, setVectorStores] = useState<VectorStore[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const isReasoningModel = REASONING_MODELS.has(model);
+
+  useEffect(() => {
+    listVectorStores()
+      .then(setVectorStores)
+      .catch(() => {/* ignore */});
+  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -66,7 +77,7 @@ export function ConfigEdit() {
         setSystemPrompt(config.system_prompt);
         setModel(config.model);
         setTemperature(String(config.temperature));
-        setComparerType(config.comparer_type);
+        setComparerTypes(new Set(config.comparer_type.split(',').map((s: string) => s.trim())));
         setConcurrency(String(config.concurrency));
         if (config.reasoning_config?.effort) {
           setReasoningEffort(config.reasoning_config.effort);
@@ -79,6 +90,11 @@ export function ConfigEdit() {
             setJsonSchemaName((fmt.name as string) || '');
             setJsonSchemaBody(fmt.schema ? JSON.stringify(fmt.schema, null, 2) : '');
           }
+        }
+        // Load tools state
+        if (config.tools && config.tools.includes('file_search')) {
+          setFileSearchEnabled(true);
+          setVectorStoreId((config.tool_options as Record<string, string>)?.vector_store_id || '');
         }
       })
       .catch((e: Error) => setError(e.message))
@@ -105,12 +121,22 @@ export function ConfigEdit() {
     setSubmitting(true);
     setError(null);
     try {
+      const tools: string[] = [];
+      const toolOptions: Record<string, unknown> = {};
+      if (fileSearchEnabled) {
+        tools.push('file_search');
+        if (vectorStoreId) {
+          toolOptions.vector_store_id = vectorStoreId;
+        }
+      }
       await updateConfig(id, {
         name,
         system_prompt: systemPrompt,
         model,
         temperature: parseFloat(temperature),
-        comparer_type: comparerType,
+        comparer_type: Array.from(comparerTypes).join(','),
+        tools,
+        tool_options: toolOptions,
         concurrency: parseInt(concurrency, 10),
         reasoning_config: isReasoningModel ? { effort: reasoningEffort } : null,
         response_format: buildResponseFormat(),
@@ -200,16 +226,62 @@ export function ConfigEdit() {
           </div>
         )}
 
+        <div className="space-y-2">
+          <Label>Tools</Label>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={fileSearchEnabled}
+              onChange={(e) => setFileSearchEnabled(e.target.checked)}
+              className="rounded border-border"
+            />
+            File Search
+          </label>
+          <p className="text-xs text-foreground-secondary">Enable the model to search uploaded files in a vector store for relevant information</p>
+        </div>
+
+        {fileSearchEnabled && (
+          <div className="space-y-2 rounded-md border border-border p-4">
+            <Label>Vector Store</Label>
+            <Select value={vectorStoreId} onChange={(e) => setVectorStoreId(e.target.value)}>
+              <option value="">— Select a vector store —</option>
+              {vectorStores.map((vs) => (
+                <option key={vs.id} value={vs.openai_vector_store_id}>{vs.name} ({vs.file_count} files)</option>
+              ))}
+            </Select>
+            <p className="text-xs text-foreground-secondary">
+              Select the vector store to search. <a href="/vector-stores/new" className="text-accent-blue hover:underline">Create a new one</a> if needed.
+            </p>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label>Comparer</Label>
-            <Select value={comparerType} onChange={(e) => setComparerType(e.target.value)}>
-              <option value="exact_match">Exact Match</option>
-              <option value="pattern_match">Pattern Match</option>
-              <option value="semantic_similarity">Semantic Similarity</option>
-              <option value="llm_judge">LLM Judge</option>
-              <option value="json_schema_match">JSON Schema Match</option>
-            </Select>
+            <Label>Comparers</Label>
+            <div className="space-y-1">
+              {[
+                { value: 'exact_match', label: 'Exact Match' },
+                { value: 'pattern_match', label: 'Pattern Match' },
+                { value: 'semantic_similarity', label: 'Semantic Similarity' },
+                { value: 'llm_judge', label: 'LLM Judge' },
+                { value: 'json_schema_match', label: 'JSON Schema Match' },
+                { value: 'contact_reason', label: 'Contact Reason' },
+              ].map((c) => (
+                <label key={c.value} className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={comparerTypes.has(c.value)}
+                    onChange={(e) => {
+                      const next = new Set(comparerTypes);
+                      if (e.target.checked) next.add(c.value); else next.delete(c.value);
+                      setComparerTypes(next);
+                    }}
+                    className="rounded border-border"
+                  />
+                  {c.label}
+                </label>
+              ))}
+            </div>
           </div>
           <div className="space-y-2">
             <Label>Concurrency</Label>

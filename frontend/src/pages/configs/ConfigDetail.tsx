@@ -66,8 +66,12 @@ export function ConfigDetail() {
               <p className="text-sm">{config.temperature}</p>
             </div>
             <div>
-              <p className="text-xs text-foreground-secondary uppercase">Comparer</p>
-              <Badge>{config.comparer_type}</Badge>
+              <p className="text-xs text-foreground-secondary uppercase">Comparers</p>
+              <div className="flex flex-wrap gap-1">
+                {config.comparer_type.split(',').map((c: string) => (
+                  <Badge key={c.trim()}>{c.trim()}</Badge>
+                ))}
+              </div>
             </div>
             <div>
               <p className="text-xs text-foreground-secondary uppercase">Concurrency</p>
@@ -83,6 +87,21 @@ export function ConfigDetail() {
               <div>
                 <p className="text-xs text-foreground-secondary uppercase">Response Format</p>
                 <Badge>{(config.response_format as Record<string, unknown>).type as string}</Badge>
+              </div>
+            )}
+            {config.tools && config.tools.length > 0 && (
+              <div>
+                <p className="text-xs text-foreground-secondary uppercase">Tools</p>
+                <div className="flex flex-wrap gap-1">
+                  {config.tools.map((t: string) => (
+                    <Badge key={t}>{t}</Badge>
+                  ))}
+                </div>
+                {config.tools.includes('file_search') && (config.tool_options as Record<string, string>)?.vector_store_id && (
+                  <p className="text-xs text-foreground-secondary mt-1">
+                    Vector Store: <span className="font-mono">{(config.tool_options as Record<string, string>).vector_store_id}</span>
+                  </p>
+                )}
               </div>
             )}
           </CardContent>
