@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Upload } from 'lucide-react';
+import { PageTransition } from '@/components/PageTransition';
+import { Spinner } from '@/components/Spinner';
 
 export function DatasetNew() {
   const navigate = useNavigate();
@@ -35,9 +37,9 @@ export function DatasetNew() {
   }
 
   return (
-    <div>
+    <PageTransition>
       <PageHeader title="Upload Dataset" description="Upload a CSV file for evaluation" />
-      <form onSubmit={handleSubmit} className="space-y-4 max-w-[600px]">
+      <form onSubmit={handleSubmit} className="space-y-5 max-w-[640px]">
         {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
 
         <div className="space-y-2">
@@ -56,11 +58,11 @@ export function DatasetNew() {
         <div className="flex justify-end gap-2 pt-4">
           <Button type="button" variant="outline" onClick={() => navigate('/datasets')}>Cancel</Button>
           <Button type="submit" disabled={submitting}>
-            <Upload className="mr-2 h-4 w-4" />
+            {submitting ? <Spinner className="mr-2" /> : <Upload className="mr-2 h-4 w-4" />}
             {submitting ? 'Uploading...' : 'Upload'}
           </Button>
         </div>
       </form>
-    </div>
+    </PageTransition>
   );
 }

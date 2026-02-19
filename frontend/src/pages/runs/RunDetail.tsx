@@ -11,8 +11,9 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { StatusBadge } from '@/components/StatusBadge';
 import { StatCard } from '@/components/StatCard';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { LoadingSkeleton } from '@/components/LoadingSkeleton';
+import { PageTransition } from '@/components/PageTransition';
 import { formatDate, formatPercent } from '@/lib/utils';
 import { Trash2 } from 'lucide-react';
 
@@ -59,9 +60,9 @@ export function RunDetail() {
     navigate('/runs');
   }
 
-  if (loading) return <Skeleton className="h-60 w-full" />;
-  if (error) return <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>;
-  if (!run) return <Alert variant="destructive"><AlertDescription>Run not found</AlertDescription></Alert>;
+  if (loading) return <LoadingSkeleton rows={6} />;
+  if (error) return <Alert variant="destructive" className="animate-fade-in"><AlertDescription>{error}</AlertDescription></Alert>;
+  if (!run) return <Alert variant="destructive" className="animate-fade-in"><AlertDescription>Run not found</AlertDescription></Alert>;
 
   const filteredResults = showFailuresOnly ? results.filter((r) => !r.passed) : results;
   const progressPct = progress ? Math.round((progress.progress / Math.max(progress.total_rows, 1)) * 100) : 0;
@@ -78,7 +79,7 @@ export function RunDetail() {
   );
 
   return (
-    <div>
+    <PageTransition>
       <PageHeader
         title={`Run: ${run.config_name ?? 'Unknown'}`}
         description={`Dataset: ${run.dataset_name ?? 'Unknown'} · ${formatDate(run.created_at)}`}
@@ -108,7 +109,7 @@ export function RunDetail() {
       )}
 
       {run.summary && (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6 animate-fade-in">
           <StatCard label="Accuracy" value={formatPercent(run.summary.accuracy)} />
           <StatCard label="Total" value={String(run.summary.total)} />
           <StatCard label="Passed" value={String(run.summary.passed)} />
@@ -198,6 +199,6 @@ export function RunDetail() {
           )}
         </CardContent>
       </Card>
-    </div>
+    </PageTransition>
   );
 }

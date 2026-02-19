@@ -8,5 +8,5 @@ export interface Dataset {
 }
 
 export interface DatasetDetail extends Dataset {
-  preview: Record<string, string>[];
+  rows: Record<string, string>[];
 }

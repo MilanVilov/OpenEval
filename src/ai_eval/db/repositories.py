@@ -140,6 +140,17 @@ class DatasetRepository:
         await self._session.commit()
         return True
 
+    async def update(self, dataset_id: str, **kwargs: object) -> Dataset | None:
+        """Update a dataset's fields. Returns the updated dataset or ``None``."""
+        dataset = await self.get_by_id(dataset_id)
+        if dataset is None:
+            return None
+        for key, value in kwargs.items():
+            setattr(dataset, key, value)
+        await self._session.commit()
+        await self._session.refresh(dataset)
+        return dataset
+
 
 # ---------------------------------------------------------------------------
 # VectorStore

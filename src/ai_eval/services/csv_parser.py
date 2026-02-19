@@ -28,3 +28,15 @@ async def read_csv_rows(file_path: str) -> list[dict]:
     with path.open(newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         return list(reader)
+
+
+async def write_csv_rows(
+    file_path: str, columns: list[str], rows: list[dict]
+) -> None:
+    """Overwrite a CSV file with the given columns and rows."""
+    path = Path(file_path)
+    with path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=columns)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({col: row.get(col, "") for col in columns})

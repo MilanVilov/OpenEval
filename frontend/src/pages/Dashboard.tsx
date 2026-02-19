@@ -6,10 +6,11 @@ import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/StatusBadge';
-import { Skeleton } from '@/components/ui/skeleton';
+import { LoadingSkeleton } from '@/components/LoadingSkeleton';
+import { PageTransition } from '@/components/PageTransition';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { formatDate, formatPercent } from '@/lib/utils';
-import { Plus, Play } from 'lucide-react';
+import { Plus, Play, ArrowRight } from 'lucide-react';
 
 export function Dashboard() {
   const [runs, setRuns] = useState<EvalRun[]>([]);
@@ -23,18 +24,18 @@ export function Dashboard() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <Skeleton className="h-60 w-full" />;
+  if (loading) return <LoadingSkeleton rows={5} />;
 
   if (error) {
     return (
-      <Alert variant="destructive">
+      <Alert variant="destructive" className="animate-fade-in">
         <AlertDescription>{error}</AlertDescription>
       </Alert>
     );
   }
 
   return (
-    <div>
+    <PageTransition>
       <PageHeader
         title="Dashboard"
         description="Overview of recent evaluation runs"
@@ -57,16 +58,23 @@ export function Dashboard() {
       />
 
       {runs.length === 0 ? (
-        <Card className="p-8 text-center">
-          <p className="text-foreground-secondary">No runs yet. Create a config and start your first evaluation.</p>
+        <Card className="p-12 text-center animate-scale-in">
+          <p className="text-foreground-secondary text-base">No runs yet. Create a config and start your first evaluation.</p>
+          <div className="flex justify-center gap-3 mt-6">
+            <Link to="/configs/new"><Button variant="outline" size="sm">Create Config</Button></Link>
+            <Link to="/runs/new"><Button size="sm">Start Run</Button></Link>
+          </div>
         </Card>
       ) : (
         <div className="space-y-3">
-          {runs.map((run) => (
+          {runs.map((run, idx) => (
             <Link key={run.id} to={`/runs/${run.id}`} className="block">
-              <Card className="p-4 hover:bg-background-hover transition-colors duration-150">
+              <Card
+                className="p-4 hover:bg-background-hover hover:border-border-hover hover:shadow-medium transition-all duration-200 ease-[var(--ease-smooth)] animate-fade-in-up"
+                style={{ animationDelay: `${idx * 60}ms` }}
+              >
                 <div className="flex items-center justify-between">
-                  <div>
+                  <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-foreground">{run.config_name ?? 'Unknown Config'}</p>
                     <p className="text-xs text-foreground-secondary mt-0.5">
                       Dataset: {run.dataset_name ?? 'Unknown'} · {formatDate(run.created_at)}
@@ -74,11 +82,12 @@ export function Dashboard() {
                   </div>
                   <div className="flex items-center gap-3">
                     {run.summary && (
-                      <span className="text-sm font-medium text-foreground">
+                      <span className="text-sm font-medium text-foreground tabular-nums">
                         {formatPercent(run.summary.accuracy)}
                       </span>
                     )}
                     <StatusBadge status={run.status} />
+                    <ArrowRight className="h-4 w-4 text-foreground-disabled transition-transform duration-200 group-hover:translate-x-1" />
                   </div>
                 </div>
               </Card>
@@ -86,6 +95,6 @@ export function Dashboard() {
           ))}
         </div>
       )}
-    </div>
+    </PageTransition>
   );
 }

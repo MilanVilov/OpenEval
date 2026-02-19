@@ -9,8 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ai_eval.config import get_settings
 from ai_eval.db.repositories import DatasetRepository
 from ai_eval.db.session import get_session
-from ai_eval.routers.schemas.datasets import DatasetDetailResponse, DatasetResponse
-from ai_eval.services.csv_parser import parse_csv
+from ai_eval.routers.schemas.datasets import (
+    DatasetDetailResponse,
+    DatasetResponse,
+    UpdateRowsRequest,
+)
+from ai_eval.services.csv_parser import parse_csv, read_csv_rows, write_csv_rows
 
 router = APIRouter(prefix="/api/datasets", tags=["datasets"])
 
@@ -83,7 +87,7 @@ async def get_dataset(
     if not dataset:
         raise HTTPException(status_code=404, detail="Dataset not found")
 
-    metadata = await parse_csv(dataset.file_path)
+    all_rows = await read_csv_rows(dataset.file_path)
     return DatasetDetailResponse(
         id=dataset.id,
         name=dataset.name,
@@ -91,7 +95,7 @@ async def get_dataset(
         row_count=dataset.row_count,
         columns=dataset.columns,
         created_at=str(dataset.created_at),
-        preview=metadata["preview"],
+        rows=all_rows,
     )
 
 
@@ -108,3 +112,38 @@ async def delete_dataset(
 
     Path(dataset.file_path).unlink(missing_ok=True)
     await repo.delete(dataset_id)
+
+
+@router.put("/{dataset_id}/rows", response_model=DatasetDetailResponse)
+async def update_dataset_rows(
+    dataset_id: str,
+    body: UpdateRowsRequest,
+    session: AsyncSession = Depends(get_session),
+) -> DatasetDetailResponse:
+    """Overwrite all rows in the dataset CSV and update row_count."""
+    repo = DatasetRepository(session)
+    dataset = await repo.get_by_id(dataset_id)
+    if not dataset:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+
+    columns = dataset.columns
+    required = {"input", "expected_output"}
+    if not required.issubset(set(columns)):
+        raise HTTPException(status_code=422, detail="Dataset missing required columns")
+
+    await write_csv_rows(dataset.file_path, columns, body.rows)
+
+    new_count = len(body.rows)
+    if new_count != dataset.row_count:
+        await repo.update(dataset_id, row_count=new_count)
+        dataset = await repo.get_by_id(dataset_id)
+
+    return DatasetDetailResponse(
+        id=dataset.id,
+        name=dataset.name,
+        file_path=dataset.file_path,
+        row_count=dataset.row_count,
+        columns=dataset.columns,
+        created_at=str(dataset.created_at),
+        rows=body.rows,
+    )

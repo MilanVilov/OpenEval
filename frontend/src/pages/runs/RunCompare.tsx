@@ -7,8 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { StatCard } from '@/components/StatCard';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { LoadingSkeleton } from '@/components/LoadingSkeleton';
+import { PageTransition } from '@/components/PageTransition';
 import { formatPercent } from '@/lib/utils';
 
 interface CompareData {
@@ -38,15 +39,15 @@ export function RunCompare() {
       .finally(() => setLoading(false));
   }, [searchParams]);
 
-  if (loading) return <Skeleton className="h-60 w-full" />;
-  if (error) return <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>;
-  if (!data) return <Alert variant="destructive"><AlertDescription>Comparison data not available</AlertDescription></Alert>;
+  if (loading) return <LoadingSkeleton rows={5} />;
+  if (error) return <Alert variant="destructive" className="animate-fade-in"><AlertDescription>{error}</AlertDescription></Alert>;
+  if (!data) return <Alert variant="destructive" className="animate-fade-in"><AlertDescription>Comparison data not available</AlertDescription></Alert>;
 
   const runA = data.run_a;
   const runB = data.run_b;
 
   return (
-    <div>
+    <PageTransition>
       <PageHeader
         title="Compare Runs"
         description={`${runA?.config_name ?? 'Run A'} vs ${runB?.config_name ?? 'Run B'}`}
@@ -119,6 +120,6 @@ export function RunCompare() {
           </div>
         </CardContent>
       </Card>
-    </div>
+    </PageTransition>
   );
 }

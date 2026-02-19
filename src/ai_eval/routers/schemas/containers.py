@@ -1,12 +1,18 @@
 """Pydantic schemas for Container endpoints."""
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class CreateContainerRequest(BaseModel):
     """Request body for creating a container."""
 
     name: str
+    expires_after_minutes: int = Field(
+        default=20,
+        ge=1,
+        le=20,
+        description="Idle timeout in minutes (1-20). Timer resets on each use.",
+    )
 
 
 class ContainerResponse(BaseModel):

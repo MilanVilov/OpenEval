@@ -6,8 +6,10 @@ import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatCard } from '@/components/StatCard';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { LoadingSkeleton } from '@/components/LoadingSkeleton';
+import { PageTransition } from '@/components/PageTransition';
+import { Spinner } from '@/components/Spinner';
 import { formatDate } from '@/lib/utils';
 import { Trash2, Upload } from 'lucide-react';
 
@@ -52,12 +54,12 @@ export function VectorStoreDetail() {
     navigate('/vector-stores');
   }
 
-  if (loading) return <Skeleton className="h-60 w-full" />;
-  if (error) return <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>;
-  if (!store) return <Alert variant="destructive"><AlertDescription>Vector store not found</AlertDescription></Alert>;
+  if (loading) return <LoadingSkeleton rows={3} />;
+  if (error) return <Alert variant="destructive" className="animate-fade-in"><AlertDescription>{error}</AlertDescription></Alert>;
+  if (!store) return <Alert variant="destructive" className="animate-fade-in"><AlertDescription>Vector store not found</AlertDescription></Alert>;
 
   return (
-    <div>
+    <PageTransition>
       <PageHeader
         title={store.name}
         description={`Created ${formatDate(store.created_at)}`}
@@ -83,13 +85,13 @@ export function VectorStoreDetail() {
               className="text-sm text-foreground-secondary file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-medium file:bg-accent-blue file:text-white hover:file:bg-accent-blue/90"
             />
             <Button size="sm" onClick={handleUpload} disabled={uploading}>
-              <Upload className="mr-2 h-4 w-4" />
+              {uploading ? <Spinner className="mr-2" /> : <Upload className="mr-2 h-4 w-4" />}
               {uploading ? 'Uploading...' : 'Upload'}
             </Button>
           </div>
           {uploadMsg && <p className="text-sm mt-2 text-foreground-secondary">{uploadMsg}</p>}
         </CardContent>
       </Card>
-    </div>
+    </PageTransition>
   );
 }

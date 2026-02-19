@@ -20,6 +20,16 @@ export function uploadDataset(name: string, file: File): Promise<Dataset> {
   });
 }
 
+export function updateDatasetRows(
+  id: string,
+  rows: Record<string, string>[],
+): Promise<DatasetDetail> {
+  return apiFetch(`/datasets/${id}/rows`, {
+    method: 'PUT',
+    body: JSON.stringify({ rows }),
+  });
+}
+
 export function deleteDataset(id: string): Promise<void> {
   return apiFetch(`/datasets/${id}`, { method: 'DELETE' });
 }

@@ -17,7 +17,7 @@ class DatasetResponse(BaseModel):
 
 
 class DatasetDetailResponse(BaseModel):
-    """Response model for dataset detail with preview rows."""
+    """Response model for dataset detail with all rows."""
 
     id: str
     name: str
@@ -25,6 +25,12 @@ class DatasetDetailResponse(BaseModel):
     row_count: int
     columns: list
     created_at: str
-    preview: list[dict]
+    rows: list[dict]
 
     model_config = {"from_attributes": True}
+
+
+class UpdateRowsRequest(BaseModel):
+    """Request body for updating dataset rows."""
+
+    rows: list[dict]

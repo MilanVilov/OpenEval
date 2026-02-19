@@ -10,7 +10,10 @@ import { Select } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Send, Loader2, Clock, Zap, FileSearch, Terminal as TerminalIcon, MessageSquare } from 'lucide-react';
+import { PageTransition } from '@/components/PageTransition';
+import { Spinner } from '@/components/Spinner';
+import { CodeBlock } from '@/components/CodeBlock';
+import { Send, Clock, Zap, FileSearch, Terminal as TerminalIcon, MessageSquare, Brain, ChevronRight, CheckCircle2, XCircle } from 'lucide-react';
 
 export function Playground() {
   const [configs, setConfigs] = useState<EvalConfig[]>([]);
@@ -51,7 +54,7 @@ export function Playground() {
   const outputItems = (result?.raw_response?.output as Array<Record<string, unknown>>) || [];
 
   return (
-    <div>
+    <PageTransition>
       <PageHeader title="Playground" description="Test a config with a single message and inspect the full OpenAI response" />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -93,20 +96,20 @@ export function Playground() {
 
             <Button type="submit" disabled={loading || !configId || !message.trim()}>
               {loading ? (
-                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Running...</>
+                <><Spinner className="mr-2" />Running...</>
               ) : (
                 <><Send className="mr-2 h-4 w-4" />Send</>
               )}
             </Button>
           </form>
 
-          {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+          {error && <Alert variant="destructive" className="animate-fade-in"><AlertDescription>{error}</AlertDescription></Alert>}
         </div>
 
         {/* Right: Response */}
         <div className="space-y-4">
           {result && (
-            <>
+            <div className="animate-fade-in-up space-y-4">
               {/* Stats */}
               <div className="flex gap-3 flex-wrap">
                 <Badge className="flex items-center gap-1">
@@ -132,10 +135,10 @@ export function Playground() {
                     <button
                       type="button"
                       onClick={() => setRawTab('request')}
-                      className={`text-sm font-medium px-2 py-1 rounded transition-colors ${
+                      className={`text-sm font-medium px-3 py-1.5 rounded transition-all duration-200 ${
                         rawTab === 'request'
-                          ? 'bg-accent-muted text-foreground'
-                          : 'text-foreground-secondary hover:text-foreground'
+                          ? 'bg-accent-muted text-foreground shadow-sm'
+                          : 'text-foreground-secondary hover:text-foreground hover:bg-background-hover'
                       }`}
                     >
                       Raw Request
@@ -143,10 +146,10 @@ export function Playground() {
                     <button
                       type="button"
                       onClick={() => setRawTab('response')}
-                      className={`text-sm font-medium px-2 py-1 rounded transition-colors ${
+                      className={`text-sm font-medium px-3 py-1.5 rounded transition-all duration-200 ${
                         rawTab === 'response'
-                          ? 'bg-accent-muted text-foreground'
-                          : 'text-foreground-secondary hover:text-foreground'
+                          ? 'bg-accent-muted text-foreground shadow-sm'
+                          : 'text-foreground-secondary hover:text-foreground hover:bg-background-hover'
                       }`}
                     >
                       Raw Response
@@ -154,14 +157,16 @@ export function Playground() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <pre className="text-xs font-mono bg-background-input p-3 rounded overflow-auto max-h-[400px] whitespace-pre-wrap">
-                    {rawTab === 'request'
+                  <CodeBlock
+                    code={rawTab === 'request'
                       ? JSON.stringify(result.raw_request, null, 2)
                       : JSON.stringify(result.raw_response, null, 2)}
-                  </pre>
+                    language="json"
+                    maxHeight="400px"
+                  />
                 </CardContent>
               </Card>
-            </>
+            </div>
           )}
 
           {!result && !loading && (
@@ -171,27 +176,49 @@ export function Playground() {
           )}
         </div>
       </div>
-    </div>
+    </PageTransition>
   );
 }
 
 function OutputItemCard({ item }: { item: Record<string, unknown> }) {
   const type = item.type as string;
 
+  if (type === 'reasoning') {
+    const summary = item.summary as Array<Record<string, unknown>> | undefined;
+    const texts = summary?.filter((s) => s.type === 'summary_text').map((s) => s.text as string) || [];
+    if (texts.length === 0) return null;
+    return (
+      <Card className="animate-fade-in-up border-border/60">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2 text-foreground-secondary">
+            <Brain className="h-4 w-4" />reasoning
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-1">
+            {texts.map((t, i) => (
+              <p key={i} className="text-sm text-foreground-secondary" dangerouslySetInnerHTML={{
+                __html: t.replace(/\*\*(.*?)\*\*/g, '<strong class="text-foreground">$1</strong>')
+              }} />
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   if (type === 'message') {
     const content = item.content as Array<Record<string, unknown>> | undefined;
     const texts = content?.filter((c) => c.type === 'output_text').map((c) => c.text as string) || [];
     return (
-      <Card>
+      <Card className="animate-fade-in-up">
         <CardHeader>
           <CardTitle className="text-sm flex items-center gap-2">
             <MessageSquare className="h-4 w-4" />Message
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <pre className="text-sm font-mono bg-background-input p-3 rounded whitespace-pre-wrap">
-            {texts.join('\n') || '(empty)'}
-          </pre>
+          <CodeBlock code={texts.join('\n') || '(empty)'} language="text" />
         </CardContent>
       </Card>
     );
@@ -200,7 +227,7 @@ function OutputItemCard({ item }: { item: Record<string, unknown> }) {
   if (type === 'file_search_call') {
     const results = item.results as Array<Record<string, unknown>> | undefined;
     return (
-      <Card>
+      <Card className="animate-fade-in-up">
         <CardHeader>
           <CardTitle className="text-sm flex items-center gap-2">
             <FileSearch className="h-4 w-4" />File Search
@@ -224,29 +251,95 @@ function OutputItemCard({ item }: { item: Record<string, unknown> }) {
   }
 
   if (type === 'shell_call') {
+    const action = item.action as Record<string, unknown> | undefined;
+    const commands = (action?.commands as string[]) || [];
+    const callId = item.call_id as string | undefined;
+    const status = item.status as string | undefined;
     return (
-      <Card>
-        <CardHeader>
+      <Card className="animate-fade-in-up">
+        <CardHeader className="pb-2">
           <CardTitle className="text-sm flex items-center gap-2">
             <TerminalIcon className="h-4 w-4" />Shell
+            {status && (
+              <Badge variant={status === 'completed' ? 'default' : 'info'} className="text-[10px] font-normal">
+                {status}
+              </Badge>
+            )}
           </CardTitle>
+          {callId && <p className="text-xs text-foreground-secondary font-mono">{callId}</p>}
         </CardHeader>
-        <CardContent className="space-y-2">
-          {item.command != null && (
+        <CardContent className="space-y-3">
+          {commands.length > 0 && (
             <div>
-              <p className="text-xs text-foreground-secondary uppercase mb-1">Command</p>
-              <pre className="text-xs font-mono bg-background-input p-2 rounded whitespace-pre-wrap">
-                {JSON.stringify(item.command, null, 2)}
-              </pre>
+              <p className="text-xs text-foreground-secondary uppercase tracking-wider mb-1.5">Commands</p>
+              <div className="space-y-1.5">
+                {commands.map((cmd, i) => (
+                  <div key={i} className="flex items-start gap-2 font-mono text-xs bg-[#1c1c28] text-green-400 rounded px-3 py-2">
+                    <ChevronRight className="h-3.5 w-3.5 mt-0.5 shrink-0 text-green-500" />
+                    <span className="break-all">{cmd}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
-          {item.output != null && (
-            <div>
-              <p className="text-xs text-foreground-secondary uppercase mb-1">Output</p>
-              <pre className="text-xs font-mono bg-background-input p-2 rounded whitespace-pre-wrap max-h-[200px] overflow-auto">
-                {typeof item.output === 'string' ? item.output : JSON.stringify(item.output, null, 2)}
-              </pre>
-            </div>
+          {commands.length === 0 && (
+            <CodeBlock code={JSON.stringify(item, null, 2)} language="json" maxHeight="200px" />
+          )}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (type === 'shell_call_output') {
+    const outputs = (item.output as Array<Record<string, unknown>>) || [];
+    const callId = item.call_id as string | undefined;
+    return (
+      <Card className="animate-fade-in-up">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <TerminalIcon className="h-4 w-4" />shell_call_output
+          </CardTitle>
+          {callId && <p className="text-xs text-foreground-secondary font-mono">{callId}</p>}
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {outputs.map((out, i) => {
+            const stdout = out.stdout as string | undefined;
+            const stderr = out.stderr as string | undefined;
+            const outcome = out.outcome as Record<string, unknown> | undefined;
+            const exitCode = outcome?.exit_code as number | undefined;
+            return (
+              <div key={i} className="space-y-2">
+                {outputs.length > 1 && (
+                  <p className="text-xs text-foreground-secondary font-medium">Command {i + 1}</p>
+                )}
+                {outcome && (
+                  <div className="flex items-center gap-1.5 text-xs">
+                    {exitCode === 0 ? (
+                      <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+                    ) : (
+                      <XCircle className="h-3.5 w-3.5 text-red-500" />
+                    )}
+                    <span className="font-mono text-foreground-secondary">exit {String(exitCode)}</span>
+                  </div>
+                )}
+                {stdout && stdout.trim() && (
+                  <div>
+                    <p className="text-xs text-foreground-secondary uppercase tracking-wider mb-1">stdout</p>
+                    <CodeBlock code={stdout} language="text" maxHeight="200px" />
+                  </div>
+                )}
+                {stderr && stderr.trim() && (
+                  <div>
+                    <p className="text-xs text-red-400 uppercase tracking-wider mb-1">stderr</p>
+                    <CodeBlock code={stderr} language="text" maxHeight="200px" />
+                  </div>
+                )}
+                {i < outputs.length - 1 && <hr className="border-border/50" />}
+              </div>
+            );
+          })}
+          {outputs.length === 0 && (
+            <p className="text-xs text-foreground-secondary">No output</p>
           )}
         </CardContent>
       </Card>
@@ -255,14 +348,16 @@ function OutputItemCard({ item }: { item: Record<string, unknown> }) {
 
   // Generic fallback for other types (code_interpreter, etc.)
   return (
-    <Card>
+    <Card className="animate-fade-in-up">
       <CardHeader>
         <CardTitle className="text-sm">{type}</CardTitle>
       </CardHeader>
       <CardContent>
-        <pre className="text-xs font-mono bg-background-input p-3 rounded overflow-auto max-h-[200px] whitespace-pre-wrap">
-          {JSON.stringify(item, null, 2)}
-        </pre>
+        <CodeBlock
+          code={JSON.stringify(item, null, 2)}
+          language="json"
+          maxHeight="200px"
+        />
       </CardContent>
     </Card>
   );

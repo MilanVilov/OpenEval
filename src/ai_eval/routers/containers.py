@@ -51,7 +51,7 @@ async def create_container_route(
 ) -> ContainerResponse:
     """Create a new container in OpenAI and save to DB."""
     try:
-        result = await create_container(body.name)
+        result = await create_container(body.name, body.expires_after_minutes)
     except Exception as exc:
         raise HTTPException(status_code=422, detail=f"OpenAI API error: {exc}")
 

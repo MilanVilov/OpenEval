@@ -625,19 +625,561 @@ Modal backdrop: Shadcn/ui `DialogOverlay` uses `bg-black/60` by default — keep
 
 ---
 
-## Transitions
+## Modern Animations
 
-All interactive state changes use `duration-150 ease`:
+Animations are essential for creating a polished, engaging experience. Use them thoughtfully to guide attention and provide feedback. All animations use CSS transitions, `tailwindcss-animate`, and lightweight React hooks — no extra libraries required.
+
+### Animation Principles
+
+- **Purposeful**: Every animation should have a reason (feedback, guidance, delight)
+- **Quick**: Keep durations short (150–800ms) to feel snappy
+- **Natural**: Use appropriate easing (elastic for bounce, ease-out for smooth)
+- **Layered**: Combine transforms (scale + fade, slide + fade) for rich motion
+
+### Easing Reference
+
+| Name | CSS value | Use for |
+|------|-----------|---------|
+| Smooth deceleration | `cubic-bezier(0.16, 1, 0.3, 1)` | Fades, slides, most UI |
+| Elastic bounce | `cubic-bezier(0.34, 1.56, 0.64, 1)` | Success icons, celebrations |
+| Symmetric smooth | `cubic-bezier(0.4, 0, 0.2, 1)` | Transitions, morphing |
+| Snappy | `cubic-bezier(0, 0, 0.2, 1)` | Quick state changes |
+
+Define these in `globals.css` for reuse:
+
+```css
+@layer base {
+  :root {
+    --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-elastic: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+    --ease-snappy: cubic-bezier(0, 0, 0.2, 1);
+  }
+}
+```
+
+### Animation Durations Guide
+
+| Animation Type | Duration | Tailwind class |
+|---------------|----------|----------------|
+| Button press / release | 100–150ms | `duration-150` |
+| Color / state change | 200ms | `duration-200` |
+| Card selection | 200ms | `duration-200` |
+| Slide / fade entrance | 300ms | `duration-300` |
+| Page transition | 300–400ms | `duration-300` |
+| Success entrance | 600–800ms | `duration-700` |
+| Complex celebration | 1500ms | custom |
+| Stagger delay per item | 50–75ms | custom |
+
+### CSS Keyframes
+
+Add to `globals.css`:
+
+```css
+@layer utilities {
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes fade-in-up {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes fade-in-down {
+    from { opacity: 0; transform: translateY(-12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes scale-in {
+    from { opacity: 0; transform: scale(0.9); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  @keyframes scale-in-bounce {
+    0% { opacity: 0; transform: scale(0); }
+    60% { opacity: 1; transform: scale(1.08); }
+    80% { transform: scale(0.96); }
+    100% { transform: scale(1); }
+  }
+
+  @keyframes slide-in-right {
+    from { opacity: 0; transform: translateX(16px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  @keyframes slide-in-left {
+    from { opacity: 0; transform: translateX(-16px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+
+  @keyframes pulse-ring {
+    0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
+    70% { box-shadow: 0 0 0 8px rgba(59, 130, 246, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+  }
+
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    10%, 50%, 90% { transform: translateX(-3px); }
+    30%, 70% { transform: translateX(3px); }
+  }
+
+  .animate-fade-in { animation: fade-in 300ms var(--ease-out-expo) both; }
+  .animate-fade-in-up { animation: fade-in-up 400ms var(--ease-out-expo) both; }
+  .animate-fade-in-down { animation: fade-in-down 400ms var(--ease-out-expo) both; }
+  .animate-scale-in { animation: scale-in 300ms var(--ease-out-expo) both; }
+  .animate-scale-in-bounce { animation: scale-in-bounce 700ms var(--ease-elastic) both; }
+  .animate-slide-in-right { animation: slide-in-right 300ms var(--ease-out-expo) both; }
+  .animate-slide-in-left { animation: slide-in-left 300ms var(--ease-out-expo) both; }
+  .animate-shimmer { animation: shimmer 2s linear infinite; }
+  .animate-pulse-ring { animation: pulse-ring 1.5s ease-out infinite; }
+  .animate-shake { animation: shake 400ms ease-in-out; }
+}
+```
+
+### Transitions (Interactive State Changes)
+
+All interactive state changes use smooth transitions:
 
 ```tsx
 // Applied via Tailwind on interactive elements
 <button className="transition-all duration-150 ease-in-out ...">
 
-// Or on specific properties
-<div className="transition-colors duration-150 ...">
+// Specific property transitions for performance
+<div className="transition-colors duration-200 ...">
+<div className="transition-transform duration-150 ...">
+<div className="transition-[opacity,transform] duration-300 ...">
 ```
 
 Properties to transition: `background`, `border-color`, `color`, `box-shadow`, `opacity`, `transform`.
+
+### Button Press Animation
+
+Scale down on press for tactile feedback:
+
+```tsx
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+
+interface AnimatedButtonProps extends React.ComponentProps<typeof Button> {
+  children: React.ReactNode;
+}
+
+export function AnimatedButton({ children, className, ...props }: AnimatedButtonProps) {
+  const [pressed, setPressed] = useState(false);
+
+  return (
+    <Button
+      className={cn(
+        'transition-transform duration-150 ease-in-out',
+        pressed && 'scale-[0.97]',
+        className,
+      )}
+      onMouseDown={() => setPressed(true)}
+      onMouseUp={() => setPressed(false)}
+      onMouseLeave={() => setPressed(false)}
+      {...props}
+    >
+      {children}
+    </Button>
+  );
+}
+```
+
+### Card Selection Animation
+
+Animate border and background on selection:
+
+```tsx
+interface SelectableCardProps {
+  selected: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}
+
+export function SelectableCard({ selected, onClick, children }: SelectableCardProps) {
+  return (
+    <div
+      onClick={onClick}
+      className={cn(
+        'cursor-pointer rounded-md p-4 transition-all duration-200 ease-[var(--ease-smooth)]',
+        selected
+          ? 'bg-accent-muted border-2 border-accent shadow-subtle'
+          : 'bg-background-card border border-border-muted hover:border-border-hover hover:bg-background-hover',
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+```
+
+### Page / Section Entrance Animation
+
+Animate elements when they appear. Use `useAnimateOnMount` for simple fade-in-up:
+
+```tsx
+import { useEffect, useRef, useState } from 'react';
+
+/** Triggers a CSS animation class after mount (with optional delay). */
+export function useAnimateOnMount(delay = 0) {
+  const [visible, setVisible] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setVisible(true), delay);
+    return () => clearTimeout(timer);
+  }, [delay]);
+
+  return { ref, visible };
+}
+
+// Usage
+function SectionHeader({ title }: { title: string }) {
+  const { visible } = useAnimateOnMount();
+
+  return (
+    <h2
+      className={cn(
+        'text-lg font-semibold transition-all duration-500 ease-[var(--ease-out-expo)]',
+        visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3',
+      )}
+    >
+      {title}
+    </h2>
+  );
+}
+```
+
+### Staggered List Animation
+
+Stagger the entrance of list items for a polished feel:
+
+```tsx
+interface StaggeredListProps<T> {
+  items: T[];
+  renderItem: (item: T, index: number) => React.ReactNode;
+  staggerMs?: number;
+  className?: string;
+}
+
+export function StaggeredList<T>({
+  items,
+  renderItem,
+  staggerMs = 60,
+  className,
+}: StaggeredListProps<T>) {
+  return (
+    <div className={className}>
+      {items.map((item, index) => (
+        <div
+          key={index}
+          className="animate-fade-in-up"
+          style={{ animationDelay: `${index * staggerMs}ms` }}
+        >
+          {renderItem(item, index)}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Usage
+<StaggeredList
+  items={configs}
+  className="space-y-2"
+  renderItem={(config) => <ConfigCard config={config} />}
+/>
+```
+
+### Success Screen Animation
+
+Bouncy scale entrance + staggered fade for celebration moments:
+
+```tsx
+import { useEffect, useState } from 'react';
+import { CheckCircle } from 'lucide-react';
+
+export function SuccessScreen({ title, subtitle }: { title: string; subtitle: string }) {
+  const [stage, setStage] = useState(0);
+
+  useEffect(() => {
+    const t1 = setTimeout(() => setStage(1), 200);   // icon bounces in
+    const t2 = setTimeout(() => setStage(2), 500);   // text fades in
+    const t3 = setTimeout(() => setStage(3), 700);   // action button appears
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, []);
+
+  return (
+    <div className="flex flex-col items-center justify-center gap-6 py-16 text-center">
+      {/* Success icon — bouncy scale */}
+      <div
+        className={cn(
+          'flex h-20 w-20 items-center justify-center rounded-full bg-success/10 transition-all duration-700',
+          stage >= 1
+            ? 'scale-100 opacity-100 ease-[var(--ease-elastic)]'
+            : 'scale-0 opacity-0',
+        )}
+      >
+        <CheckCircle className="h-10 w-10 text-success" />
+      </div>
+
+      {/* Title + subtitle — staggered fade */}
+      <div
+        className={cn(
+          'space-y-2 transition-all duration-500 ease-[var(--ease-out-expo)]',
+          stage >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4',
+        )}
+      >
+        <h2 className="text-xl font-semibold text-foreground">{title}</h2>
+        <p className="text-sm text-foreground-secondary">{subtitle}</p>
+      </div>
+
+      {/* CTA button — final fade in */}
+      <div
+        className={cn(
+          'transition-all duration-300 ease-[var(--ease-out-expo)]',
+          stage >= 3 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2',
+        )}
+      >
+        <Button>Continue</Button>
+      </div>
+    </div>
+  );
+}
+```
+
+### Loading States
+
+Use shimmer skeletons and small spinners:
+
+```tsx
+// Skeleton with shimmer
+export function Skeleton({ className }: { className?: string }) {
+  return (
+    <div
+      className={cn(
+        'rounded-md bg-gradient-to-r from-background-card via-background-hover to-background-card',
+        'bg-[length:200%_100%] animate-shimmer',
+        className,
+      )}
+    />
+  );
+}
+
+// Usage
+<Skeleton className="h-4 w-48" />
+<Skeleton className="h-10 w-full" />
+
+// Small inline spinner (for button loading states)
+export function Spinner({ className }: { className?: string }) {
+  return (
+    <svg
+      className={cn('h-4 w-4 animate-spin text-current', className)}
+      viewBox="0 0 24 24"
+      fill="none"
+    >
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+      <path
+        className="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+      />
+    </svg>
+  );
+}
+
+// Button with loading state
+<Button disabled={loading}>
+  {loading ? <><Spinner className="mr-2" /> Saving...</> : 'Save'}
+</Button>
+```
+
+### Page Transition Wrapper
+
+Wrap page content for smooth entrance when navigating:
+
+```tsx
+export function PageTransition({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="animate-fade-in-up" style={{ animationDuration: '350ms' }}>
+      {children}
+    </div>
+  );
+}
+
+// Usage in page components
+export function RunsPage() {
+  return (
+    <PageTransition>
+      <PageHeader title="Eval Runs" />
+      {/* ... */}
+    </PageTransition>
+  );
+}
+```
+
+### Micro-interactions
+
+| Interaction | Implementation |
+|-------------|---------------|
+| Button hover | `hover:brightness-110 transition-all duration-150` |
+| Button press | Scale to `0.97` on mouseDown (see Button Press Animation above) |
+| Row hover | `hover:bg-[rgba(255,255,255,0.03)] transition-colors duration-150` |
+| Input focus | `focus:border-border-focus focus:ring-1 focus:ring-border-focus transition-colors duration-200` |
+| Card hover | `hover:border-border-hover hover:shadow-subtle transition-all duration-200` |
+| Toggle switch | `transition-all duration-200 ease-[var(--ease-smooth)]` on both track and thumb |
+| Error state | Apply `animate-shake` class, then remove after animation ends |
+| Success feedback | Green checkmark with `animate-scale-in-bounce` |
+| Tooltip enter | `animate-fade-in` with `duration-150` |
+| Dropdown open | `animate-scale-in` on content panel |
+
+### Error Shake Pattern
+
+```tsx
+import { useState, useCallback } from 'react';
+
+export function useShake() {
+  const [shaking, setShaking] = useState(false);
+
+  const triggerShake = useCallback(() => {
+    setShaking(true);
+    setTimeout(() => setShaking(false), 400);
+  }, []);
+
+  return { shaking, triggerShake };
+}
+
+// Usage
+const { shaking, triggerShake } = useShake();
+
+<Input
+  className={cn('bg-background-input border-border', shaking && 'animate-shake border-error')}
+/>
+
+// Trigger on validation failure
+if (!isValid) triggerShake();
+```
+
+### Collapsible / Accordion Animation
+
+Animate height for expanding/collapsing content:
+
+```tsx
+import { useRef, useState } from 'react';
+
+interface CollapsibleProps {
+  open: boolean;
+  children: React.ReactNode;
+}
+
+export function AnimatedCollapsible({ open, children }: CollapsibleProps) {
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  return (
+    <div
+      className="overflow-hidden transition-[max-height,opacity] duration-300 ease-[var(--ease-smooth)]"
+      style={{
+        maxHeight: open ? contentRef.current?.scrollHeight ?? 1000 : 0,
+        opacity: open ? 1 : 0,
+      }}
+    >
+      <div ref={contentRef}>{children}</div>
+    </div>
+  );
+}
+```
+
+### Number / Value Count-Up
+
+Animate numbers counting up for dashboard stats:
+
+```tsx
+import { useEffect, useState } from 'react';
+
+export function useCountUp(target: number, duration = 600) {
+  const [value, setValue] = useState(0);
+
+  useEffect(() => {
+    if (target === 0) { setValue(0); return; }
+    const start = performance.now();
+    const step = (now: number) => {
+      const progress = Math.min((now - start) / duration, 1);
+      // Ease-out quad
+      const eased = 1 - (1 - progress) * (1 - progress);
+      setValue(Math.round(eased * target));
+      if (progress < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }, [target, duration]);
+
+  return value;
+}
+
+// Usage in StatCard
+export function StatCard({ label, value }: { label: string; value: number }) {
+  const animated = useCountUp(value);
+  return (
+    <Card className="bg-background-card border-border-muted text-center p-4">
+      <div className="text-2xl font-semibold text-foreground">{animated}</div>
+      <div className="text-xs font-medium uppercase tracking-wide text-foreground-secondary mt-1">
+        {label}
+      </div>
+    </Card>
+  );
+}
+```
+
+### Animation Composition
+
+Combine multiple animation utilities for richer effects. Always prefer composing simple animations over building complex custom ones:
+
+```tsx
+// Combined slide + fade (card entrance)
+<div className="animate-fade-in-up" style={{ animationDelay: '100ms' }}>
+  <Card>...</Card>
+</div>
+
+// Combined scale + pulse ring (success icon)
+<div className="animate-scale-in-bounce animate-pulse-ring">
+  <CheckCircle className="h-8 w-8 text-success" />
+</div>
+
+// Staggered grid entrance
+<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+  {stats.map((s, i) => (
+    <div key={s.label} className="animate-fade-in-up" style={{ animationDelay: `${i * 75}ms` }}>
+      <StatCard {...s} />
+    </div>
+  ))}
+</div>
+```
+
+### Animation Don'ts
+
+- **Don't** animate on every render — gate animations behind mount or state changes.
+- **Don't** use durations above 800ms for standard UI (loading/success screens are the exception).
+- **Don't** animate layout-triggering properties (`width`, `height`, `top`, `left`) — use `transform` and `opacity` only for 60fps performance.
+- **Don't** stack multiple heavy animations simultaneously — stagger them.
+- **Don't** use `setInterval` for animations — use `requestAnimationFrame` or CSS animations.
+- **Don't** forget `prefers-reduced-motion` — always respect user preferences:
+
+```css
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+```
 
 ---
 

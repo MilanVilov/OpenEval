@@ -9,9 +9,11 @@ import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Play } from 'lucide-react';
+import { PageTransition } from '@/components/PageTransition';
+import { LoadingSkeleton } from '@/components/LoadingSkeleton';
+import { Spinner } from '@/components/Spinner';
 
 export function RunNew() {
   const navigate = useNavigate();
@@ -50,12 +52,12 @@ export function RunNew() {
     }
   }
 
-  if (loading) return <Skeleton className="h-40 w-full" />;
+  if (loading) return <LoadingSkeleton rows={3} />;
 
   return (
-    <div>
+    <PageTransition>
       <PageHeader title="Start Evaluation Run" description="Select a config and dataset to evaluate" />
-      <form onSubmit={handleSubmit} className="space-y-4 max-w-[600px]">
+      <form onSubmit={handleSubmit} className="space-y-5 max-w-[640px]">
         {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
 
         {configs.length === 0 && (
@@ -87,11 +89,11 @@ export function RunNew() {
         <div className="flex justify-end gap-2 pt-4">
           <Button type="button" variant="outline" onClick={() => navigate('/runs')}>Cancel</Button>
           <Button type="submit" disabled={submitting || configs.length === 0 || datasets.length === 0}>
-            <Play className="mr-2 h-4 w-4" />
+            {submitting ? <Spinner className="mr-2" /> : <Play className="mr-2 h-4 w-4" />}
             {submitting ? 'Starting...' : 'Start Run'}
           </Button>
         </div>
       </form>
-    </div>
+    </PageTransition>
   );
 }

@@ -6,8 +6,10 @@ import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { LoadingSkeleton } from '@/components/LoadingSkeleton';
+import { PageTransition } from '@/components/PageTransition';
+import { CodeBlock } from '@/components/CodeBlock';
 import { formatDate } from '@/lib/utils';
 import { Pencil, Trash2 } from 'lucide-react';
 
@@ -32,12 +34,12 @@ export function ConfigDetail() {
     navigate('/configs');
   }
 
-  if (loading) return <Skeleton className="h-60 w-full" />;
-  if (error) return <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>;
-  if (!config) return <Alert variant="destructive"><AlertDescription>Config not found</AlertDescription></Alert>;
+  if (loading) return <LoadingSkeleton rows={5} />;
+  if (error) return <Alert variant="destructive" className="animate-fade-in"><AlertDescription>{error}</AlertDescription></Alert>;
+  if (!config) return <Alert variant="destructive" className="animate-fade-in"><AlertDescription>Config not found</AlertDescription></Alert>;
 
   return (
-    <div>
+    <PageTransition>
       <PageHeader
         title={config.name}
         description={`Created ${formatDate(config.created_at)}`}
@@ -54,7 +56,7 @@ export function ConfigDetail() {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card>
+        <Card className="animate-fade-in-up" style={{ animationDelay: '60ms' }}>
           <CardHeader><CardTitle>Configuration</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             <div>
@@ -122,13 +124,13 @@ export function ConfigDetail() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="animate-fade-in-up" style={{ animationDelay: '120ms' }}>
           <CardHeader><CardTitle>System Prompt</CardTitle></CardHeader>
           <CardContent>
-            <pre className="text-sm font-mono bg-background-input p-3 rounded whitespace-pre-wrap">{config.system_prompt}</pre>
+            <CodeBlock code={config.system_prompt} language="text" expandable expandTitle="System Prompt" />
           </CardContent>
         </Card>
       </div>
-    </div>
+    </PageTransition>
   );
 }

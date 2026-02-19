@@ -68,7 +68,12 @@ class OpenAIProvider(BaseLLMProvider):
         if reasoning_config:
             kwargs["reasoning"] = reasoning_config
         if response_format:
-            kwargs["text"] = {"format": response_format}
+            fmt = dict(response_format)
+            # OpenAI requires name to match ^[a-zA-Z0-9_-]+$
+            if "name" in fmt:
+                import re
+                fmt["name"] = re.sub(r"[^a-zA-Z0-9_-]", "_", fmt["name"])
+            kwargs["text"] = {"format": fmt}
 
         # Log the request for debugging (tools, model, etc.)
         logger.info(

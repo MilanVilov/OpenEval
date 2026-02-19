@@ -6,7 +6,8 @@ import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
+import { LoadingSkeleton } from '@/components/LoadingSkeleton';
+import { PageTransition } from '@/components/PageTransition';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Plus } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
@@ -23,11 +24,11 @@ export function ConfigList() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <Skeleton className="h-40 w-full" />;
-  if (error) return <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>;
+  if (loading) return <LoadingSkeleton rows={4} />;
+  if (error) return <Alert variant="destructive" className="animate-fade-in"><AlertDescription>{error}</AlertDescription></Alert>;
 
   return (
-    <div>
+    <PageTransition>
       <PageHeader
         title="Eval Configs"
         description="Manage your evaluation configurations"
@@ -39,15 +40,18 @@ export function ConfigList() {
       />
 
       {configs.length === 0 ? (
-        <Card className="p-8 text-center">
-          <p className="text-foreground-secondary">No configs yet.</p>
+        <Card className="p-12 text-center animate-scale-in">
+          <p className="text-foreground-secondary text-base">No configs yet.</p>
           <Link to="/configs/new"><Button className="mt-4" size="sm">Create your first config</Button></Link>
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {configs.map((config) => (
+          {configs.map((config, idx) => (
             <Link key={config.id} to={`/configs/${config.id}`}>
-              <Card className="p-4 hover:bg-background-hover transition-colors duration-150 h-full">
+              <Card
+                className="p-4 h-full hover:bg-background-hover hover:border-border-hover hover:shadow-medium transition-all duration-200 ease-[var(--ease-smooth)] animate-fade-in-up"
+                style={{ animationDelay: `${idx * 60}ms` }}
+              >
                 <h3 className="text-sm font-medium text-foreground">{config.name}</h3>
                 <p className="text-xs text-foreground-secondary mt-1 line-clamp-2">{config.system_prompt}</p>
                 <div className="flex items-center gap-2 mt-3">
@@ -60,6 +64,6 @@ export function ConfigList() {
           ))}
         </div>
       )}
-    </div>
+    </PageTransition>
   );
 }

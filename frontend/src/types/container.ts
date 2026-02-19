@@ -9,4 +9,5 @@ export interface Container {
 
 export interface CreateContainerRequest {
   name: string;
+  expires_after_minutes?: number;
 }

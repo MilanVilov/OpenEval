@@ -18,11 +18,16 @@ def get_openai_client() -> AsyncOpenAI:
 # ---------------------------------------------------------------------------
 
 
-async def create_container(name: str) -> dict:
+async def create_container(name: str, expires_after_minutes: int = 20) -> dict:
     """Create a new container in OpenAI for the shell tool.
 
     Uses the Containers API: POST /v1/containers
     Returns dict with keys: id, name, status.
+
+    Args:
+        name: Display name for the container.
+        expires_after_minutes: Idle timeout in minutes (1-20). The timer
+            resets each time the container is used.
     """
     settings = get_settings()
     async with httpx.AsyncClient() as http:
@@ -34,7 +39,10 @@ async def create_container(name: str) -> dict:
             },
             json={
                 "name": name,
-                "expires_after": {"anchor": "last_active_at", "minutes": 20},
+                "expires_after": {
+                    "anchor": "last_active_at",
+                    "minutes": expires_after_minutes,
+                },
             },
             timeout=30.0,
         )

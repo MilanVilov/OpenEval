@@ -1,6 +1,7 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getConfig, updateConfig } from '@/api/configs';
+import { generateSchema } from '@/api/generateSchema';
 import { listVectorStores } from '@/api/vectorStores';
 import { listContainers } from '@/api/containers';
 import type { VectorStore } from '@/types/vectorStore';
@@ -11,8 +12,10 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { LoadingSkeleton } from '@/components/LoadingSkeleton';
+import { PageTransition } from '@/components/PageTransition';
+import { Spinner } from '@/components/Spinner';
 
 const MODEL_OPTIONS = [
   { group: 'Frontier', models: [
@@ -57,6 +60,9 @@ export function ConfigEdit() {
   const [responseFormatType, setResponseFormatType] = useState('text');
   const [jsonSchemaName, setJsonSchemaName] = useState('');
   const [jsonSchemaBody, setJsonSchemaBody] = useState('');
+  const [aiSchemaPrompt, setAiSchemaPrompt] = useState('');
+  const [aiSchemaLoading, setAiSchemaLoading] = useState(false);
+  const [aiSchemaError, setAiSchemaError] = useState<string | null>(null);
   const [fileSearchEnabled, setFileSearchEnabled] = useState(false);
   const [vectorStoreId, setVectorStoreId] = useState('');
   const [vectorStores, setVectorStores] = useState<VectorStore[]>([]);
@@ -126,11 +132,12 @@ export function ConfigEdit() {
     if (responseFormatType === 'text') return null;
     if (responseFormatType === 'json_object') return { type: 'json_object' };
     if (responseFormatType === 'json_schema') {
+      const safeName = (jsonSchemaName || 'response').replace(/[^a-zA-Z0-9_-]/g, '_');
       try {
         const schema = JSON.parse(jsonSchemaBody);
-        return { type: 'json_schema', name: jsonSchemaName || 'response', schema, strict: true };
+        return { type: 'json_schema', name: safeName, schema, strict: true };
       } catch {
-        return { type: 'json_schema', name: jsonSchemaName || 'response', schema: {}, strict: true };
+        return { type: 'json_schema', name: safeName, schema: {}, strict: true };
       }
     }
     return null;
@@ -182,12 +189,12 @@ export function ConfigEdit() {
     }
   }
 
-  if (loading) return <Skeleton className="h-40 w-full" />;
+  if (loading) return <LoadingSkeleton rows={6} />;
 
   return (
-    <div>
+    <PageTransition>
       <PageHeader title="Edit Config" />
-      <form onSubmit={handleSubmit} className="space-y-4 max-w-[600px]">
+      <form onSubmit={handleSubmit} className="space-y-5 max-w-[640px]">
         {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
 
         <div className="space-y-2">
@@ -254,6 +261,39 @@ export function ConfigEdit() {
 
         {responseFormatType === 'json_schema' && (
           <div className="space-y-3 rounded-md border border-border p-4">
+            <div className="space-y-2 rounded-md border border-dashed border-border p-3 bg-muted/30">
+              <Label>Generate with AI</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={aiSchemaPrompt}
+                  onChange={(e) => setAiSchemaPrompt(e.target.value)}
+                  placeholder="Describe the schema, e.g. 'A product with name, price, and tags'"
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={aiSchemaLoading || !aiSchemaPrompt.trim()}
+                  onClick={async () => {
+                    setAiSchemaLoading(true);
+                    setAiSchemaError(null);
+                    try {
+                      const result = await generateSchema(aiSchemaPrompt);
+                      setJsonSchemaName(result.schema_name);
+                      setJsonSchemaBody(JSON.stringify(result.schema_body, null, 2));
+                    } catch (err) {
+                      setAiSchemaError(err instanceof Error ? err.message : 'Generation failed');
+                    } finally {
+                      setAiSchemaLoading(false);
+                    }
+                  }}
+                >
+                  {aiSchemaLoading ? 'Generating...' : 'Generate'}
+                </Button>
+              </div>
+              {aiSchemaError && <p className="text-xs text-destructive">{aiSchemaError}</p>}
+              <p className="text-xs text-foreground-secondary">Uses GPT-5.2 to create a JSON schema from your description</p>
+            </div>
             <div className="space-y-2">
               <Label>Schema Name</Label>
               <Input value={jsonSchemaName} onChange={(e) => setJsonSchemaName(e.target.value)} placeholder="response" />
@@ -373,9 +413,12 @@ export function ConfigEdit() {
 
         <div className="flex justify-end gap-2 pt-4">
           <Button type="button" variant="outline" onClick={() => navigate(`/configs/${id}`)}>Cancel</Button>
-          <Button type="submit" disabled={submitting}>{submitting ? 'Saving...' : 'Save Changes'}</Button>
+          <Button type="submit" disabled={submitting}>
+            {submitting && <Spinner className="mr-2" />}
+            {submitting ? 'Saving...' : 'Save Changes'}
+          </Button>
         </div>
       </form>
-    </div>
+    </PageTransition>
   );
 }

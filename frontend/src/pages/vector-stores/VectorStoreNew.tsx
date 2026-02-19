@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { PageTransition } from '@/components/PageTransition';
+import { Spinner } from '@/components/Spinner';
 
 export function VectorStoreNew() {
   const navigate = useNavigate();
@@ -28,9 +30,9 @@ export function VectorStoreNew() {
   }
 
   return (
-    <div>
+    <PageTransition>
       <PageHeader title="New Vector Store" description="Create a new OpenAI vector store" />
-      <form onSubmit={handleSubmit} className="space-y-4 max-w-[600px]">
+      <form onSubmit={handleSubmit} className="space-y-5 max-w-[640px]">
         {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
 
         <div className="space-y-2">
@@ -40,9 +42,12 @@ export function VectorStoreNew() {
 
         <div className="flex justify-end gap-2 pt-4">
           <Button type="button" variant="outline" onClick={() => navigate('/vector-stores')}>Cancel</Button>
-          <Button type="submit" disabled={submitting}>{submitting ? 'Creating...' : 'Create'}</Button>
+          <Button type="submit" disabled={submitting}>
+            {submitting && <Spinner className="mr-2" />}
+            {submitting ? 'Creating...' : 'Create'}
+          </Button>
         </div>
       </form>
-    </div>
+    </PageTransition>
   );
 }
