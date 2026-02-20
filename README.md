@@ -28,7 +28,7 @@ An open-source AI prompt & tool evaluation framework. Configure prompts, models,
 
 ```bash
 # Clone the repo
-git clone https://github.com/your-org/openeval.git
+git clone https://github.com/MilanVilov/OpenEval.git
 cd openeval
 
 # Copy env file and add your OpenAI API key
