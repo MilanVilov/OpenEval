@@ -29,7 +29,7 @@ An open-source AI prompt & tool evaluation framework. Configure prompts, models,
 ```bash
 # Clone the repo
 git clone https://github.com/MilanVilov/OpenEval.git
-cd openeval
+cd OpenEval
 
 # Copy env file and add your OpenAI API key
 cp .env.example .env
@@ -82,6 +82,17 @@ npm run dev
 3. **Run an Evaluation** — Go to Eval Runs → New Run. Select a config and dataset, then start.
 4. **View Results** — Watch live progress, then review results with pass/fail badges and scores.
 5. **Compare Runs** — Go to Eval Runs → Compare to see two runs side by side.
+
+## Sample Files
+
+The `misc/` directory contains example files you can use to explore the platform:
+
+- **dcr-5.2-prompt.md** — A real-world classification system prompt (Catawiki contact reason taxonomy)
+- **contact-reason-schema.json** — JSON schema for structured response format
+- **Small DCR Golden Test Cases.csv** / **Large DCR Golden Test Cases.csv** — Evaluation datasets (CSV) with golden test cases
+- **Taxonomy 2026-Feb.csv** — Reference taxonomy data
+
+Upload the CSV files as datasets and use the prompt/schema to create an eval config to see OpenEval in action.
 
 ## CSV Format
 
