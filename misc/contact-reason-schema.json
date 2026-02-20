@@ -1,0 +1,19 @@
+{
+  "type": "object",
+  "properties": {
+    "reasoning": {
+      "type": "string"
+    },
+    "confidence": {
+      "type": "number",
+      "description": "The percentage of confidence associated with the key",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "key": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "required": ["key", "reasoning", "confidence"]
+}
