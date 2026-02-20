@@ -1,4 +1,4 @@
-# AGENTS.md — AI Agent Instructions for ai-eval
+# AGENTS.md — AI Agent Instructions for OpenEval
 
 ## Overview
 
@@ -22,7 +22,7 @@ Skills are authoritative reference documents that define conventions, patterns, 
 
 ## Project Context
 
-ai-eval is an open-source AI prompt & tool evaluation framework. See `PRD.md` for the full product requirements.
+OpenEval is an open-source AI prompt & tool evaluation framework. See `PRD.md` for the full product requirements.
 
 ### Tech Stack
 
@@ -42,11 +42,11 @@ ai-eval is an open-source AI prompt & tool evaluation framework. See `PRD.md` fo
 - API endpoints are prefixed with `/api/`.
 - Frontend is a separate Vite/React app in `frontend/`.
 - React components use Shadcn/ui primitives and Tailwind for styling.
-- All comparers inherit from `BaseComparer` in `src/ai_eval/comparers/base.py` and register via `@register_comparer` decorator.
-- New comparers can also register via Python entry points under `ai_eval.comparers`.
-- OpenAI interaction is isolated in `src/ai_eval/services/openai_client.py` and `src/ai_eval/providers/openai.py`.
-- All database access goes through `src/ai_eval/db/repositories.py`, not direct queries in routers.
-- Configuration is via environment variables loaded by Pydantic Settings in `src/ai_eval/config.py`.
+- All comparers inherit from `BaseComparer` in `src/open_eval/comparers/base.py` and register via `@register_comparer` decorator.
+- New comparers can also register via Python entry points under `open_eval.comparers`.
+- OpenAI interaction is isolated in `src/open_eval/services/openai_client.py` and `src/open_eval/providers/openai.py`.
+- All database access goes through `src/open_eval/db/repositories.py`, not direct queries in routers.
+- Configuration is via environment variables loaded by Pydantic Settings in `src/open_eval/config.py`.
 - Background tasks (eval runs) use FastAPI `BackgroundTasks` with `asyncio.Semaphore` for concurrency control.
 
 ### Code Conventions
@@ -54,7 +54,7 @@ ai-eval is an open-source AI prompt & tool evaluation framework. See `PRD.md` fo
 - Use `async def` for all route handlers and service methods that do I/O.
 - Type hints on all function signatures.
 - Docstrings on all public classes and functions.
-- Tests go in `tests/` mirroring the `src/ai_eval/` structure.
+- Tests go in `tests/` mirroring the `src/open_eval/` structure.
 - Use `uv` for Python deps, `npm` for frontend deps.
 - TypeScript: strict mode, no `any`, prefer `interface` over `type` for object shapes.
 - React: functional components only, named exports, one component per file.
@@ -63,7 +63,7 @@ ai-eval is an open-source AI prompt & tool evaluation framework. See `PRD.md` fo
 ### File Structure
 
 ```
-ai-eval/
+openeval/
 ├── AGENTS.md
 ├── PRD.md
 ├── skills/
@@ -71,7 +71,7 @@ ai-eval/
 ├── Dockerfile
 ├── docker-compose.yml
 ├── alembic/
-├── src/ai_eval/          # Python backend
+├── src/open_eval/          # Python backend
 ├── frontend/             # React frontend
 │   ├── src/
 │   ├── e2e/              # Playwright tests

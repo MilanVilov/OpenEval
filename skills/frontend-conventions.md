@@ -1,6 +1,6 @@
 # Skill: Frontend Conventions — React + TypeScript Patterns
 
-This skill defines the code conventions, architecture patterns, and best practices for the ai-eval React frontend. All frontend code MUST follow these rules.
+This skill defines the code conventions, architecture patterns, and best practices for the OpenEval React frontend. All frontend code MUST follow these rules.
 
 ---
 

@@ -1,16 +1,16 @@
 services:
-  ai-eval:
+  openeval:
     build: .
     ports:
       - "${PORT:-8000}:${PORT:-8000}"
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - DATABASE_URL=sqlite+aiosqlite:///./data/ai_eval.db
+      - DATABASE_URL=sqlite+aiosqlite:///./data/open_eval.db
       - UPLOAD_DIR=./data/uploads
       - PORT=${PORT:-8000}
       - CORS_ORIGINS=${CORS_ORIGINS:-}
     volumes:
-      - ai-eval-data:/app/data
+      - openeval-data:/app/data
 
 volumes:
-  ai-eval-data:
+  openeval-data:

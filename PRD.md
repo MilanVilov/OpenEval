@@ -1,8 +1,8 @@
-# PRD: ai-eval — AI Prompt & Tool Evaluation Framework
+# PRD: OpenEval — AI Prompt & Tool Evaluation Framework
 
 ## Overview
 
-**ai-eval** is an open-source evaluation framework for testing AI prompt configurations with OpenAI hosted tools (file_search, shell). Users configure a prompt, attach tools, upload a CSV dataset of input/expected-output pairs, and run batch evaluations. Results are compared using pluggable comparers (exact match, semantic similarity, LLM-as-judge, pattern match, JSON schema match) and displayed in a React single-page application that communicates with a FastAPI JSON API backend.
+**OpenEval** is an open-source evaluation framework for testing AI prompt configurations with OpenAI hosted tools (file_search, shell). Users configure a prompt, attach tools, upload a CSV dataset of input/expected-output pairs, and run batch evaluations. Results are compared using pluggable comparers (exact match, semantic similarity, LLM-as-judge, pattern match, JSON schema match) and displayed in a React single-page application that communicates with a FastAPI JSON API backend.
 
 The app is packaged as a Docker image with a multi-stage build: the React frontend is compiled to static assets and served by FastAPI. Run it locally or on a shared server — no user accounts, no auth. Anyone who can reach the URL can use it.
 
@@ -110,7 +110,7 @@ The app is packaged as a Docker image with a multi-stage build: the React fronte
 ## Architecture & Module Structure
 
 ```
-ai-eval/
+openeval/
 ├── pyproject.toml
 ├── Dockerfile
 ├── docker-compose.yml
@@ -136,7 +136,7 @@ ai-eval/
 │   ├── playwright.config.ts
 │   └── package.json
 ├── src/
-│   └── ai_eval/
+│   └── open_eval/
 │       ├── __init__.py
 │       ├── app.py              # FastAPI app factory, serves React build via StaticFiles
 │       ├── config.py           # Settings (env vars, OpenAI key, CORS origins)
@@ -188,7 +188,7 @@ class ExactMatchComparer(BaseComparer):
 ```
 
 - **`BaseComparer`** defines: `compare(expected, actual, config) -> CompareResult` where `CompareResult` has `score: float`, `passed: bool`, `details: dict`.
-- **Registry** uses Python entry points (`[project.entry-points."ai_eval.comparers"]`) so external packages can register new comparers without modifying core code.
+- **Registry** uses Python entry points (`[project.entry-points."open_eval.comparers"]`) so external packages can register new comparers without modifying core code.
 - **Config schema**: each comparer can declare a `config_schema()` classmethod returning a JSON schema for its settings. The React frontend renders a dynamic form from this schema.
 
 ### Built-in Comparers
@@ -298,7 +298,7 @@ All runtime configuration via environment variables (loaded with Pydantic Settin
 | Variable | Description | Default |
 |---|---|---|
 | `OPENAI_API_KEY` | OpenAI API key | (required) |
-| `DATABASE_URL` | SQLite connection string | `sqlite+aiosqlite:///./data/ai_eval.db` |
+| `DATABASE_URL` | SQLite connection string | `sqlite+aiosqlite:///./data/open_eval.db` |
 | `UPLOAD_DIR` | Directory for uploaded CSVs | `./data/uploads` |
 | `DEFAULT_CONCURRENCY` | Default parallel requests per run | `5` |
 | `HOST` | Server bind host | `0.0.0.0` |
@@ -321,16 +321,16 @@ All runtime configuration via environment variables (loaded with Pydantic Settin
 
 ```yaml
 services:
-  ai-eval:
+  openeval:
     build: .
     ports:
       - "8000:8000"
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
     volumes:
-      - ai-eval-data:/app/data
+      - openeval-data:/app/data
 volumes:
-  ai-eval-data:
+  openeval-data:
 ```
 
 ### Usage
@@ -340,7 +340,7 @@ volumes:
 OPENAI_API_KEY=sk-xxx docker compose up
 
 # Option 2: docker run
-docker run -p 8000:8000 -e OPENAI_API_KEY=sk-xxx -v ai-eval-data:/app/data ai-eval
+docker run -p 8000:8000 -e OPENAI_API_KEY=sk-xxx -v openeval-data:/app/data openeval
 ```
 
 No user accounts. Whoever can reach `http://host:8000` has full access.
@@ -349,7 +349,7 @@ No user accounts. Whoever can reach `http://host:8000` has full access.
 
 ```bash
 # Terminal 1 — Backend
-uv run uvicorn ai_eval.app:create_app --factory --host 0.0.0.0 --port 8000 --reload
+uv run uvicorn open_eval.app:create_app --factory --host 0.0.0.0 --port 8000 --reload
 
 # Terminal 2 — Frontend
 cd frontend && npm run dev

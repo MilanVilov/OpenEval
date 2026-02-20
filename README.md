@@ -1,4 +1,4 @@
-# ai-eval
+# OpenEval
 
 An open-source AI prompt & tool evaluation framework. Configure prompts, models, and tools (including OpenAI file_search and code_interpreter), upload evaluation datasets as CSV, run evaluations with parallel execution, and compare results with pluggable comparers.
 
@@ -28,8 +28,8 @@ An open-source AI prompt & tool evaluation framework. Configure prompts, models,
 
 ```bash
 # Clone the repo
-git clone https://github.com/your-org/ai-eval.git
-cd ai-eval
+git clone https://github.com/your-org/openeval.git
+cd openeval
 
 # Copy env file and add your OpenAI API key
 cp .env.example .env
@@ -39,8 +39,8 @@ cp .env.example .env
 colima start
 
 # Build and run
-docker build -t ai-eval .
-docker run -p 8000:8000 --env-file .env ai-eval
+docker build -t openeval .
+docker run -p 8000:8000 --env-file .env openeval
 
 # Or with docker-compose (if available):
 docker-compose up --build
@@ -59,14 +59,14 @@ uv sync
 
 # Set environment variables
 export OPENAI_API_KEY=sk-...
-export DATABASE_URL=sqlite+aiosqlite:///data/ai_eval.db
+export DATABASE_URL=sqlite+aiosqlite:///data/open_eval.db
 
 # Run database migrations
 mkdir -p data
 uv run alembic upgrade head
 
 # Start the backend dev server
-uv run uvicorn ai_eval.app:create_app --factory --reload --host 0.0.0.0 --port 8000
+uv run uvicorn open_eval.app:create_app --factory --reload --host 0.0.0.0 --port 8000
 
 # In a separate terminal, start the React frontend dev server
 cd frontend
@@ -98,7 +98,7 @@ Required columns: `input`, `expected_output`. Additional columns are preserved b
 Create a Python package with a class inheriting from `BaseComparer`:
 
 ```python
-from ai_eval.comparers.base import BaseComparer, register_comparer
+from open_eval.comparers.base import BaseComparer, register_comparer
 
 @register_comparer("my_comparer")
 class MyComparer(BaseComparer):
@@ -111,7 +111,7 @@ class MyComparer(BaseComparer):
 Register via entry point in your package's `pyproject.toml`:
 
 ```toml
-[project.entry-points."ai_eval.comparers"]
+[project.entry-points."open_eval.comparers"]
 my_comparer = "my_package.comparers:MyComparer"
 ```
 
@@ -120,7 +120,7 @@ my_comparer = "my_package.comparers:MyComparer"
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `OPENAI_API_KEY` | — | OpenAI API key (required) |
-| `DATABASE_URL` | `sqlite+aiosqlite:///data/ai_eval.db` | Database connection URL |
+| `DATABASE_URL` | `sqlite+aiosqlite:///data/open_eval.db` | Database connection URL |
 | `UPLOAD_DIR` | `data/uploads` | Directory for uploaded files |
 | `DEFAULT_CONCURRENCY` | `5` | Default parallel eval workers |
 | `HOST` | `0.0.0.0` | Server bind address |
@@ -129,8 +129,8 @@ my_comparer = "my_package.comparers:MyComparer"
 ## Project Structure
 
 ```
-ai-eval/
-├── src/ai_eval/
+openeval/
+├── src/open_eval/
 │   ├── app.py              # FastAPI app factory
 │   ├── config.py           # Pydantic Settings
 │   ├── comparers/          # Comparer framework + 5 built-in

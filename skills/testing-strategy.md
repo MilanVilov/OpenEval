@@ -2,7 +2,7 @@
 
 **Tests are written in the same PR as the feature. A feature without tests is not done.**
 
-This skill defines testing conventions for ai-eval. Backend tests use pytest; frontend E2E tests use Playwright.
+This skill defines testing conventions for OpenEval. Backend tests use pytest; frontend E2E tests use Playwright.
 
 ---
 
@@ -105,8 +105,8 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from httpx import AsyncClient, ASGITransport
 
-from ai_eval.app import create_app
-from ai_eval.db.session import Base, get_session
+from open_eval.app import create_app
+from open_eval.db.session import Base, get_session
 
 
 @pytest.fixture
@@ -256,7 +256,7 @@ async def test_eval_runner_calls_openai(make_eval_config):
 **Rules:**
 - Prefer **dependency injection** over `@patch`. If you can pass a mock as a constructor arg, do that.
 - Use `@patch` only for module-level functions or things you can't inject.
-- **Patch at the import site**, not the definition site: `@patch("ai_eval.services.eval_runner.openai_client")` not `@patch("ai_eval.services.openai_client")`.
+- **Patch at the import site**, not the definition site: `@patch("open_eval.services.eval_runner.openai_client")` not `@patch("open_eval.services.openai_client")`.
 
 ---
 
@@ -300,7 +300,7 @@ async def test_parse_csv_missing_column_raises():
 ```bash
 # Backend
 uv run pytest
-uv run pytest --cov=ai_eval --cov-report=term-missing
+uv run pytest --cov=open_eval --cov-report=term-missing
 
 # Run a specific test file
 uv run pytest tests/comparers/test_exact_match.py

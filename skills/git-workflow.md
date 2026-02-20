@@ -1,6 +1,6 @@
 # Skill: Git Workflow — Commits, Branches, and PRs
 
-This skill defines version control conventions for ai-eval. Follow these rules for all commits, branches, and pull requests.
+This skill defines version control conventions for OpenEval. Follow these rules for all commits, branches, and pull requests.
 
 ---
 

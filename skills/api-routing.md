@@ -1,6 +1,6 @@
 # Skill: API & Routing — FastAPI JSON API + React Router
 
-This skill defines how all FastAPI API endpoints and React Router routes are structured in ai-eval. The backend is a pure JSON API; the frontend is a React SPA. Follow these rules for every route handler and frontend route.
+This skill defines how all FastAPI API endpoints and React Router routes are structured in OpenEval. The backend is a pure JSON API; the frontend is a React SPA. Follow these rules for every route handler and frontend route.
 
 ---
 
@@ -73,13 +73,13 @@ GET    /api/dashboard            → Dashboard summary data
 
 ## Router Structure
 
-Each router lives in its own file under `src/ai_eval/routers/`. One router per resource.
+Each router lives in its own file under `src/open_eval/routers/`. One router per resource.
 
 ```python
-# src/ai_eval/routers/configs.py
+# src/open_eval/routers/configs.py
 from fastapi import APIRouter, Depends
-from ai_eval.db.repositories import ConfigRepository
-from ai_eval.routers.schemas.configs import ConfigResponse, CreateConfigRequest
+from open_eval.db.repositories import ConfigRepository
+from open_eval.routers.schemas.configs import ConfigResponse, CreateConfigRequest
 
 router = APIRouter(prefix="/api/configs", tags=["configs"])
 
@@ -105,10 +105,10 @@ async def list_configs(repo: ConfigRepository = Depends(get_config_repo)) -> lis
 
 ## Request/Response Schemas
 
-Pydantic models for all request bodies and responses. Schemas live in `src/ai_eval/routers/schemas/`, one file per resource.
+Pydantic models for all request bodies and responses. Schemas live in `src/open_eval/routers/schemas/`, one file per resource.
 
 ```python
-# src/ai_eval/routers/schemas/configs.py
+# src/open_eval/routers/schemas/configs.py
 from pydantic import BaseModel
 
 

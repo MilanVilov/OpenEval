@@ -1,1 +1,1 @@
-"""Shared test fixtures for ai-eval."""
+"""Shared test fixtures for OpenEval."""

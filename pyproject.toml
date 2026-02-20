@@ -1,5 +1,5 @@
 [project]
-name = "ai-eval"
+name = "openeval"
 version = "0.1.0"
 description = "AI prompt & tool evaluation framework"
 readme = "README.md"
@@ -17,14 +17,14 @@ dependencies = [
 ]
 
 [project.scripts]
-ai-eval = "ai_eval.app:create_app"
+openeval = "open_eval.app:create_app"
 
-[project.entry-points."ai_eval.comparers"]
-exact_match = "ai_eval.comparers.exact_match:ExactMatchComparer"
-pattern_match = "ai_eval.comparers.pattern_match:PatternMatchComparer"
-semantic_similarity = "ai_eval.comparers.semantic_similarity:SemanticSimilarityComparer"
-llm_judge = "ai_eval.comparers.llm_judge:LlmJudgeComparer"
-json_schema_match = "ai_eval.comparers.json_schema_match:JsonSchemaMatchComparer"
+[project.entry-points."open_eval.comparers"]
+exact_match = "open_eval.comparers.exact_match:ExactMatchComparer"
+pattern_match = "open_eval.comparers.pattern_match:PatternMatchComparer"
+semantic_similarity = "open_eval.comparers.semantic_similarity:SemanticSimilarityComparer"
+llm_judge = "open_eval.comparers.llm_judge:LlmJudgeComparer"
+json_schema_match = "open_eval.comparers.json_schema_match:JsonSchemaMatchComparer"
 
 [dependency-groups]
 dev = [
@@ -46,6 +46,9 @@ max-complexity = 8
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/open_eval"]
 
 [build-system]
 requires = ["hatchling"]

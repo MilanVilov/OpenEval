@@ -1,6 +1,6 @@
 # Skill: UI Design — Dark Midnight Theme with Tailwind + Shadcn/ui
 
-This skill defines the visual design system for all ai-eval frontend pages. Every React component, Tailwind class, and Shadcn/ui usage MUST follow these specifications.
+This skill defines the visual design system for all OpenEval frontend pages. Every React component, Tailwind class, and Shadcn/ui usage MUST follow these specifications.
 
 ---
 

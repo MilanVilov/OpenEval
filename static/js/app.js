@@ -1,1 +1,1 @@
-/* ai-eval app scripts */
+/* OpenEval app scripts */

@@ -1,6 +1,6 @@
 # Skill: KISS & YAGNI — Simplicity-First Development
 
-This skill enforces the KISS (Keep It Simple, Stupid) and YAGNI (You Aren't Gonna Need It) principles across all ai-eval code. These apply to Python, React components, CSS, architecture decisions, and configuration.
+This skill enforces the KISS (Keep It Simple, Stupid) and YAGNI (You Aren't Gonna Need It) principles across all OpenEval code. These apply to Python, React components, CSS, architecture decisions, and configuration.
 
 ---
 
