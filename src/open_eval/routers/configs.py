@@ -97,6 +97,34 @@ async def update_config(
     return _config_to_response(config)
 
 
+@router.post("/{config_id}/duplicate", response_model=ConfigResponse, status_code=201)
+async def duplicate_config(
+    config_id: str,
+    session: AsyncSession = Depends(get_session),
+) -> ConfigResponse:
+    """Duplicate an existing evaluation configuration."""
+    repo = ConfigRepository(session)
+    original = await repo.get_by_id(config_id)
+    if not original:
+        raise HTTPException(status_code=404, detail="Configuration not found")
+    copy = await repo.create(
+        name=f"{original.name} copy",
+        system_prompt=original.system_prompt,
+        model=original.model,
+        temperature=original.temperature,
+        max_tokens=original.max_tokens,
+        tools=original.tools,
+        tool_options=original.tool_options,
+        comparer_type=original.comparer_type,
+        comparer_config=original.comparer_config,
+        custom_graders=original.custom_graders or [],
+        concurrency=original.concurrency,
+        reasoning_config=original.reasoning_config,
+        response_format=original.response_format,
+    )
+    return _config_to_response(copy)
+
+
 @router.delete("/{config_id}", status_code=204)
 async def delete_config(
     config_id: str,

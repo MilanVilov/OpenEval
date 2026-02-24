@@ -17,6 +17,10 @@ export function updateConfig(id: string, data: Partial<CreateConfigRequest>): Pr
   return apiFetch(`/configs/${id}`, { method: 'PUT', body: JSON.stringify(data) });
 }
 
+export function duplicateConfig(id: string): Promise<EvalConfig> {
+  return apiFetch(`/configs/${id}/duplicate`, { method: 'POST' });
+}
+
 export function deleteConfig(id: string): Promise<void> {
   return apiFetch(`/configs/${id}`, { method: 'DELETE' });
 }

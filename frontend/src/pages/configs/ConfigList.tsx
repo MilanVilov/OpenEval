@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { listConfigs } from '@/api/configs';
+import { listConfigs, duplicateConfig } from '@/api/configs';
 import type { EvalConfig } from '@/types/config';
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -9,13 +9,14 @@ import { Badge } from '@/components/ui/badge';
 import { LoadingSkeleton } from '@/components/LoadingSkeleton';
 import { PageTransition } from '@/components/PageTransition';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Plus } from 'lucide-react';
+import { Copy, Plus } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 
 export function ConfigList() {
   const [configs, setConfigs] = useState<EvalConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
 
   useEffect(() => {
     listConfigs()
@@ -23,6 +24,19 @@ export function ConfigList() {
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
+
+  async function handleDuplicate(e: React.MouseEvent, configId: string) {
+    e.preventDefault();
+    setDuplicatingId(configId);
+    try {
+      const copy = await duplicateConfig(configId);
+      setConfigs((prev) => [copy, ...prev]);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to duplicate config');
+    } finally {
+      setDuplicatingId(null);
+    }
+  }
 
   if (loading) return <LoadingSkeleton rows={4} />;
   if (error) return <Alert variant="destructive" className="animate-fade-in"><AlertDescription>{error}</AlertDescription></Alert>;
@@ -58,7 +72,19 @@ export function ConfigList() {
                   <Badge>{config.model}</Badge>
                   <Badge>{config.comparer_type}</Badge>
                 </div>
-                <p className="text-xs text-foreground-disabled mt-2">{formatDate(config.created_at)}</p>
+                <div className="flex items-center justify-between mt-2">
+                  <p className="text-xs text-foreground-disabled">{formatDate(config.created_at)}</p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0"
+                    disabled={duplicatingId === config.id}
+                    onClick={(e) => handleDuplicate(e, config.id)}
+                    title="Duplicate config"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
               </Card>
             </Link>
           ))}

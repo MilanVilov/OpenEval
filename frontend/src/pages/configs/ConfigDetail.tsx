@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { getConfig, deleteConfig } from '@/api/configs';
+import { getConfig, deleteConfig, duplicateConfig } from '@/api/configs';
 import type { EvalConfig } from '@/types/config';
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,7 @@ import { LoadingSkeleton } from '@/components/LoadingSkeleton';
 import { PageTransition } from '@/components/PageTransition';
 import { CodeBlock } from '@/components/CodeBlock';
 import { formatDate } from '@/lib/utils';
-import { Pencil, Trash2 } from 'lucide-react';
+import { Copy, Pencil, Trash2 } from 'lucide-react';
 
 export function ConfigDetail() {
   const { id } = useParams<{ id: string }>();
@@ -19,6 +19,7 @@ export function ConfigDetail() {
   const [config, setConfig] = useState<EvalConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [duplicating, setDuplicating] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -27,6 +28,19 @@ export function ConfigDetail() {
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
   }, [id]);
+
+  async function handleDuplicate() {
+    if (!id) return;
+    setDuplicating(true);
+    try {
+      const copy = await duplicateConfig(id);
+      navigate(`/configs/${copy.id}`);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to duplicate config');
+    } finally {
+      setDuplicating(false);
+    }
+  }
 
   async function handleDelete() {
     if (!id || !confirm('Delete this config?')) return;
@@ -45,6 +59,9 @@ export function ConfigDetail() {
         description={`Created ${formatDate(config.created_at)}`}
         action={
           <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={handleDuplicate} disabled={duplicating}>
+              <Copy className="mr-2 h-4 w-4" />{duplicating ? 'Duplicating…' : 'Duplicate'}
+            </Button>
             <Link to={`/configs/${id}/edit`}>
               <Button variant="outline" size="sm"><Pencil className="mr-2 h-4 w-4" />Edit</Button>
             </Link>
