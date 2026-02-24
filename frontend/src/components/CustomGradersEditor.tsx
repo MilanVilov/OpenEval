@@ -7,12 +7,30 @@ import { Select } from '@/components/ui/select';
 import { Plus, Trash2 } from 'lucide-react';
 
 const GRADER_MODEL_OPTIONS = [
-  { value: '', label: 'Same as config model (default)' },
-  { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
-  { value: 'gpt-4o', label: 'GPT-4o' },
-  { value: 'gpt-4.1-nano', label: 'GPT-4.1 Nano' },
-  { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
-  { value: 'gpt-4.1', label: 'GPT-4.1' },
+  { group: '', models: [
+    { value: '', label: 'Same as config model (default)' },
+  ]},
+  { group: 'Frontier', models: [
+    { value: 'gpt-5.2', label: 'GPT-5.2' },
+    { value: 'gpt-5.2-pro', label: 'GPT-5.2 Pro' },
+    { value: 'gpt-5.1', label: 'GPT-5.1' },
+    { value: 'gpt-5', label: 'GPT-5' },
+    { value: 'gpt-5-mini', label: 'GPT-5 Mini' },
+    { value: 'gpt-5-nano', label: 'GPT-5 Nano' },
+  ]},
+  { group: 'Non-reasoning', models: [
+    { value: 'gpt-4.1', label: 'GPT-4.1' },
+    { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
+    { value: 'gpt-4.1-nano', label: 'GPT-4.1 Nano' },
+    { value: 'gpt-4o', label: 'GPT-4o' },
+    { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
+  ]},
+  { group: 'Reasoning (o-series)', models: [
+    { value: 'o3', label: 'o3' },
+    { value: 'o3-pro', label: 'o3 Pro' },
+    { value: 'o3-mini', label: 'o3 Mini' },
+    { value: 'o4-mini', label: 'o4 Mini' },
+  ]},
 ] as const;
 
 interface CustomGradersEditorProps {
@@ -72,9 +90,19 @@ export function CustomGradersEditor({
           <div className="space-y-1">
             <Label className="text-xs">Grader Model</Label>
             <Select value={graderModel} onChange={(e) => onGraderModelChange(e.target.value)}>
-              {GRADER_MODEL_OPTIONS.map((m) => (
-                <option key={m.value} value={m.value}>{m.label}</option>
-              ))}
+              {GRADER_MODEL_OPTIONS.map((group) =>
+                group.group ? (
+                  <optgroup key={group.group} label={group.group}>
+                    {group.models.map((m) => (
+                      <option key={m.value} value={m.value}>{m.label}</option>
+                    ))}
+                  </optgroup>
+                ) : (
+                  group.models.map((m) => (
+                    <option key={m.value} value={m.value}>{m.label}</option>
+                  ))
+                )
+              )}
             </Select>
             <p className="text-xs text-foreground-secondary">Leave as default to use the config model</p>
           </div>
