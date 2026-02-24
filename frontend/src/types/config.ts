@@ -1,3 +1,10 @@
+export interface CustomGrader {
+  name: string;
+  prompt: string;
+  model?: string;
+  threshold: number;
+}
+
 export interface EvalConfig {
   id: string;
   name: string;
@@ -9,6 +16,7 @@ export interface EvalConfig {
   tool_options: Record<string, unknown>;
   comparer_type: string;
   comparer_config: Record<string, unknown>;
+  custom_graders: CustomGrader[];
   concurrency: number;
   reasoning_config: Record<string, string> | null;
   response_format: Record<string, unknown> | null;
@@ -26,6 +34,7 @@ export interface CreateConfigRequest {
   tool_options: Record<string, unknown>;
   comparer_type: string;
   comparer_config: Record<string, unknown>;
+  custom_graders?: CustomGrader[];
   concurrency: number;
   reasoning_config?: Record<string, string> | null;
   response_format?: Record<string, unknown> | null;

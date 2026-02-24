@@ -4,9 +4,9 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from open_eval.config import get_settings
@@ -59,9 +59,24 @@ def create_app() -> FastAPI:
         Path("/app/frontend/dist"),                   # Docker container
         BASE_DIR / "frontend" / "dist",               # running from repo root
     ]
+    spa_dir: Path | None = None
     for candidate in candidates:
         if candidate.is_dir():
-            app.mount("/", StaticFiles(directory=str(candidate), html=True), name="spa")
+            spa_dir = candidate
             break
+
+    if spa_dir is not None:
+        # Serve static assets (JS, CSS, images, etc.)
+        app.mount("/assets", StaticFiles(directory=str(spa_dir / "assets")), name="static-assets")
+
+        # Catch-all: serve index.html for any non-API route so React Router
+        # can handle client-side navigation on direct URL access / refresh.
+        @app.get("/{full_path:path}")
+        async def serve_spa(request: Request, full_path: str) -> FileResponse:
+            """Serve the SPA index.html for all non-API routes."""
+            file_path = spa_dir / full_path
+            if file_path.is_file():
+                return FileResponse(file_path)
+            return FileResponse(spa_dir / "index.html")
 
     return app

@@ -75,6 +75,24 @@ export function ConfigDetail() {
                 ))}
               </div>
             </div>
+            {config.custom_graders && config.custom_graders.length > 0 && (
+              <div>
+                <p className="text-xs text-foreground-secondary uppercase">Custom LLM Graders</p>
+                <div className="space-y-2 mt-1">
+                  {config.custom_graders.map((g, i) => (
+                    <div key={i} className="rounded border border-border p-2 text-sm space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="default">{g.name || 'Unnamed'}</Badge>
+                        <span className="text-xs text-foreground-secondary">
+                          {g.model ? `model: ${g.model} · ` : ''}threshold: {g.threshold}
+                        </span>
+                      </div>
+                      <p className="text-xs text-foreground-secondary font-mono line-clamp-2">{g.prompt}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div>
               <p className="text-xs text-foreground-secondary uppercase">Concurrency</p>
               <p className="text-sm">{config.concurrency}</p>

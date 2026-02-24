@@ -4,6 +4,7 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 
+from open_eval.comparers.base import BaseComparer
 from open_eval.db.models import EvalResult
 from open_eval.db.repositories import (
     ConfigRepository,
@@ -116,13 +117,24 @@ async def run_evaluation(run_id: str) -> None:
 
         # Run comparison pass (lazy import — registry created in T14)
         from open_eval.comparers.registry import get_comparer
+        from open_eval.comparers.custom_grader import CustomGraderComparer
 
         # Support multiple comparers (comma-separated in comparer_type)
         comparer_names = [c.strip() for c in config.comparer_type.split(",") if c.strip()]
-        comparers = [
+        comparers: list[tuple[str, BaseComparer]] = [
             (name, get_comparer(name, config.comparer_config))
             for name in comparer_names
         ]
+
+        # Instantiate custom graders (user-defined LLM evaluation prompts)
+        # Each grader uses its own model if set, otherwise the config-level model.
+        custom_grader_defs: list[dict] = config.custom_graders or []
+        for grader_def in custom_grader_defs:
+            grader = CustomGraderComparer({
+                **grader_def,
+                "model": grader_def.get("model") or config.model,
+            })
+            comparers.append((f"custom:{grader.grader_name}", grader))
 
         for result in valid_results:
             if result.actual_output is not None and result.error is None:

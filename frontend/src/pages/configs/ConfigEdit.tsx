@@ -6,6 +6,8 @@ import { listVectorStores } from '@/api/vectorStores';
 import { listContainers } from '@/api/containers';
 import type { VectorStore } from '@/types/vectorStore';
 import type { Container } from '@/types/container';
+import { CustomGradersEditor } from '@/components/CustomGradersEditor';
+import type { CustomGrader } from '@/types/config';
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -70,6 +72,9 @@ export function ConfigEdit() {
   const [containerId, setContainerId] = useState('');
   const [containers, setContainers] = useState<Container[]>([]);
   const [toolChoice, setToolChoice] = useState('auto');
+  const [customGraders, setCustomGraders] = useState<CustomGrader[]>([]);
+  const [graderModel, setGraderModel] = useState('');
+  const [graderThreshold, setGraderThreshold] = useState('0.7');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -123,6 +128,12 @@ export function ConfigEdit() {
         if ((config.tool_options as Record<string, string>)?.tool_choice) {
           setToolChoice((config.tool_options as Record<string, string>).tool_choice);
         }
+        // Load custom graders
+        if (config.custom_graders && config.custom_graders.length > 0) {
+          setCustomGraders(config.custom_graders);
+          setGraderModel(config.custom_graders[0].model || '');
+          setGraderThreshold(String(config.custom_graders[0].threshold ?? 0.7));
+        }
       })
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
@@ -169,12 +180,21 @@ export function ConfigEdit() {
       const reasoningConfig = isReasoningModel
         ? { effort: reasoningEffort, ...(reasoningSummary !== 'null' ? { summary: reasoningSummary } : {}) }
         : null;
+      // Stamp shared model/threshold onto each custom grader
+      const gradersPayload = customGraders
+        .filter((g) => g.name.trim() && g.prompt.trim())
+        .map((g) => ({
+          ...g,
+          model: graderModel || undefined,
+          threshold: parseFloat(graderThreshold) || 0.7,
+        }));
       await updateConfig(id, {
         name,
         system_prompt: systemPrompt,
         model,
         temperature: parseFloat(temperature),
         comparer_type: Array.from(comparerTypes).join(','),
+        custom_graders: gradersPayload,
         tools,
         tool_options: toolOptions,
         concurrency: parseInt(concurrency, 10),
@@ -410,6 +430,15 @@ export function ConfigEdit() {
             <Input type="number" min="1" max="20" value={concurrency} onChange={(e) => setConcurrency(e.target.value)} />
           </div>
         </div>
+
+        <CustomGradersEditor
+          graders={customGraders}
+          onChange={setCustomGraders}
+          graderModel={graderModel}
+          onGraderModelChange={setGraderModel}
+          graderThreshold={graderThreshold}
+          onGraderThresholdChange={setGraderThreshold}
+        />
 
         <div className="flex justify-end gap-2 pt-4">
           <Button type="button" variant="outline" onClick={() => navigate(`/configs/${id}`)}>Cancel</Button>

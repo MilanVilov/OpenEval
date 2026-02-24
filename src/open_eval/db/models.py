@@ -31,6 +31,7 @@ class EvalConfig(Base):
     tool_options: Mapped[dict] = mapped_column(JSON, default=dict)
     comparer_type: Mapped[str]
     comparer_config: Mapped[dict] = mapped_column(JSON, default=dict)
+    custom_graders: Mapped[list | None] = mapped_column(JSON, default=list)
     reasoning_config: Mapped[dict | None] = mapped_column(JSON, default=None)
     response_format: Mapped[dict | None] = mapped_column(JSON, default=None)
     concurrency: Mapped[int] = mapped_column(default=5)

@@ -6,6 +6,8 @@ import { listVectorStores } from '@/api/vectorStores';
 import { listContainers } from '@/api/containers';
 import type { VectorStore } from '@/types/vectorStore';
 import type { Container } from '@/types/container';
+import { CustomGradersEditor } from '@/components/CustomGradersEditor';
+import type { CustomGrader } from '@/types/config';
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -52,6 +54,9 @@ export function ConfigNew() {
   const [model, setModel] = useState('gpt-4.1');
   const [temperature, setTemperature] = useState('0.7');
   const [comparerTypes, setComparerTypes] = useState<Set<string>>(new Set(['exact_match']));
+  const [customGraders, setCustomGraders] = useState<CustomGrader[]>([]);
+  const [graderModel, setGraderModel] = useState('');
+  const [graderThreshold, setGraderThreshold] = useState('0.7');
   const [concurrency, setConcurrency] = useState('5');
   const [reasoningEffort, setReasoningEffort] = useState('medium');
   const [reasoningSummary, setReasoningSummary] = useState('auto');
@@ -122,6 +127,13 @@ export function ConfigNew() {
       const reasoningConfig = isReasoningModel
         ? { effort: reasoningEffort, ...(reasoningSummary !== 'null' ? { summary: reasoningSummary } : {}) }
         : null;
+      const gradersPayload = customGraders
+        .filter((g) => g.name.trim() && g.prompt.trim())
+        .map((g) => ({
+          ...g,
+          model: graderModel || undefined,
+          threshold: parseFloat(graderThreshold) || 0.7,
+        }));
       const config = await createConfig({
         name,
         system_prompt: systemPrompt,
@@ -129,6 +141,7 @@ export function ConfigNew() {
         temperature: parseFloat(temperature),
         comparer_type: Array.from(comparerTypes).join(','),
         comparer_config: {},
+        custom_graders: gradersPayload,
         tools,
         tool_options: toolOptions,
         concurrency: parseInt(concurrency, 10),
@@ -362,6 +375,15 @@ export function ConfigNew() {
             <Input type="number" min="1" max="20" value={concurrency} onChange={(e) => setConcurrency(e.target.value)} />
           </div>
         </div>
+
+        <CustomGradersEditor
+          graders={customGraders}
+          onChange={setCustomGraders}
+          graderModel={graderModel}
+          onGraderModelChange={setGraderModel}
+          graderThreshold={graderThreshold}
+          onGraderThresholdChange={setGraderThreshold}
+        />
 
         <div className="flex justify-end gap-2 pt-4">
           <Button type="button" variant="outline" onClick={() => navigate('/configs')}>Cancel</Button>

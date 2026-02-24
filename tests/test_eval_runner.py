@@ -20,6 +20,7 @@ def _make_config(concurrency: int = 3) -> MagicMock:
     config.tool_options = {}
     config.comparer_type = "exact_match"
     config.comparer_config = {}
+    config.custom_graders = []
     config.concurrency = concurrency
     config.reasoning_config = None
     config.response_format = None

@@ -3,6 +3,19 @@
 from pydantic import BaseModel
 
 
+class CustomGraderSchema(BaseModel):
+    """Schema for a single custom LLM grader.
+
+    The ``model`` field is optional — when omitted (or ``None``), the eval
+    runner falls back to the config-level model.
+    """
+
+    name: str
+    prompt: str
+    model: str | None = None
+    threshold: float = 0.7
+
+
 class CreateConfigRequest(BaseModel):
     """Request body for creating an eval configuration."""
 
@@ -15,6 +28,7 @@ class CreateConfigRequest(BaseModel):
     tool_options: dict = {}
     comparer_type: str
     comparer_config: dict = {}
+    custom_graders: list[CustomGraderSchema] = []
     concurrency: int = 5
     reasoning_config: dict | None = None
     response_format: dict | None = None
@@ -32,6 +46,7 @@ class UpdateConfigRequest(BaseModel):
     tool_options: dict | None = None
     comparer_type: str | None = None
     comparer_config: dict | None = None
+    custom_graders: list[CustomGraderSchema] | None = None
     concurrency: int | None = None
     reasoning_config: dict | None = None
     response_format: dict | None = None
@@ -50,6 +65,7 @@ class ConfigResponse(BaseModel):
     tool_options: dict
     comparer_type: str
     comparer_config: dict
+    custom_graders: list[dict] = []
     concurrency: int
     reasoning_config: dict | None = None
     response_format: dict | None = None
