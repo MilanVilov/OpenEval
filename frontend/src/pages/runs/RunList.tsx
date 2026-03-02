@@ -11,7 +11,7 @@ import { PageTransition } from '@/components/PageTransition';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card } from '@/components/ui/card';
 import { Plus } from 'lucide-react';
-import { formatDate, formatPercent, formatLatency } from '@/lib/utils';
+import { formatDate, formatPercent, formatLatency, formatTokens } from '@/lib/utils';
 
 export function RunList() {
   const [runs, setRuns] = useState<EvalRun[]>([]);
@@ -55,6 +55,7 @@ export function RunList() {
                 <TableHead>Status</TableHead>
                 <TableHead>Accuracy</TableHead>
                 <TableHead>Latency</TableHead>
+                <TableHead>Tokens (in/out)</TableHead>
                 <TableHead>Created</TableHead>
               </TableRow>
             </TableHeader>
@@ -74,6 +75,7 @@ export function RunList() {
                   <TableCell><StatusBadge status={run.status} /></TableCell>
                   <TableCell className="tabular-nums">{run.summary ? formatPercent(run.summary.accuracy) : '—'}</TableCell>
                   <TableCell className="tabular-nums">{run.summary?.avg_latency_ms != null ? formatLatency(run.summary.avg_latency_ms) : '—'}</TableCell>
+                  <TableCell className="tabular-nums">{run.summary?.avg_input_tokens != null ? `${formatTokens(run.summary.avg_input_tokens)} / ${formatTokens(run.summary.avg_output_tokens)}` : '—'}</TableCell>
                   <TableCell>{formatDate(run.created_at)}</TableCell>
                 </TableRow>
               ))}

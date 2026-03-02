@@ -21,6 +21,8 @@ export interface RunSummary {
   accuracy: number;
   avg_latency_ms: number;
   avg_score: number;
+  avg_input_tokens: number;
+  avg_output_tokens: number;
 }
 
 export interface RunProgress {
@@ -41,7 +43,7 @@ export interface EvalResult {
   comparer_details: Record<string, unknown> | null;
   passed: boolean | null;
   latency_ms: number | null;
-  token_usage: Record<string, unknown> | null;
+  token_usage: { input_tokens: number; output_tokens: number } | null;
   error: string | null;
   created_at: string;
 }

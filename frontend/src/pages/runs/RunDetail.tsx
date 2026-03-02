@@ -14,7 +14,7 @@ import { StatCard } from '@/components/StatCard';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { LoadingSkeleton } from '@/components/LoadingSkeleton';
 import { PageTransition } from '@/components/PageTransition';
-import { formatDate, formatPercent } from '@/lib/utils';
+import { formatDate, formatPercent, formatTokens } from '@/lib/utils';
 import { Trash2 } from 'lucide-react';
 
 export function RunDetail() {
@@ -109,12 +109,14 @@ export function RunDetail() {
       )}
 
       {run.summary && (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6 animate-fade-in">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-6 animate-fade-in">
           <StatCard label="Accuracy" value={formatPercent(run.summary.accuracy)} />
           <StatCard label="Total" value={String(run.summary.total)} />
           <StatCard label="Passed" value={String(run.summary.passed)} />
           <StatCard label="Failed" value={String(run.summary.failed)} />
           <StatCard label="Avg Latency" value={`${run.summary.avg_latency_ms}ms`} />
+          <StatCard label="Avg Input Tokens" value={formatTokens(run.summary.avg_input_tokens ?? 0)} />
+          <StatCard label="Avg Output Tokens" value={formatTokens(run.summary.avg_output_tokens ?? 0)} />
         </div>
       )}
 
@@ -154,6 +156,7 @@ export function RunDetail() {
                     )}
                     <TableHead className="w-20">Score</TableHead>
                     <TableHead className="w-24">Latency</TableHead>
+                    <TableHead className="w-28">Tokens (in/out)</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -191,6 +194,7 @@ export function RunDetail() {
                       )}
                       <TableCell>{result.comparer_score != null ? result.comparer_score.toFixed(2) : '—'}</TableCell>
                       <TableCell>{result.latency_ms != null ? `${result.latency_ms}ms` : '—'}</TableCell>
+                      <TableCell className="tabular-nums">{result.token_usage ? `${formatTokens(result.token_usage.input_tokens)} / ${formatTokens(result.token_usage.output_tokens)}` : '—'}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

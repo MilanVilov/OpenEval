@@ -177,6 +177,28 @@ async def run_evaluation(run_id: str) -> None:
             sum(r.comparer_score for r in scored) / max(len(scored), 1)
         )
 
+        # Compute average token usage
+        input_tokens_list = [
+            r.token_usage["input_tokens"]
+            for r in valid_results
+            if r.token_usage and "input_tokens" in r.token_usage
+        ]
+        output_tokens_list = [
+            r.token_usage["output_tokens"]
+            for r in valid_results
+            if r.token_usage and "output_tokens" in r.token_usage
+        ]
+        avg_input_tokens = (
+            round(sum(input_tokens_list) / len(input_tokens_list))
+            if input_tokens_list
+            else 0
+        )
+        avg_output_tokens = (
+            round(sum(output_tokens_list) / len(output_tokens_list))
+            if output_tokens_list
+            else 0
+        )
+
         summary = {
             "total": total,
             "passed": passed,
@@ -185,6 +207,8 @@ async def run_evaluation(run_id: str) -> None:
             "accuracy": passed / max(total, 1),
             "avg_latency_ms": round(avg_latency),
             "avg_score": round(avg_score, 4),
+            "avg_input_tokens": avg_input_tokens,
+            "avg_output_tokens": avg_output_tokens,
         }
 
         await run_repo.set_summary(run_id, summary=summary)
