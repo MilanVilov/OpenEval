@@ -11,6 +11,9 @@ const GRADER_MODEL_OPTIONS = [
     { value: '', label: 'Same as config model (default)' },
   ]},
   { group: 'Frontier', models: [
+    { value: 'gpt-5.4', label: 'GPT-5.4' },
+    { value: 'gpt-5.4-mini', label: 'GPT-5.4 Mini' },
+    { value: 'gpt-5.4-nano', label: 'GPT-5.4 Nano' },
     { value: 'gpt-5.2', label: 'GPT-5.2' },
     { value: 'gpt-5.2-pro', label: 'GPT-5.2 Pro' },
     { value: 'gpt-5.1', label: 'GPT-5.1' },
