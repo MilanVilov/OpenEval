@@ -52,6 +52,12 @@ const REASONING_MODELS = new Set([
   'o3', 'o3-pro', 'o3-mini', 'o4-mini',
 ]);
 
+// Models that support xhigh reasoning effort
+const XHIGH_REASONING_MODELS = new Set([
+  'o3', 'o3-pro',
+  'gpt-5.4', 'gpt-5.4-mini', 'gpt-5.4-nano',
+]);
+
 export function ConfigEdit() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -84,6 +90,7 @@ export function ConfigEdit() {
   const [error, setError] = useState<string | null>(null);
 
   const isReasoningModel = REASONING_MODELS.has(model);
+  const supportsXhigh = XHIGH_REASONING_MODELS.has(model);
 
   useEffect(() => {
     listVectorStores()
@@ -258,6 +265,7 @@ export function ConfigEdit() {
               <option value="low">Low</option>
               <option value="medium">Medium</option>
               <option value="high">High</option>
+              {supportsXhigh && <option value="xhigh">Extra High</option>}
             </Select>
             <p className="text-xs text-foreground-secondary">Controls how much reasoning compute the model uses</p>
           </div>
