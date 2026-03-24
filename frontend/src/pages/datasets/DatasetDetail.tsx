@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getDataset, deleteDataset, updateDatasetRows } from '@/api/datasets';
+import { deleteDataset, exportDataset, getDataset, updateDatasetRows } from '@/api/datasets';
 import type { DatasetDetail as DatasetDetailType } from '@/types/dataset';
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,7 @@ import { LoadingSkeleton } from '@/components/LoadingSkeleton';
 import { PageTransition } from '@/components/PageTransition';
 import { Spinner } from '@/components/Spinner';
 import { formatDate } from '@/lib/utils';
-import { Trash2, Save, Plus, X } from 'lucide-react';
+import { Download, Plus, Save, Trash2, X } from 'lucide-react';
 
 export function DatasetDetail() {
   const { id } = useParams<{ id: string }>();
@@ -20,6 +20,7 @@ export function DatasetDetail() {
   const [rows, setRows] = useState<Record<string, string>[]>([]);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingCell, setEditingCell] = useState<{ row: number; col: string } | null>(null);
@@ -81,6 +82,19 @@ export function DatasetDetail() {
     navigate('/datasets');
   }
 
+  async function handleExport() {
+    if (!id) return;
+    setDownloading(true);
+    setError(null);
+    try {
+      await exportDataset(id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to export dataset');
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   if (loading) return <LoadingSkeleton rows={5} />;
   if (error && !dataset) return <Alert variant="destructive" className="animate-fade-in"><AlertDescription>{error}</AlertDescription></Alert>;
   if (!dataset) return <Alert variant="destructive" className="animate-fade-in"><AlertDescription>Dataset not found</AlertDescription></Alert>;
@@ -94,6 +108,10 @@ export function DatasetDetail() {
         description={`${rows.length} rows · Created ${formatDate(dataset.created_at)}`}
         action={
           <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => void handleExport()} disabled={downloading}>
+              <Download className="mr-2 h-4 w-4" />
+              {downloading ? 'Exporting...' : 'Export CSV'}
+            </Button>
             {dirty && (
               <Button size="sm" onClick={handleSave} disabled={saving}>
                 {saving ? <Spinner className="mr-2" /> : <Save className="mr-2 h-4 w-4" />}
@@ -111,7 +129,12 @@ export function DatasetDetail() {
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Dataset Rows</CardTitle>
+          <div>
+            <CardTitle>Dataset Rows</CardTitle>
+            <p className="mt-1 text-xs text-foreground-secondary">
+              Export downloads the latest saved CSV exactly as this dataset will be evaluated.
+            </p>
+          </div>
           <Button size="sm" variant="outline" onClick={addRow}>
             <Plus className="mr-2 h-4 w-4" />Add Row
           </Button>

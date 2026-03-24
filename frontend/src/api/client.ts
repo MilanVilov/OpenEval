@@ -25,3 +25,33 @@ export async function apiFetch<T>(path: string, options?: RequestInit): Promise<
   }
   return res.json();
 }
+
+export async function downloadFile(path: string): Promise<void> {
+  const res = await fetch(`${API_BASE}${path}`);
+  if (!res.ok) {
+    throw new ApiError(res.status, await res.text());
+  }
+
+  const blob = await res.blob();
+  const objectUrl = window.URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = objectUrl;
+  anchor.download = getDownloadFilename(res.headers.get('Content-Disposition'));
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.URL.revokeObjectURL(objectUrl);
+}
+
+function getDownloadFilename(contentDisposition: string | null): string {
+  if (!contentDisposition) {
+    return 'export.csv';
+  }
+
+  const match = contentDisposition.match(/filename="([^"]+)"/i);
+  if (!match) {
+    return 'export.csv';
+  }
+
+  return match[1];
+}

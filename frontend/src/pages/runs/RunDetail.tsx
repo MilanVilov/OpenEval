@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getRun, getRunProgress, getRunResults, deleteRun } from '@/api/runs';
+import { deleteRun, exportRun, getRun, getRunProgress, getRunResults } from '@/api/runs';
 import type { EvalRun, RunProgress, EvalResult } from '@/types/run';
 import { usePolling } from '@/hooks/usePolling';
 import { PageHeader } from '@/components/PageHeader';
@@ -15,7 +15,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { LoadingSkeleton } from '@/components/LoadingSkeleton';
 import { PageTransition } from '@/components/PageTransition';
 import { formatDate, formatPercent, formatTokens } from '@/lib/utils';
-import { Trash2 } from 'lucide-react';
+import { Download, Trash2 } from 'lucide-react';
 
 export function RunDetail() {
   const { id } = useParams<{ id: string }>();
@@ -26,6 +26,7 @@ export function RunDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showFailuresOnly, setShowFailuresOnly] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -60,6 +61,19 @@ export function RunDetail() {
     navigate('/runs');
   }
 
+  async function handleExport() {
+    if (!id) return;
+    setExporting(true);
+    setError(null);
+    try {
+      await exportRun(id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to export evaluation');
+    } finally {
+      setExporting(false);
+    }
+  }
+
   if (loading) return <LoadingSkeleton rows={6} />;
   if (error) return <Alert variant="destructive" className="animate-fade-in"><AlertDescription>{error}</AlertDescription></Alert>;
   if (!run) return <Alert variant="destructive" className="animate-fade-in"><AlertDescription>Run not found</AlertDescription></Alert>;
@@ -86,6 +100,10 @@ export function RunDetail() {
         action={
           <div className="flex items-center gap-2">
             <StatusBadge status={run.status} />
+            <Button variant="outline" size="sm" onClick={() => void handleExport()} disabled={exporting}>
+              <Download className="mr-2 h-4 w-4" />
+              {exporting ? 'Exporting...' : 'Export CSV'}
+            </Button>
             <Button variant="destructive" size="sm" onClick={handleDelete}>
               <Trash2 className="mr-2 h-4 w-4" />Delete
             </Button>
@@ -123,7 +141,12 @@ export function RunDetail() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>Results</CardTitle>
+            <div>
+              <CardTitle>Results</CardTitle>
+              <p className="mt-1 text-xs text-foreground-secondary">
+                CSV export includes row outputs, grader reasoning, latency, token usage, and raw comparer details.
+              </p>
+            </div>
             <Button
               variant={showFailuresOnly ? 'default' : 'outline'}
               size="sm"

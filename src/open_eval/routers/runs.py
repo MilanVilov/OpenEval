@@ -1,6 +1,7 @@
 """EvalRun CRUD routes — JSON API."""
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from open_eval.db.repositories import (
@@ -17,6 +18,7 @@ from open_eval.routers.schemas.runs import (
     RunProgressResponse,
     RunResponse,
 )
+from open_eval.services.csv_export import build_run_export_csv, sanitize_export_name
 from open_eval.services.eval_runner import run_evaluation
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
@@ -170,6 +172,25 @@ async def run_results(
     """Return results for an eval run."""
     results = await ResultRepository(session).list_by_run(run_id, failed_only=failed_only)
     return [_result_to_response(r) for r in results]
+
+
+@router.get("/{run_id}/export")
+async def export_run(
+    run_id: str,
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    """Download a CSV export containing all persisted run results."""
+    run_repo = RunRepository(session)
+    run = await run_repo.get_by_id(run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    results = await ResultRepository(session).list_by_run(run_id)
+    csv_content = build_run_export_csv(run, results)
+    export_name = run.config.name if run.config else run.id
+    filename = f"{sanitize_export_name(export_name, fallback='evaluation')}-{run.id}.csv"
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    return Response(content=csv_content, media_type="text/csv; charset=utf-8", headers=headers)
 
 
 @router.delete("/{run_id}", status_code=204)

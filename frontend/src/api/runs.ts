@@ -1,4 +1,4 @@
-import { apiFetch } from './client';
+import { apiFetch, downloadFile } from './client';
 import type { EvalRun, EvalResult, RunProgress, CreateRunRequest } from '../types/run';
 
 export function listRuns(): Promise<EvalRun[]> {
@@ -28,4 +28,8 @@ export function deleteRun(id: string): Promise<void> {
 
 export function compareRuns(runA: string, runB: string): Promise<{ run_a: EvalRun | null; run_b: EvalRun | null; results_a: EvalResult[]; results_b: EvalResult[] }> {
   return apiFetch(`/runs/compare?run_a=${runA}&run_b=${runB}`);
+}
+
+export function exportRun(id: string): Promise<void> {
+  return downloadFile(`/runs/${id}/export`);
 }

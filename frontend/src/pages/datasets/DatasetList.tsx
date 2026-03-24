@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { listDatasets } from '@/api/datasets';
+import { exportDataset, listDatasets } from '@/api/datasets';
 import type { Dataset } from '@/types/dataset';
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -9,13 +9,14 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { LoadingSkeleton } from '@/components/LoadingSkeleton';
 import { PageTransition } from '@/components/PageTransition';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Plus } from 'lucide-react';
+import { Download, Plus } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 
 export function DatasetList() {
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   useEffect(() => {
     listDatasets()
@@ -23,6 +24,18 @@ export function DatasetList() {
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
+
+  async function handleExport(datasetId: string): Promise<void> {
+    setDownloadingId(datasetId);
+    setError(null);
+    try {
+      await exportDataset(datasetId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to export dataset');
+    } finally {
+      setDownloadingId(null);
+    }
+  }
 
   if (loading) return <LoadingSkeleton rows={4} />;
   if (error) return <Alert variant="destructive" className="animate-fade-in"><AlertDescription>{error}</AlertDescription></Alert>;
@@ -52,6 +65,7 @@ export function DatasetList() {
                 <TableHead>Name</TableHead>
                 <TableHead>Rows</TableHead>
                 <TableHead>Created</TableHead>
+                <TableHead className="w-24 text-right">Export</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -66,6 +80,17 @@ export function DatasetList() {
                   </TableCell>
                   <TableCell className="tabular-nums">{ds.row_count}</TableCell>
                   <TableCell>{formatDate(ds.created_at)}</TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={downloadingId === ds.id}
+                      onClick={() => void handleExport(ds.id)}
+                    >
+                      <Download className="mr-2 h-4 w-4" />
+                      {downloadingId === ds.id ? 'Exporting...' : 'CSV'}
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
