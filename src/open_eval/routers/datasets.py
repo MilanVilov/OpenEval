@@ -4,6 +4,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from open_eval.config import get_settings
@@ -15,6 +16,7 @@ from open_eval.routers.schemas.datasets import (
     UpdateRowsRequest,
 )
 from open_eval.services.csv_parser import parse_csv, read_csv_rows, write_csv_rows
+from open_eval.services.csv_export import sanitize_export_name
 
 router = APIRouter(prefix="/api/datasets", tags=["datasets"])
 
@@ -96,6 +98,24 @@ async def get_dataset(
         columns=dataset.columns,
         created_at=str(dataset.created_at),
         rows=all_rows,
+    )
+
+
+@router.get("/{dataset_id}/export")
+async def export_dataset(
+    dataset_id: str,
+    session: AsyncSession = Depends(get_session),
+) -> FileResponse:
+    """Download the full dataset as a CSV attachment."""
+    dataset = await DatasetRepository(session).get_by_id(dataset_id)
+    if not dataset:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+
+    filename = f"{sanitize_export_name(dataset.name, fallback='dataset')}.csv"
+    return FileResponse(
+        path=dataset.file_path,
+        media_type="text/csv; charset=utf-8",
+        filename=filename,
     )
 
 

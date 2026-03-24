@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { listRuns } from '@/api/runs';
+import { exportRun, listRuns } from '@/api/runs';
 import type { EvalRun } from '@/types/run';
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -10,13 +10,14 @@ import { LoadingSkeleton } from '@/components/LoadingSkeleton';
 import { PageTransition } from '@/components/PageTransition';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card } from '@/components/ui/card';
-import { Plus } from 'lucide-react';
+import { Download, Plus } from 'lucide-react';
 import { formatDate, formatPercent, formatLatency, formatTokens } from '@/lib/utils';
 
 export function RunList() {
   const [runs, setRuns] = useState<EvalRun[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   useEffect(() => {
     listRuns()
@@ -24,6 +25,18 @@ export function RunList() {
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
+
+  async function handleExport(runId: string): Promise<void> {
+    setDownloadingId(runId);
+    setError(null);
+    try {
+      await exportRun(runId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to export evaluation');
+    } finally {
+      setDownloadingId(null);
+    }
+  }
 
   if (loading) return <LoadingSkeleton rows={5} />;
   if (error) return <Alert variant="destructive" className="animate-fade-in"><AlertDescription>{error}</AlertDescription></Alert>;
@@ -57,6 +70,7 @@ export function RunList() {
                 <TableHead>Latency</TableHead>
                 <TableHead>Tokens (in/out)</TableHead>
                 <TableHead>Created</TableHead>
+                <TableHead className="w-28 text-right">Export</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -77,6 +91,17 @@ export function RunList() {
                   <TableCell className="tabular-nums">{run.summary?.avg_latency_ms != null ? formatLatency(run.summary.avg_latency_ms) : '—'}</TableCell>
                   <TableCell className="tabular-nums">{run.summary?.avg_input_tokens != null ? `${formatTokens(run.summary.avg_input_tokens)} / ${formatTokens(run.summary.avg_output_tokens)}` : '—'}</TableCell>
                   <TableCell>{formatDate(run.created_at)}</TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={downloadingId === run.id}
+                      onClick={() => void handleExport(run.id)}
+                    >
+                      <Download className="mr-2 h-4 w-4" />
+                      {downloadingId === run.id ? 'Exporting...' : 'CSV'}
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

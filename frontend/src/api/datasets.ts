@@ -1,4 +1,4 @@
-import { apiFetch } from './client';
+import { apiFetch, downloadFile } from './client';
 import type { Dataset, DatasetDetail } from '../types/dataset';
 
 export function listDatasets(): Promise<Dataset[]> {
@@ -32,4 +32,8 @@ export function updateDatasetRows(
 
 export function deleteDataset(id: string): Promise<void> {
   return apiFetch(`/datasets/${id}`, { method: 'DELETE' });
+}
+
+export function exportDataset(id: string): Promise<void> {
+  return downloadFile(`/datasets/${id}/export`);
 }
