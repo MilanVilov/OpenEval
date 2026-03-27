@@ -157,4 +157,4 @@ openeval/
 
 ## License
 
-MIT License. See [LICENSE](LICENSE) for details.
+OSASSY License. See [LICENSE](LICENSE) for details.
