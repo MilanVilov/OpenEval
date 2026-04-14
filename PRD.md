@@ -349,7 +349,7 @@ No user accounts. Whoever can reach `http://host:8000` has full access.
 
 ```bash
 # Terminal 1 — Backend
-uv run uvicorn open_eval.app:create_app --factory --host 0.0.0.0 --port 8000 --reload
+uv run uvicorn src.app:create_app --factory --host 0.0.0.0 --port 8000 --reload
 
 # Terminal 2 — Frontend
 cd frontend && npm run dev

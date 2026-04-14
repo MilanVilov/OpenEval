@@ -136,7 +136,7 @@ High-level modules should not depend on low-level modules. Both depend on abstra
 
 ```python
 # BAD: service directly imports and uses concrete DB session
-from open_eval.db.session import async_session
+from src.db.session import async_session
 
 class EvalRunner:
     async def run(self):
@@ -263,14 +263,14 @@ class CompareResult:
 
 ## Pydantic Schema Conventions
 
-Request and response schemas for API endpoints live in `src/open_eval/routers/schemas/`, one file per resource.
+Request and response schemas for API endpoints live in `src/routers/schemas/`, one file per resource.
 
 - Use `model_config = {"from_attributes": True}` on response models for ORM model conversion.
 - Separate Create/Update request models from Response models — do not reuse the same model for both.
 - Name schemas clearly: `CreateConfigRequest`, `UpdateConfigRequest`, `ConfigResponse`.
 
 ```python
-# src/open_eval/routers/schemas/configs.py
+# src/routers/schemas/configs.py
 from pydantic import BaseModel
 
 
@@ -352,15 +352,15 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from open_eval.db.repositories import ConfigRepository
-from open_eval.routers.schemas.configs import ConfigResponse, CreateConfigRequest
-from open_eval.services.eval_runner import EvalRunner
+from src.db.repositories import ConfigRepository
+from src.routers.schemas.configs import ConfigResponse, CreateConfigRequest
+from src.services.eval_runner import EvalRunner
 ```
 
 **Rules:**
 - No wildcard imports (`from x import *`).
 - No circular imports — if two modules need each other, one of them has the wrong responsibility.
-- Import modules, not deeply nested internals (import `from open_eval.db.repositories`, not `from open_eval.db.repositories.config_repo_impl`).
+- Import modules, not deeply nested internals (import `from src.db.repositories`, not `from src.db.repositories.config_repo_impl`).
 
 ---
 
@@ -464,7 +464,7 @@ def get_status_label(status: str) -> str:
 
 **Every feature must include tests. A feature without tests is not done. No PR will be accepted without accompanying tests.**
 
-- Test file mirrors source: `src/open_eval/services/eval_runner.py` → `tests/services/test_eval_runner.py`.
+- Test file mirrors source: `src/services/eval_runner.py` → `tests/services/test_eval_runner.py`.
 - Test function names: `test_<function>_<scenario>` — `test_parse_csv_missing_columns_raises`.
 - One assertion per test (or closely related assertions).
 - Use `pytest.fixture` for shared setup — no `setUp` methods.

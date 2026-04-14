@@ -105,8 +105,8 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from httpx import AsyncClient, ASGITransport
 
-from open_eval.app import create_app
-from open_eval.db.session import Base, get_session
+from src.app import create_app
+from src.db.session import Base, get_session
 
 
 @pytest.fixture
@@ -256,7 +256,7 @@ async def test_eval_runner_calls_openai(make_eval_config):
 **Rules:**
 - Prefer **dependency injection** over `@patch`. If you can pass a mock as a constructor arg, do that.
 - Use `@patch` only for module-level functions or things you can't inject.
-- **Patch at the import site**, not the definition site: `@patch("open_eval.services.eval_runner.openai_client")` not `@patch("open_eval.services.openai_client")`.
+- **Patch at the import site**, not the definition site: `@patch("src.services.eval_runner.openai_client")` not `@patch("src.services.openai_client")`.
 
 ---
 
