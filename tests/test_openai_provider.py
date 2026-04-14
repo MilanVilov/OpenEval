@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from open_eval.providers.base import LLMResponse
-from open_eval.providers.openai import OpenAIProvider
+from src.providers.base import LLMResponse
+from src.providers.openai import OpenAIProvider
 
 
 class TestBuildTools:
@@ -14,7 +14,7 @@ class TestBuildTools:
 
     def _provider(self) -> OpenAIProvider:
         """Create a provider with a dummy client."""
-        with patch("open_eval.providers.openai.get_settings") as mock_settings:
+        with patch("src.providers.openai.get_settings") as mock_settings:
             mock_settings.return_value = MagicMock(openai_api_key="test-key")
             return OpenAIProvider(client=AsyncMock())
 
@@ -83,7 +83,7 @@ class TestLatencyMeasurement:
 
         mock_client.responses.create = slow_create
 
-        with patch("open_eval.providers.openai.get_settings") as mock_settings:
+        with patch("src.providers.openai.get_settings") as mock_settings:
             mock_settings.return_value = MagicMock(openai_api_key="test-key")
             provider = OpenAIProvider(client=mock_client)
 
@@ -113,7 +113,7 @@ class TestLatencyMeasurement:
 
         mock_client.responses.create = capture_create
 
-        with patch("open_eval.providers.openai.get_settings") as mock_settings:
+        with patch("src.providers.openai.get_settings") as mock_settings:
             mock_settings.return_value = MagicMock(openai_api_key="test-key")
             provider = OpenAIProvider(client=mock_client)
 
@@ -142,7 +142,7 @@ class TestLatencyMeasurement:
 
         mock_client.responses.create = capture_create
 
-        with patch("open_eval.providers.openai.get_settings") as mock_settings:
+        with patch("src.providers.openai.get_settings") as mock_settings:
             mock_settings.return_value = MagicMock(openai_api_key="test-key")
             provider = OpenAIProvider(client=mock_client)
 

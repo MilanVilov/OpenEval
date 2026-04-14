@@ -17,14 +17,14 @@ dependencies = [
 ]
 
 [project.scripts]
-openeval = "open_eval.app:create_app"
+openeval = "src.app:create_app"
 
 [project.entry-points."open_eval.comparers"]
-exact_match = "open_eval.comparers.exact_match:ExactMatchComparer"
-pattern_match = "open_eval.comparers.pattern_match:PatternMatchComparer"
-semantic_similarity = "open_eval.comparers.semantic_similarity:SemanticSimilarityComparer"
-llm_judge = "open_eval.comparers.llm_judge:LlmJudgeComparer"
-json_schema_match = "open_eval.comparers.json_schema_match:JsonSchemaMatchComparer"
+exact_match = "src.comparers.exact_match:ExactMatchComparer"
+pattern_match = "src.comparers.pattern_match:PatternMatchComparer"
+semantic_similarity = "src.comparers.semantic_similarity:SemanticSimilarityComparer"
+llm_judge = "src.comparers.llm_judge:LlmJudgeComparer"
+json_schema_match = "src.comparers.json_schema_match:JsonSchemaMatchComparer"
 
 [dependency-groups]
 dev = [
@@ -48,7 +48,7 @@ max-complexity = 8
 asyncio_mode = "auto"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/open_eval"]
+packages = ["src"]
 
 [build-system]
 requires = ["hatchling"]

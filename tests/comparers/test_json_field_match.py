@@ -2,7 +2,7 @@
 
 import pytest
 
-from open_eval.comparers.json_field_match import JsonFieldMatchComparer, _find_field
+from src.comparers.json_field_match import JsonFieldMatchComparer, _find_field
 
 
 class TestFindField:

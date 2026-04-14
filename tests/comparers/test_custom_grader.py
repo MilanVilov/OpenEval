@@ -5,10 +5,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from open_eval.comparers.custom_grader import CustomGraderComparer
+from src.comparers.custom_grader import CustomGraderComparer
 
 # The get_openai_client is imported lazily inside compare(), so we patch at its source module
-_PATCH_TARGET = "open_eval.services.openai_client.get_openai_client"
+_PATCH_TARGET = "src.services.openai_client.get_openai_client"
 
 
 def _make_openai_response(score: float, reasoning: str) -> MagicMock:

@@ -8,15 +8,15 @@ from unittest.mock import MagicMock, patch
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from open_eval.app import create_app
-from open_eval.db.models import Base
-from open_eval.db.repositories import (
+from src.app import create_app
+from src.db.models import Base
+from src.db.repositories import (
     ConfigRepository,
     DatasetRepository,
     ResultRepository,
     RunRepository,
 )
-from open_eval.db.session import get_engine, get_session_context
+from src.db.session import get_engine, get_session_context
 
 
 @pytest.fixture()
@@ -25,8 +25,8 @@ def app(tmp_path: Path):
     upload_dir = tmp_path / "uploads"
     upload_dir.mkdir(parents=True, exist_ok=True)
 
-    with patch("open_eval.db.session.get_settings") as mock_db_settings, patch(
-        "open_eval.config.get_settings"
+    with patch("src.db.session.get_settings") as mock_db_settings, patch(
+        "src.config.get_settings"
     ) as mock_app_settings:
         settings = MagicMock()
         settings.database_url = "sqlite+aiosqlite://"
@@ -35,7 +35,7 @@ def app(tmp_path: Path):
         mock_db_settings.return_value = settings
         mock_app_settings.return_value = settings
 
-        import open_eval.db.session as session_mod
+        import src.db.session as session_mod
 
         session_mod._engine = None
         session_mod._session_factory = None
