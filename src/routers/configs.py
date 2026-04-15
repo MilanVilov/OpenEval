@@ -28,7 +28,9 @@ def _config_to_response(config: object) -> ConfigResponse:
         comparer_type=config.comparer_type,
         comparer_config=config.comparer_config,
         custom_graders=config.custom_graders or [],
+        tags=config.tags or [],
         concurrency=config.concurrency,
+        readonly=config.readonly,
         reasoning_config=config.reasoning_config,
         response_format=config.response_format,
         created_at=str(config.created_at),
@@ -62,11 +64,26 @@ async def create_config(
         comparer_type=body.comparer_type,
         comparer_config=body.comparer_config,
         custom_graders=[g.model_dump() for g in body.custom_graders],
+        tags=body.tags,
         concurrency=body.concurrency,
+        readonly=body.readonly,
         reasoning_config=body.reasoning_config,
         response_format=body.response_format,
     )
     return _config_to_response(config)
+
+
+@router.get("/tags", response_model=list[str])
+async def list_tags(
+    session: AsyncSession = Depends(get_session),
+) -> list[str]:
+    """Return a deduplicated, sorted list of all tags used across configs."""
+    configs = await ConfigRepository(session).list_all()
+    tags: set[str] = set()
+    for c in configs:
+        for t in c.tags or []:
+            tags.add(t)
+    return sorted(tags)
 
 
 @router.get("/{config_id}", response_model=ConfigResponse)
@@ -118,7 +135,9 @@ async def duplicate_config(
         comparer_type=original.comparer_type,
         comparer_config=original.comparer_config,
         custom_graders=original.custom_graders or [],
+        tags=original.tags or [],
         concurrency=original.concurrency,
+        readonly=False,
         reasoning_config=original.reasoning_config,
         response_format=original.response_format,
     )

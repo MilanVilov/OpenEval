@@ -11,7 +11,7 @@ import { LoadingSkeleton } from '@/components/LoadingSkeleton';
 import { PageTransition } from '@/components/PageTransition';
 import { CodeBlock } from '@/components/CodeBlock';
 import { formatDate } from '@/lib/utils';
-import { Copy, Pencil, Trash2 } from 'lucide-react';
+import { Copy, Lock, Pencil, Trash2 } from 'lucide-react';
 
 export function ConfigDetail() {
   const { id } = useParams<{ id: string }>();
@@ -58,7 +58,13 @@ export function ConfigDetail() {
         title={config.name}
         description={`Created ${formatDate(config.created_at)}`}
         action={
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
+            {config.readonly && (
+              <Badge variant="warning" className="gap-1">
+                <Lock className="h-3 w-3" />
+                Readonly
+              </Badge>
+            )}
             <Button variant="outline" size="sm" onClick={handleDuplicate} disabled={duplicating}>
               <Copy className="mr-2 h-4 w-4" />{duplicating ? 'Duplicating…' : 'Duplicate'}
             </Button>
@@ -71,6 +77,14 @@ export function ConfigDetail() {
           </div>
         }
       />
+
+      {config.tags && config.tags.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 animate-fade-in">
+          {config.tags.map((tag: string) => (
+            <Badge key={tag} variant="info">{tag}</Badge>
+          ))}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card className="animate-fade-in-up" style={{ animationDelay: '60ms' }}>

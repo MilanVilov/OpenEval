@@ -24,3 +24,7 @@ export function duplicateConfig(id: string): Promise<EvalConfig> {
 export function deleteConfig(id: string): Promise<void> {
   return apiFetch(`/configs/${id}`, { method: 'DELETE' });
 }
+
+export function fetchAllTags(): Promise<string[]> {
+  return apiFetch('/configs/tags');
+}

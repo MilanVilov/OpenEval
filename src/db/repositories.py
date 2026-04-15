@@ -36,7 +36,9 @@ class ConfigRepository:
         comparer_type: str,
         comparer_config: dict | None = None,
         custom_graders: list | None = None,
+        tags: list | None = None,
         concurrency: int = 5,
+        readonly: bool = False,
         reasoning_config: dict | None = None,
         response_format: dict | None = None,
     ) -> EvalConfig:
@@ -52,7 +54,9 @@ class ConfigRepository:
             comparer_type=comparer_type,
             comparer_config=comparer_config if comparer_config is not None else {},
             custom_graders=custom_graders if custom_graders is not None else [],
+            tags=tags if tags is not None else [],
             concurrency=concurrency,
+            readonly=readonly,
             reasoning_config=reasoning_config,
             response_format=response_format,
         )

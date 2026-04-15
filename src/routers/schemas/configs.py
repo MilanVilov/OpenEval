@@ -29,7 +29,9 @@ class CreateConfigRequest(BaseModel):
     comparer_type: str
     comparer_config: dict = {}
     custom_graders: list[CustomGraderSchema] = []
+    tags: list[str] = []
     concurrency: int = 5
+    readonly: bool = False
     reasoning_config: dict | None = None
     response_format: dict | None = None
 
@@ -47,7 +49,9 @@ class UpdateConfigRequest(BaseModel):
     comparer_type: str | None = None
     comparer_config: dict | None = None
     custom_graders: list[CustomGraderSchema] | None = None
+    tags: list[str] | None = None
     concurrency: int | None = None
+    readonly: bool | None = None
     reasoning_config: dict | None = None
     response_format: dict | None = None
 
@@ -66,7 +70,9 @@ class ConfigResponse(BaseModel):
     comparer_type: str
     comparer_config: dict
     custom_graders: list[dict] = []
+    tags: list[str] = []
     concurrency: int
+    readonly: bool = False
     reasoning_config: dict | None = None
     response_format: dict | None = None
     created_at: str
