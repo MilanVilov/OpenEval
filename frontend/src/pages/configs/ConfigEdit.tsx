@@ -1,6 +1,7 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getConfig, updateConfig } from '@/api/configs';
+import { fetchAllTags } from '@/api/configs';
 import { generateSchema } from '@/api/generateSchema';
 import { listVectorStores } from '@/api/vectorStores';
 import { listContainers } from '@/api/containers';
@@ -18,6 +19,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { LoadingSkeleton } from '@/components/LoadingSkeleton';
 import { PageTransition } from '@/components/PageTransition';
 import { Spinner } from '@/components/Spinner';
+import { TagInput } from '@/components/TagInput';
+import { Lock } from 'lucide-react';
 
 const MODEL_OPTIONS = [
   { group: 'Frontier', models: [
@@ -62,6 +65,8 @@ export function ConfigEdit() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [name, setName] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
   const [systemPrompt, setSystemPrompt] = useState('');
   const [model, setModel] = useState('gpt-4.1');
   const [temperature, setTemperature] = useState('0.7');
@@ -88,6 +93,7 @@ export function ConfigEdit() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isReadonly, setIsReadonly] = useState(false);
 
   const isReasoningModel = REASONING_MODELS.has(model);
   const supportsXhigh = XHIGH_REASONING_MODELS.has(model);
@@ -99,6 +105,9 @@ export function ConfigEdit() {
     listContainers()
       .then(setContainers)
       .catch(() => {/* ignore */});
+    fetchAllTags()
+      .then(setTagSuggestions)
+      .catch(() => {/* ignore */});
   }, []);
 
   useEffect(() => {
@@ -106,11 +115,13 @@ export function ConfigEdit() {
     getConfig(id)
       .then((config) => {
         setName(config.name);
+        setTags(config.tags || []);
         setSystemPrompt(config.system_prompt);
         setModel(config.model);
         setTemperature(String(config.temperature));
         setComparerTypes(new Set(config.comparer_type.split(',').map((s: string) => s.trim())));
         setConcurrency(String(config.concurrency));
+        setIsReadonly(config.readonly ?? false);
         if (config.reasoning_config?.effort) {
           setReasoningEffort(config.reasoning_config.effort);
         }
@@ -206,11 +217,13 @@ export function ConfigEdit() {
         temperature: parseFloat(temperature),
         comparer_type: Array.from(comparerTypes).join(','),
         custom_graders: gradersPayload,
+        tags,
         tools,
         tool_options: toolOptions,
         concurrency: parseInt(concurrency, 10),
         reasoning_config: reasoningConfig,
         response_format: buildResponseFormat(),
+        readonly: isReadonly,
       });
       navigate(`/configs/${id}`);
     } catch (err) {
@@ -230,18 +243,24 @@ export function ConfigEdit() {
 
         <div className="space-y-2">
           <Label>Name</Label>
-          <Input value={name} onChange={(e) => setName(e.target.value)} required />
+          <Input value={name} onChange={(e) => setName(e.target.value)} required disabled={isReadonly} />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Tags</Label>
+          <TagInput value={tags} onChange={setTags} suggestions={tagSuggestions} disabled={isReadonly} />
+          <p className="text-xs text-foreground-secondary">Press Enter or comma to add a tag</p>
         </div>
 
         <div className="space-y-2">
           <Label>System Prompt</Label>
-          <Textarea value={systemPrompt} onChange={(e) => setSystemPrompt(e.target.value)} required className="font-mono min-h-[120px]" />
+          <Textarea value={systemPrompt} onChange={(e) => setSystemPrompt(e.target.value)} required className="font-mono min-h-[120px]" disabled={isReadonly} />
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label>Model</Label>
-            <Select value={model} onChange={(e) => setModel(e.target.value)}>
+            <Select value={model} onChange={(e) => setModel(e.target.value)} disabled={isReadonly}>
               {MODEL_OPTIONS.map((group) => (
                 <optgroup key={group.group} label={group.group}>
                   {group.models.map((m) => (
@@ -253,7 +272,7 @@ export function ConfigEdit() {
           </div>
           <div className="space-y-2">
             <Label>Temperature</Label>
-            <Input type="number" step="0.1" min="0" max="2" value={temperature} onChange={(e) => setTemperature(e.target.value)} />
+            <Input type="number" step="0.1" min="0" max="2" value={temperature} onChange={(e) => setTemperature(e.target.value)} disabled={isReadonly} />
           </div>
         </div>
 
@@ -261,7 +280,7 @@ export function ConfigEdit() {
           <>
           <div className="space-y-2">
             <Label>Reasoning Effort</Label>
-            <Select value={reasoningEffort} onChange={(e) => setReasoningEffort(e.target.value)}>
+            <Select value={reasoningEffort} onChange={(e) => setReasoningEffort(e.target.value)} disabled={isReadonly}>
               <option value="low">Low</option>
               <option value="medium">Medium</option>
               <option value="high">High</option>
@@ -271,7 +290,7 @@ export function ConfigEdit() {
           </div>
           <div className="space-y-2">
             <Label>Reasoning Summary</Label>
-            <Select value={reasoningSummary} onChange={(e) => setReasoningSummary(e.target.value)}>
+            <Select value={reasoningSummary} onChange={(e) => setReasoningSummary(e.target.value)} disabled={isReadonly}>
               <option value="auto">Auto</option>
               <option value="concise">Concise</option>
               <option value="detailed">Detailed</option>
@@ -284,7 +303,7 @@ export function ConfigEdit() {
 
         <div className="space-y-2">
           <Label>Response Format</Label>
-          <Select value={responseFormatType} onChange={(e) => setResponseFormatType(e.target.value)}>
+          <Select value={responseFormatType} onChange={(e) => setResponseFormatType(e.target.value)} disabled={isReadonly}>
             <option value="text">Plain Text</option>
             <option value="json_object">JSON Object</option>
             <option value="json_schema">JSON Schema (Structured Output)</option>
@@ -301,11 +320,12 @@ export function ConfigEdit() {
                   onChange={(e) => setAiSchemaPrompt(e.target.value)}
                   placeholder="Describe the schema, e.g. 'A product with name, price, and tags'"
                   className="flex-1"
+                  disabled={isReadonly}
                 />
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={aiSchemaLoading || !aiSchemaPrompt.trim()}
+                  disabled={isReadonly || aiSchemaLoading || !aiSchemaPrompt.trim()}
                   onClick={async () => {
                     setAiSchemaLoading(true);
                     setAiSchemaError(null);
@@ -328,7 +348,7 @@ export function ConfigEdit() {
             </div>
             <div className="space-y-2">
               <Label>Schema Name</Label>
-              <Input value={jsonSchemaName} onChange={(e) => setJsonSchemaName(e.target.value)} placeholder="response" />
+              <Input value={jsonSchemaName} onChange={(e) => setJsonSchemaName(e.target.value)} placeholder="response" disabled={isReadonly} />
             </div>
             <div className="space-y-2">
               <Label>JSON Schema</Label>
@@ -337,6 +357,7 @@ export function ConfigEdit() {
                 onChange={(e) => setJsonSchemaBody(e.target.value)}
                 placeholder={'{\n  "type": "object",\n  "properties": {\n    "answer": { "type": "string" }\n  },\n  "required": ["answer"],\n  "additionalProperties": false\n}'}
                 className="font-mono min-h-[160px]"
+                disabled={isReadonly}
               />
               <p className="text-xs text-foreground-secondary">Define the JSON Schema for structured output. Must have "additionalProperties": false for strict mode.</p>
             </div>
@@ -351,6 +372,7 @@ export function ConfigEdit() {
               checked={fileSearchEnabled}
               onChange={(e) => setFileSearchEnabled(e.target.checked)}
               className="rounded border-border"
+              disabled={isReadonly}
             />
             File Search
           </label>
@@ -361,6 +383,7 @@ export function ConfigEdit() {
               checked={shellEnabled}
               onChange={(e) => setShellEnabled(e.target.checked)}
               className="rounded border-border"
+              disabled={isReadonly}
             />
             Shell
           </label>
@@ -370,7 +393,7 @@ export function ConfigEdit() {
         {(fileSearchEnabled || shellEnabled) && (
           <div className="space-y-2">
             <Label>Tool Choice</Label>
-            <Select value={toolChoice} onChange={(e) => setToolChoice(e.target.value)}>
+            <Select value={toolChoice} onChange={(e) => setToolChoice(e.target.value)} disabled={isReadonly}>
               <option value="auto">Auto (model decides)</option>
               <option value="required">Required (must use a tool)</option>
               <option value="none">None (tools available but suppressed)</option>
@@ -382,7 +405,7 @@ export function ConfigEdit() {
         {fileSearchEnabled && (
           <div className="space-y-2 rounded-md border border-border p-4">
             <Label>Vector Store</Label>
-            <Select value={vectorStoreId} onChange={(e) => setVectorStoreId(e.target.value)}>
+            <Select value={vectorStoreId} onChange={(e) => setVectorStoreId(e.target.value)} disabled={isReadonly}>
               <option value="">— Select a vector store —</option>
               {vectorStores.map((vs) => (
                 <option key={vs.id} value={vs.openai_vector_store_id}>{vs.name} ({vs.file_count} files)</option>
@@ -397,7 +420,7 @@ export function ConfigEdit() {
         {shellEnabled && (
           <div className="space-y-2 rounded-md border border-border p-4">
             <Label>Container</Label>
-            <Select value={containerId} onChange={(e) => setContainerId(e.target.value)}>
+            <Select value={containerId} onChange={(e) => setContainerId(e.target.value)} disabled={isReadonly}>
               <option value="">— Auto (ephemeral container) —</option>
               {containers.map((c) => (
                 <option key={c.id} value={c.openai_container_id}>{c.name} ({c.file_count} files)</option>
@@ -431,6 +454,7 @@ export function ConfigEdit() {
                       setComparerTypes(next);
                     }}
                     className="rounded border-border"
+                    disabled={isReadonly}
                   />
                   {c.label}
                 </label>
@@ -439,7 +463,7 @@ export function ConfigEdit() {
           </div>
           <div className="space-y-2">
             <Label>Concurrency</Label>
-            <Input type="number" min="1" max="20" value={concurrency} onChange={(e) => setConcurrency(e.target.value)} />
+            <Input type="number" min="1" max="20" value={concurrency} onChange={(e) => setConcurrency(e.target.value)} disabled={isReadonly} />
           </div>
         </div>
 
@@ -450,7 +474,24 @@ export function ConfigEdit() {
           onGraderModelChange={setGraderModel}
           graderThreshold={graderThreshold}
           onGraderThresholdChange={setGraderThreshold}
+          disabled={isReadonly}
         />
+
+        <div className="rounded-md border border-border p-4 space-y-2">
+          <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={isReadonly}
+              onChange={(e) => setIsReadonly(e.target.checked)}
+              className="rounded border-border"
+            />
+            <Lock className="h-3.5 w-3.5" />
+            Lock configuration (readonly)
+          </label>
+          {isReadonly && (
+            <p className="text-xs text-foreground-secondary">All fields are locked. Uncheck to make changes.</p>
+          )}
+        </div>
 
         <div className="flex justify-end gap-2 pt-4">
           <Button type="button" variant="outline" onClick={() => navigate(`/configs/${id}`)}>Cancel</Button>

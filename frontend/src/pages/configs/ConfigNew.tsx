@@ -1,6 +1,7 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createConfig } from '@/api/configs';
+import { fetchAllTags } from '@/api/configs';
 import { generateSchema } from '@/api/generateSchema';
 import { listVectorStores } from '@/api/vectorStores';
 import { listContainers } from '@/api/containers';
@@ -17,6 +18,8 @@ import { Select } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { PageTransition } from '@/components/PageTransition';
 import { Spinner } from '@/components/Spinner';
+import { TagInput } from '@/components/TagInput';
+import { Lock } from 'lucide-react';
 
 const MODEL_OPTIONS = [
   { group: 'Frontier', models: [
@@ -60,6 +63,8 @@ const XHIGH_REASONING_MODELS = new Set([
 export function ConfigNew() {
   const navigate = useNavigate();
   const [name, setName] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
   const [systemPrompt, setSystemPrompt] = useState('');
   const [model, setModel] = useState('gpt-4.1');
   const [temperature, setTemperature] = useState('0.7');
@@ -85,6 +90,7 @@ export function ConfigNew() {
   const [toolChoice, setToolChoice] = useState('auto');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isReadonly, setIsReadonly] = useState(false);
 
   const isReasoningModel = REASONING_MODELS.has(model);
   const supportsXhigh = XHIGH_REASONING_MODELS.has(model);
@@ -96,6 +102,9 @@ export function ConfigNew() {
     listContainers()
       .then(setContainers)
       .catch(() => {/* ignore – selector will be empty */});
+    fetchAllTags()
+      .then(setTagSuggestions)
+      .catch(() => {/* ignore */});
   }, []);
 
   function buildResponseFormat(): Record<string, unknown> | null {
@@ -153,11 +162,13 @@ export function ConfigNew() {
         comparer_type: Array.from(comparerTypes).join(','),
         comparer_config: {},
         custom_graders: gradersPayload,
+        tags,
         tools,
         tool_options: toolOptions,
         concurrency: parseInt(concurrency, 10),
         reasoning_config: reasoningConfig,
         response_format: buildResponseFormat(),
+        readonly: isReadonly,
       });
       navigate(`/configs/${config.id}`);
     } catch (err) {
@@ -176,6 +187,12 @@ export function ConfigNew() {
         <div className="space-y-2">
           <Label>Name</Label>
           <Input value={name} onChange={(e) => setName(e.target.value)} required placeholder="My eval config" />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Tags</Label>
+          <TagInput value={tags} onChange={setTags} suggestions={tagSuggestions} />
+          <p className="text-xs text-foreground-secondary">Press Enter or comma to add a tag</p>
         </div>
 
         <div className="space-y-2">
@@ -396,6 +413,22 @@ export function ConfigNew() {
           graderThreshold={graderThreshold}
           onGraderThresholdChange={setGraderThreshold}
         />
+
+        <div className="rounded-md border border-border p-4 space-y-2">
+          <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={isReadonly}
+              onChange={(e) => setIsReadonly(e.target.checked)}
+              className="rounded border-border"
+            />
+            <Lock className="h-3.5 w-3.5" />
+            Lock configuration (readonly)
+          </label>
+          {isReadonly && (
+            <p className="text-xs text-foreground-secondary">This config will be locked after creation. You can unlock it later from the edit page.</p>
+          )}
+        </div>
 
         <div className="flex justify-end gap-2 pt-4">
           <Button type="button" variant="outline" onClick={() => navigate('/configs')}>Cancel</Button>

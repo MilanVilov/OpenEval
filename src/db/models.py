@@ -32,9 +32,11 @@ class EvalConfig(Base):
     comparer_type: Mapped[str]
     comparer_config: Mapped[dict] = mapped_column(JSON, default=dict)
     custom_graders: Mapped[list | None] = mapped_column(JSON, default=list)
+    tags: Mapped[list | None] = mapped_column(JSON, default=list)
     reasoning_config: Mapped[dict | None] = mapped_column(JSON, default=None)
     response_format: Mapped[dict | None] = mapped_column(JSON, default=None)
     concurrency: Mapped[int] = mapped_column(default=5)
+    readonly: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 

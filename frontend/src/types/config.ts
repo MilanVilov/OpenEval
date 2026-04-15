@@ -17,7 +17,9 @@ export interface EvalConfig {
   comparer_type: string;
   comparer_config: Record<string, unknown>;
   custom_graders: CustomGrader[];
+  tags: string[];
   concurrency: number;
+  readonly: boolean;
   reasoning_config: Record<string, string> | null;
   response_format: Record<string, unknown> | null;
   created_at: string;
@@ -35,7 +37,9 @@ export interface CreateConfigRequest {
   comparer_type: string;
   comparer_config: Record<string, unknown>;
   custom_graders?: CustomGrader[];
+  tags?: string[];
   concurrency: number;
+  readonly?: boolean;
   reasoning_config?: Record<string, string> | null;
   response_format?: Record<string, unknown> | null;
 }

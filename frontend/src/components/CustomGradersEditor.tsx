@@ -43,6 +43,7 @@ interface CustomGradersEditorProps {
   onGraderModelChange: (model: string) => void;
   graderThreshold: string;
   onGraderThresholdChange: (threshold: string) => void;
+  disabled?: boolean;
 }
 
 export function CustomGradersEditor({
@@ -52,6 +53,7 @@ export function CustomGradersEditor({
   onGraderModelChange,
   graderThreshold,
   onGraderThresholdChange,
+  disabled,
 }: CustomGradersEditorProps) {
   function addGrader() {
     onChange([
@@ -79,7 +81,7 @@ export function CustomGradersEditor({
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <Label>Custom LLM Graders</Label>
-        <Button type="button" variant="outline" size="sm" onClick={addGrader}>
+        <Button type="button" variant="outline" size="sm" onClick={addGrader} disabled={disabled}>
           <Plus className="mr-1 h-3.5 w-3.5" />
           Add Grader
         </Button>
@@ -92,7 +94,7 @@ export function CustomGradersEditor({
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
             <Label className="text-xs">Grader Model</Label>
-            <Select value={graderModel} onChange={(e) => onGraderModelChange(e.target.value)}>
+            <Select value={graderModel} onChange={(e) => onGraderModelChange(e.target.value)} disabled={disabled}>
               {GRADER_MODEL_OPTIONS.map((group) =>
                 group.group ? (
                   <optgroup key={group.group} label={group.group}>
@@ -118,6 +120,7 @@ export function CustomGradersEditor({
               max="1"
               value={graderThreshold}
               onChange={(e) => onGraderThresholdChange(e.target.value)}
+              disabled={disabled}
             />
             <p className="text-xs text-foreground-secondary">Minimum score (0–1) to pass</p>
           </div>
@@ -135,6 +138,7 @@ export function CustomGradersEditor({
               onChange={(e) => updateGrader(index, 'name', e.target.value)}
               placeholder="Grader name (e.g. Tone Check)"
               className="flex-1"
+              disabled={disabled}
             />
             <Button
               type="button"
@@ -142,6 +146,7 @@ export function CustomGradersEditor({
               size="sm"
               onClick={() => removeGrader(index)}
               className="text-destructive hover:text-destructive shrink-0"
+              disabled={disabled}
             >
               <Trash2 className="h-4 w-4" />
             </Button>
@@ -151,6 +156,7 @@ export function CustomGradersEditor({
             onChange={(e) => updateGrader(index, 'prompt', e.target.value)}
             placeholder={'Evaluate whether the actual output matches the expected output.\n\nUse {expected} and {actual} as placeholders:\n\nExpected: {expected}\nActual: {actual}\n\nScore 1.0 if correct, 0.0 if wrong.'}
             className="font-mono min-h-[100px] text-sm"
+            disabled={disabled}
           />
           <p className="text-xs text-foreground-secondary">
             Use <code className="font-mono bg-muted px-1 rounded">{'{expected}'}</code> and <code className="font-mono bg-muted px-1 rounded">{'{actual}'}</code> placeholders in your prompt. The LLM must return a JSON score.
