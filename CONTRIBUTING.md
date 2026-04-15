@@ -9,7 +9,7 @@ Thank you for your interest in contributing! Here's how to get started.
 3. Install dependencies: `uv sync`
 4. Set up environment: `cp .env.example .env` and add your `OPENAI_API_KEY`
 5. Run migrations: `uv run alembic upgrade head`
-6. Start dev server: `uv run uvicorn open_eval.app:create_app --factory --reload`
+6. Start dev server: `uv run uvicorn src.app:create_app --factory --reload`
 
 ## Code Standards
 
@@ -46,7 +46,7 @@ uv run pytest -x               # stop on first failure
 
 ## Adding a Comparer
 
-1. Create `src/open_eval/comparers/my_comparer.py`
+1. Create `src/comparers/my_comparer.py`
 2. Inherit from `BaseComparer`, use `@register_comparer("my_name")`
 3. Implement `async def compare(self, *, expected, actual) -> tuple[float, bool, dict]`
 4. Add entry point in `pyproject.toml` under `[project.entry-points."open_eval.comparers"]`

@@ -66,7 +66,7 @@ mkdir -p data
 uv run alembic upgrade head
 
 # Start the backend dev server
-uv run uvicorn open_eval.app:create_app --factory --reload --host 0.0.0.0 --port 8000
+uv run uvicorn src.app:create_app --factory --reload --host 0.0.0.0 --port 8000
 
 # In a separate terminal, start the React frontend dev server
 cd frontend
@@ -108,7 +108,7 @@ Required columns: `input`, `expected_output`. Additional columns are preserved b
 Create a Python package with a class inheriting from `BaseComparer`:
 
 ```python
-from open_eval.comparers.base import BaseComparer, register_comparer
+from src.comparers.base import BaseComparer, register_comparer
 
 @register_comparer("my_comparer")
 class MyComparer(BaseComparer):
@@ -140,7 +140,7 @@ my_comparer = "my_package.comparers:MyComparer"
 
 ```
 openeval/
-├── src/open_eval/
+├── src/
 │   ├── app.py              # FastAPI app factory
 │   ├── config.py           # Pydantic Settings
 │   ├── comparers/          # Comparer framework + 5 built-in

@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from open_eval.providers.base import LLMResponse
-from open_eval.services.eval_runner import run_evaluation
+from src.providers.base import LLMResponse
+from src.services.eval_runner import run_evaluation
 
 
 def _make_config(concurrency: int = 3) -> MagicMock:
@@ -57,13 +57,13 @@ def _make_llm_response(text: str, latency_ms: int) -> LLMResponse:
 def mock_repos():
     """Patch all repository classes and session context."""
     with (
-        patch("open_eval.services.eval_runner.get_session_context") as mock_session_ctx,
-        patch("open_eval.services.eval_runner.RunRepository") as mock_run_repo_cls,
-        patch("open_eval.services.eval_runner.ConfigRepository") as mock_config_repo_cls,
-        patch("open_eval.services.eval_runner.DatasetRepository") as mock_dataset_repo_cls,
-        patch("open_eval.services.eval_runner.ResultRepository") as mock_result_repo_cls,
-        patch("open_eval.services.eval_runner.read_csv_rows") as mock_read_csv,
-        patch("open_eval.services.eval_runner.call_llm") as mock_call_llm,
+        patch("src.services.eval_runner.get_session_context") as mock_session_ctx,
+        patch("src.services.eval_runner.RunRepository") as mock_run_repo_cls,
+        patch("src.services.eval_runner.ConfigRepository") as mock_config_repo_cls,
+        patch("src.services.eval_runner.DatasetRepository") as mock_dataset_repo_cls,
+        patch("src.services.eval_runner.ResultRepository") as mock_result_repo_cls,
+        patch("src.services.eval_runner.read_csv_rows") as mock_read_csv,
+        patch("src.services.eval_runner.call_llm") as mock_call_llm,
     ):
         # Set up the async session context manager
         session_mock = AsyncMock()

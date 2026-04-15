@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, AsyncMock, patch
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from open_eval.app import create_app
+from src.app import create_app
 
 SAMPLE_CONFIG_PAYLOAD = {
     "name": "My Test Config",
@@ -30,7 +30,7 @@ SAMPLE_CONFIG_PAYLOAD = {
 @pytest.fixture()
 def app():
     """Create a fresh app instance backed by an in-memory SQLite DB."""
-    with patch("open_eval.db.session.get_settings") as mock_settings:
+    with patch("src.db.session.get_settings") as mock_settings:
         settings = MagicMock()
         settings.database_url = "sqlite+aiosqlite://"
         settings.upload_dir = "/tmp/openeval_test_uploads"
@@ -38,7 +38,7 @@ def app():
         mock_settings.return_value = settings
 
         # Reset module-level singletons so the in-memory DB is used
-        import open_eval.db.session as session_mod
+        import src.db.session as session_mod
 
         session_mod._engine = None
         session_mod._session_factory = None
@@ -53,8 +53,8 @@ def app():
 @pytest.fixture()
 async def _create_tables(app):
     """Ensure tables exist in the in-memory database."""
-    from open_eval.db.session import get_engine
-    from open_eval.db.models import Base
+    from src.db.session import get_engine
+    from src.db.models import Base
 
     engine = get_engine()
     async with engine.begin() as conn:

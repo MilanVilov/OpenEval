@@ -6,10 +6,10 @@ from logging.config import fileConfig
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from open_eval.config import get_settings
+from src.config import get_settings
 
 # Import Base so all model metadata is registered.
-from open_eval.db.models import Base
+from src.db.models import Base
 from alembic import context
 
 config = context.config
