@@ -14,7 +14,7 @@ class PatternMatchComparer(BaseComparer):
         case_sensitive (bool): Whether matching is case-sensitive. Default False.
     """
 
-    async def compare(self, *, expected: str, actual: str) -> tuple[float, bool, dict]:
+    async def compare(self, *, expected: str, actual: str, row_data: dict | None = None) -> tuple[float, bool, dict]:
         """Return 1.0/True if actual matches the expected pattern."""
         mode = self.config.get("mode", "contains")
         case_sensitive = self.config.get("case_sensitive", False)

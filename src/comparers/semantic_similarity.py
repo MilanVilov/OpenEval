@@ -14,7 +14,7 @@ class SemanticSimilarityComparer(BaseComparer):
         model (str): Embedding model to use. Default "text-embedding-3-small".
     """
 
-    async def compare(self, *, expected: str, actual: str) -> tuple[float, bool, dict]:
+    async def compare(self, *, expected: str, actual: str, row_data: dict | None = None) -> tuple[float, bool, dict]:
         """Return cosine similarity score and pass/fail based on threshold."""
         from src.services.openai_client import get_openai_client
 

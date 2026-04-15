@@ -107,17 +107,21 @@ async def run_evaluation(run_id: str) -> None:
         tasks = [process_row(i, row) for i, row in enumerate(rows)]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        # Filter out exceptions
+        # Filter out exceptions and pair results with their source row data
         valid_results: list[EvalResult] = []
-        for r in results:
+        row_data_map: dict[int, dict] = {}  # row_index -> CSV row dict
+        for idx, r in enumerate(results):
             if isinstance(r, Exception):
                 logger.error("Row processing failed: %s", r)
             else:
                 valid_results.append(r)
+                row_data_map[r.row_index] = rows[idx]
 
         # Run comparison pass (lazy import — registry created in T14)
         from src.comparers.registry import get_comparer
         from src.comparers.custom_grader import CustomGraderComparer
+        from src.comparers.string_check_grader import StringCheckGraderComparer
+        from src.comparers.python_grader import PythonGraderComparer
 
         # Support multiple comparers (comma-separated in comparer_type)
         comparer_names = [c.strip() for c in config.comparer_type.split(",") if c.strip()]
@@ -126,14 +130,21 @@ async def run_evaluation(run_id: str) -> None:
             for name in comparer_names
         ]
 
-        # Instantiate custom graders (user-defined LLM evaluation prompts)
-        # Each grader uses its own model if set, otherwise the config-level model.
+        # Instantiate custom graders based on their type.
         custom_grader_defs: list[dict] = config.custom_graders or []
         for grader_def in custom_grader_defs:
-            grader = CustomGraderComparer({
-                **grader_def,
-                "model": grader_def.get("model") or config.model,
-            })
+            grader_type = grader_def.get("type", "prompt")
+            grader_cfg = {**grader_def}
+
+            if grader_type == "string_check":
+                grader = StringCheckGraderComparer(grader_cfg)
+            elif grader_type == "python":
+                grader = PythonGraderComparer(grader_cfg)
+            else:
+                # Default: prompt-based LLM grader
+                grader_cfg["model"] = grader_def.get("model") or config.model
+                grader = CustomGraderComparer(grader_cfg)
+
             comparers.append((f"custom:{grader.grader_name}", grader))
 
         for result in valid_results:
@@ -141,12 +152,14 @@ async def run_evaluation(run_id: str) -> None:
                 all_details: dict = {}
                 all_scores: list[float] = []
                 all_passed: list[bool] = []
+                row = row_data_map.get(result.row_index)
 
                 for cname, comparer in comparers:
                     try:
                         score, cpassed, details = await comparer.compare(
                             expected=result.expected_output,
                             actual=result.actual_output,
+                            row_data=row,
                         )
                         all_details[cname] = {"score": score, "passed": cpassed, **details}
                         all_scores.append(score)

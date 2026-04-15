@@ -1,9 +1,10 @@
-import type { CustomGrader } from '@/types/config';
+import type { CustomGrader, GraderType, StringCheckOperation } from '@/types/config';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
+import { PythonCodeEditor } from '@/components/PythonCodeEditor';
 import { Plus, Trash2 } from 'lucide-react';
 
 const GRADER_MODEL_OPTIONS = [
@@ -36,23 +37,28 @@ const GRADER_MODEL_OPTIONS = [
   ]},
 ] as const;
 
+const GRADER_TYPE_OPTIONS: { value: GraderType; label: string }[] = [
+  { value: 'prompt', label: 'Prompt Grader' },
+  { value: 'string_check', label: 'String Check' },
+  { value: 'python', label: 'Python' },
+];
+
+const STRING_CHECK_OPERATIONS: { value: StringCheckOperation; label: string }[] = [
+  { value: 'equals', label: 'Equals' },
+  { value: 'not_equals', label: 'Does not equal' },
+  { value: 'contains', label: 'Contains' },
+  { value: 'contains_ignore_case', label: 'Contains (ignore case)' },
+];
+
 interface CustomGradersEditorProps {
   graders: CustomGrader[];
   onChange: (graders: CustomGrader[]) => void;
-  graderModel: string;
-  onGraderModelChange: (model: string) => void;
-  graderThreshold: string;
-  onGraderThresholdChange: (threshold: string) => void;
   disabled?: boolean;
 }
 
 export function CustomGradersEditor({
   graders,
   onChange,
-  graderModel,
-  onGraderModelChange,
-  graderThreshold,
-  onGraderThresholdChange,
   disabled,
 }: CustomGradersEditorProps) {
   function addGrader() {
@@ -60,8 +66,9 @@ export function CustomGradersEditor({
       ...graders,
       {
         name: '',
+        type: 'prompt',
         prompt: '',
-        threshold: parseFloat(graderThreshold) || 0.7,
+        threshold: 0.7,
       },
     ]);
   }
@@ -71,98 +78,188 @@ export function CustomGradersEditor({
   }
 
   function updateGrader(index: number, field: keyof CustomGrader, value: string) {
-    const updated = graders.map((g, i) =>
-      i === index ? { ...g, [field]: value } : g,
-    );
+    const parsed = field === 'threshold' ? (parseFloat(value) || 0.7) : value;
+    const updated = graders.map((g, i) => {
+      if (i !== index) return g;
+      const next = { ...g, [field]: parsed };
+      // When switching type, initialize defaults for the new type
+      if (field === 'type') {
+        if (value === 'string_check' && !g.operation) {
+          next.operation = 'equals';
+        }
+      }
+      return next;
+    });
     onChange(updated);
   }
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <Label>Custom LLM Graders</Label>
+        <Label>Custom Graders</Label>
         <Button type="button" variant="outline" size="sm" onClick={addGrader} disabled={disabled}>
           <Plus className="mr-1 h-3.5 w-3.5" />
           Add Grader
         </Button>
       </div>
       <p className="text-xs text-foreground-secondary">
-        Add custom LLM-based evaluation graders with your own prompt. By default graders use the config model.
+        Add custom evaluation graders: LLM prompt-based, deterministic string checks, or Python code.
       </p>
 
-      {graders.length > 0 && (
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <Label className="text-xs">Grader Model</Label>
-            <Select value={graderModel} onChange={(e) => onGraderModelChange(e.target.value)} disabled={disabled}>
-              {GRADER_MODEL_OPTIONS.map((group) =>
-                group.group ? (
-                  <optgroup key={group.group} label={group.group}>
-                    {group.models.map((m) => (
-                      <option key={m.value} value={m.value}>{m.label}</option>
-                    ))}
-                  </optgroup>
-                ) : (
-                  group.models.map((m) => (
-                    <option key={m.value} value={m.value}>{m.label}</option>
-                  ))
-                )
-              )}
-            </Select>
-            <p className="text-xs text-foreground-secondary">Leave as default to use the config model</p>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Pass Threshold</Label>
-            <Input
-              type="number"
-              step="0.05"
-              min="0"
-              max="1"
-              value={graderThreshold}
-              onChange={(e) => onGraderThresholdChange(e.target.value)}
-              disabled={disabled}
-            />
-            <p className="text-xs text-foreground-secondary">Minimum score (0–1) to pass</p>
-          </div>
-        </div>
-      )}
+      {graders.map((grader, index) => {
+        const graderType = (grader.type ?? 'prompt') as GraderType;
+        return (
+          <div
+            key={index}
+            className="rounded-md border border-border p-3 space-y-2"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <Select
+                value={graderType}
+                onChange={(e) => updateGrader(index, 'type', e.target.value)}
+                disabled={disabled}
+                className="w-44"
+              >
+                {GRADER_TYPE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </Select>
+              <Input
+                value={grader.name}
+                onChange={(e) => updateGrader(index, 'name', e.target.value)}
+                placeholder="Grader name"
+                className="flex-1"
+                disabled={disabled}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => removeGrader(index)}
+                className="text-destructive hover:text-destructive shrink-0"
+                disabled={disabled}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
 
-      {graders.map((grader, index) => (
-        <div
-          key={index}
-          className="rounded-md border border-border p-3 space-y-2"
-        >
-          <div className="flex items-center justify-between gap-2">
-            <Input
-              value={grader.name}
-              onChange={(e) => updateGrader(index, 'name', e.target.value)}
-              placeholder="Grader name (e.g. Tone Check)"
-              className="flex-1"
-              disabled={disabled}
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => removeGrader(index)}
-              className="text-destructive hover:text-destructive shrink-0"
-              disabled={disabled}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+            {/* Prompt grader fields */}
+            {graderType === 'prompt' && (
+              <>
+                <Textarea
+                  value={grader.prompt ?? ''}
+                  onChange={(e) => updateGrader(index, 'prompt', e.target.value)}
+                  placeholder={'Evaluate whether the actual output matches the expected output.\n\nUse {expected} and {actual} as placeholders:\n\nExpected: {expected}\nActual: {actual}\n\nScore 1.0 if correct, 0.0 if wrong.'}
+                  className="font-mono min-h-[100px] text-sm"
+                  disabled={disabled}
+                />
+                <p className="text-xs text-foreground-secondary">
+                  Use <code className="font-mono bg-muted px-1 rounded">{'{expected}'}</code> and <code className="font-mono bg-muted px-1 rounded">{'{actual}'}</code> placeholders in your prompt. The LLM must return a JSON score.
+                </p>
+              </>
+            )}
+
+            {/* String check grader fields */}
+            {graderType === 'string_check' && (
+              <>
+                <div className="space-y-1">
+                  <Input
+                    value={grader.input_value ?? ''}
+                    onChange={(e) => updateGrader(index, 'input_value', e.target.value)}
+                    placeholder="e.g. {{ sample.output_text }}"
+                    className="font-mono text-sm"
+                    disabled={disabled}
+                  />
+                  <p className="text-xs text-foreground-secondary">
+                    Left side — use <code className="font-mono bg-muted px-1 rounded">{'{{ item.field }}'}</code> for CSV columns, <code className="font-mono bg-muted px-1 rounded">{'{{ sample.output_text }}'}</code> for LLM output
+                  </p>
+                </div>
+                <Select
+                  value={grader.operation ?? 'equals'}
+                  onChange={(e) => updateGrader(index, 'operation', e.target.value)}
+                  disabled={disabled}
+                >
+                  {STRING_CHECK_OPERATIONS.map((op) => (
+                    <option key={op.value} value={op.value}>{op.label}</option>
+                  ))}
+                </Select>
+                <div className="space-y-1">
+                  <Input
+                    value={grader.reference_value ?? ''}
+                    onChange={(e) => updateGrader(index, 'reference_value', e.target.value)}
+                    placeholder="e.g. {{ item.expected_output }}"
+                    className="font-mono text-sm"
+                    disabled={disabled}
+                  />
+                  <p className="text-xs text-foreground-secondary">
+                    Right side — use <code className="font-mono bg-muted px-1 rounded">{'{{ item.field }}'}</code> for CSV columns
+                  </p>
+                </div>
+              </>
+            )}
+
+            {/* Python grader fields */}
+            {graderType === 'python' && (
+              <>
+                <PythonCodeEditor
+                  value={grader.source_code ?? ''}
+                  onChange={(val) => updateGrader(index, 'source_code', val)}
+                  placeholder={'import re\n\ndef grade(sample, item) -> float:\n    output_text = sample[\'output_text\']\n    reference = item[\'expected_output\']\n    if re.search(re.escape(reference), output_text):\n        return 1.0\n    else:\n        return 0.0'}
+                  disabled={disabled}
+                />
+                <p className="text-xs text-foreground-secondary">
+                  Define a <code className="font-mono bg-muted px-1 rounded">grade(sample, item) → float</code> function.{' '}
+                  <code className="font-mono bg-muted px-1 rounded">sample</code> has <code className="font-mono bg-muted px-1 rounded">output_text</code>;{' '}
+                  <code className="font-mono bg-muted px-1 rounded">item</code> is the full CSV row.
+                  Available modules: <code className="font-mono bg-muted px-1 rounded">re</code>, <code className="font-mono bg-muted px-1 rounded">json</code>, <code className="font-mono bg-muted px-1 rounded">math</code>.
+                </p>
+              </>
+            )}
+
+            {/* Per-grader model (prompt only) & threshold */}
+            <div className="grid grid-cols-2 gap-3 pt-1 border-t border-border">
+              {graderType === 'prompt' && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Model</Label>
+                  <Select
+                    value={grader.model ?? ''}
+                    onChange={(e) => updateGrader(index, 'model', e.target.value)}
+                    disabled={disabled}
+                  >
+                    {GRADER_MODEL_OPTIONS.map((group) =>
+                      group.group ? (
+                        <optgroup key={group.group} label={group.group}>
+                          {group.models.map((m) => (
+                            <option key={m.value} value={m.value}>{m.label}</option>
+                          ))}
+                        </optgroup>
+                      ) : (
+                        group.models.map((m) => (
+                          <option key={m.value} value={m.value}>{m.label}</option>
+                        ))
+                      )
+                    )}
+                  </Select>
+                  <p className="text-xs text-foreground-secondary">Leave default to use config model</p>
+                </div>
+              )}
+              <div className="space-y-1">
+                <Label className="text-xs">Pass Threshold</Label>
+                <Input
+                  type="number"
+                  step="0.05"
+                  min="0"
+                  max="1"
+                  value={String(grader.threshold ?? 0.7)}
+                  onChange={(e) => updateGrader(index, 'threshold', e.target.value)}
+                  disabled={disabled}
+                />
+                <p className="text-xs text-foreground-secondary">Minimum score (0–1) to pass</p>
+              </div>
+            </div>
           </div>
-          <Textarea
-            value={grader.prompt}
-            onChange={(e) => updateGrader(index, 'prompt', e.target.value)}
-            placeholder={'Evaluate whether the actual output matches the expected output.\n\nUse {expected} and {actual} as placeholders:\n\nExpected: {expected}\nActual: {actual}\n\nScore 1.0 if correct, 0.0 if wrong.'}
-            className="font-mono min-h-[100px] text-sm"
-            disabled={disabled}
-          />
-          <p className="text-xs text-foreground-secondary">
-            Use <code className="font-mono bg-muted px-1 rounded">{'{expected}'}</code> and <code className="font-mono bg-muted px-1 rounded">{'{actual}'}</code> placeholders in your prompt. The LLM must return a JSON score.
-          </p>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

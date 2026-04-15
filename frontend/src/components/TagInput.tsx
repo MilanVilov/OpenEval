@@ -55,7 +55,7 @@ export function TagInput({ value, onChange, suggestions, placeholder = 'Add a ta
 
   return (
     <div ref={wrapperRef} className="relative">
-      <div className="flex flex-wrap gap-1.5 rounded-md border border-border bg-background px-2 py-1.5 focus-within:ring-1 focus-within:ring-ring">
+      <div className="flex flex-wrap gap-1.5 rounded-md border border-border bg-background-input px-2 py-1.5 focus-within:ring-1 focus-within:ring-ring">
         {value.map((tag) => (
           <Badge key={tag} variant="info" className="gap-1 pr-1">
             {tag}

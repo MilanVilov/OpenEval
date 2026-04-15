@@ -108,19 +108,33 @@ export function ConfigDetail() {
             </div>
             {config.custom_graders && config.custom_graders.length > 0 && (
               <div>
-                <p className="text-xs text-foreground-secondary uppercase">Custom LLM Graders</p>
+                <p className="text-xs text-foreground-secondary uppercase">Custom Graders</p>
                 <div className="space-y-2 mt-1">
-                  {config.custom_graders.map((g, i) => (
-                    <div key={i} className="rounded border border-border p-2 text-sm space-y-1">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="default">{g.name || 'Unnamed'}</Badge>
-                        <span className="text-xs text-foreground-secondary">
-                          {g.model ? `model: ${g.model} · ` : ''}threshold: {g.threshold}
-                        </span>
+                  {config.custom_graders.map((g, i) => {
+                    const graderType = (g.type ?? 'prompt') as string;
+                    return (
+                      <div key={i} className="rounded border border-border p-2 text-sm space-y-1">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="default">{g.name || 'Unnamed'}</Badge>
+                          <Badge variant="info">{graderType}</Badge>
+                          <span className="text-xs text-foreground-secondary">
+                            {graderType === 'prompt' && g.model ? `model: ${g.model} · ` : ''}threshold: {g.threshold}
+                          </span>
+                        </div>
+                        {graderType === 'prompt' && g.prompt && (
+                          <p className="text-xs text-foreground-secondary font-mono line-clamp-2">{g.prompt}</p>
+                        )}
+                        {graderType === 'string_check' && (
+                          <p className="text-xs text-foreground-secondary font-mono line-clamp-2">
+                            {g.input_value} <span className="text-foreground">{g.operation}</span> {g.reference_value}
+                          </p>
+                        )}
+                        {graderType === 'python' && g.source_code && (
+                          <p className="text-xs text-foreground-secondary font-mono line-clamp-3">{g.source_code}</p>
+                        )}
                       </div>
-                      <p className="text-xs text-foreground-secondary font-mono line-clamp-2">{g.prompt}</p>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}

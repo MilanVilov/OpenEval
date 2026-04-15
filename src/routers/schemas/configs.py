@@ -4,15 +4,33 @@ from pydantic import BaseModel
 
 
 class CustomGraderSchema(BaseModel):
-    """Schema for a single custom LLM grader.
+    """Schema for a single custom grader.
 
-    The ``model`` field is optional — when omitted (or ``None``), the eval
-    runner falls back to the config-level model.
+    The ``type`` field selects the grader kind:
+
+    * ``prompt`` — LLM-based evaluation using a user-defined prompt.
+    * ``string_check`` — deterministic string comparison (equals, contains, …).
+    * ``python`` — execute a user-supplied ``grade(sample, item)`` function.
+
+    Fields are type-dependent; unused fields may be ``None``.
     """
 
     name: str
-    prompt: str
+    type: str = "prompt"
+
+    # --- Prompt grader fields ---
+    prompt: str | None = None
     model: str | None = None
+
+    # --- String check grader fields ---
+    input_value: str | None = None
+    operation: str | None = None
+    reference_value: str | None = None
+
+    # --- Python grader fields ---
+    source_code: str | None = None
+
+    # --- Shared ---
     threshold: float = 0.7
 
 

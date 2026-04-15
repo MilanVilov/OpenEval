@@ -39,7 +39,7 @@ class CustomGraderComparer(BaseComparer):
         self.model: str = self.config.get("model", "gpt-4o-mini")  # injected by eval runner
         self.threshold: float = self.config.get("threshold", 0.7)
 
-    async def compare(self, *, expected: str, actual: str) -> tuple[float, bool, dict]:
+    async def compare(self, *, expected: str, actual: str, row_data: dict | None = None) -> tuple[float, bool, dict]:
         """Evaluate actual output against expected using the custom prompt."""
         from src.services.openai_client import get_openai_client
 
