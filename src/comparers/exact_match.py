@@ -12,7 +12,7 @@ class ExactMatchComparer(BaseComparer):
         strip_whitespace (bool): Whether to strip leading/trailing whitespace. Default True.
     """
 
-    async def compare(self, *, expected: str, actual: str) -> tuple[float, bool, dict]:
+    async def compare(self, *, expected: str, actual: str, row_data: dict | None = None) -> tuple[float, bool, dict]:
         """Return 1.0/True if strings match exactly, 0.0/False otherwise."""
         case_sensitive = self.config.get("case_sensitive", True)
         strip_ws = self.config.get("strip_whitespace", True)

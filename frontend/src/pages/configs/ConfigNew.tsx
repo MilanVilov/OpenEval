@@ -70,8 +70,6 @@ export function ConfigNew() {
   const [temperature, setTemperature] = useState('0.7');
   const [comparerTypes, setComparerTypes] = useState<Set<string>>(new Set(['exact_match']));
   const [customGraders, setCustomGraders] = useState<CustomGrader[]>([]);
-  const [graderModel, setGraderModel] = useState('');
-  const [graderThreshold, setGraderThreshold] = useState('0.7');
   const [concurrency, setConcurrency] = useState('5');
   const [reasoningEffort, setReasoningEffort] = useState('medium');
   const [reasoningSummary, setReasoningSummary] = useState('auto');
@@ -148,11 +146,18 @@ export function ConfigNew() {
         ? { effort: reasoningEffort, ...(reasoningSummary !== 'null' ? { summary: reasoningSummary } : {}) }
         : null;
       const gradersPayload = customGraders
-        .filter((g) => g.name.trim() && g.prompt.trim())
+        .filter((g) => {
+          if (!g.name.trim()) return false;
+          const t = g.type ?? 'prompt';
+          if (t === 'prompt') return !!(g.prompt ?? '').trim();
+          if (t === 'string_check') return !!(g.input_value ?? '').trim() && !!(g.operation ?? '').trim() && !!(g.reference_value ?? '').trim();
+          if (t === 'python') return !!(g.source_code ?? '').trim();
+          return false;
+        })
         .map((g) => ({
           ...g,
-          model: graderModel || undefined,
-          threshold: parseFloat(graderThreshold) || 0.7,
+          model: (g.type ?? 'prompt') === 'prompt' ? (g.model || undefined) : undefined,
+          threshold: g.threshold ?? 0.7,
         }));
       const config = await createConfig({
         name,
@@ -408,10 +413,6 @@ export function ConfigNew() {
         <CustomGradersEditor
           graders={customGraders}
           onChange={setCustomGraders}
-          graderModel={graderModel}
-          onGraderModelChange={setGraderModel}
-          graderThreshold={graderThreshold}
-          onGraderThresholdChange={setGraderThreshold}
         />
 
         <div className="rounded-md border border-border p-4 space-y-2">

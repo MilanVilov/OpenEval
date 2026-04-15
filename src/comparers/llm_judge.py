@@ -29,7 +29,7 @@ Evaluate the actual output on a scale of 0.0 to 1.0 where:
 Respond with ONLY a JSON object:
 {{"score": <float>, "reasoning": "<brief explanation>"}}"""
 
-    async def compare(self, *, expected: str, actual: str) -> tuple[float, bool, dict]:
+    async def compare(self, *, expected: str, actual: str, row_data: dict | None = None) -> tuple[float, bool, dict]:
         """Use an LLM to judge the quality of the actual output."""
         from src.services.openai_client import get_openai_client
 

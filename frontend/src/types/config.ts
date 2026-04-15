@@ -1,7 +1,24 @@
+export type GraderType = 'prompt' | 'string_check' | 'python';
+
+export type StringCheckOperation =
+  | 'equals'
+  | 'not_equals'
+  | 'contains'
+  | 'contains_ignore_case';
+
 export interface CustomGrader {
   name: string;
-  prompt: string;
+  type: GraderType;
+  // prompt grader
+  prompt?: string;
   model?: string;
+  // string check grader
+  input_value?: string;
+  operation?: StringCheckOperation;
+  reference_value?: string;
+  // python grader
+  source_code?: string;
+  // shared
   threshold: number;
 }
 

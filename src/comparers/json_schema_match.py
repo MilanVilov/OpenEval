@@ -16,7 +16,7 @@ class JsonSchemaMatchComparer(BaseComparer):
         strict (bool): If True, actual must have exactly the same keys. Default False.
     """
 
-    async def compare(self, *, expected: str, actual: str) -> tuple[float, bool, dict]:
+    async def compare(self, *, expected: str, actual: str, row_data: dict | None = None) -> tuple[float, bool, dict]:
         """Return score based on matching JSON keys/values."""
         try:
             expected_obj = json.loads(expected)

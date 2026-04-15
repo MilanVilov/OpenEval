@@ -21,8 +21,19 @@ class BaseComparer(ABC):
         self.config = config or {}
 
     @abstractmethod
-    async def compare(self, *, expected: str, actual: str) -> tuple[float, bool, dict]:
+    async def compare(
+        self,
+        *,
+        expected: str,
+        actual: str,
+        row_data: dict | None = None,
+    ) -> tuple[float, bool, dict]:
         """Compare expected and actual outputs.
+
+        Args:
+            expected: The expected output string.
+            actual: The actual output string produced by the LLM.
+            row_data: The full CSV row dict for the current item (optional).
 
         Returns:
             Tuple of (score, passed, details):

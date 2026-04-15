@@ -88,8 +88,6 @@ export function ConfigEdit() {
   const [containers, setContainers] = useState<Container[]>([]);
   const [toolChoice, setToolChoice] = useState('auto');
   const [customGraders, setCustomGraders] = useState<CustomGrader[]>([]);
-  const [graderModel, setGraderModel] = useState('');
-  const [graderThreshold, setGraderThreshold] = useState('0.7');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -153,8 +151,6 @@ export function ConfigEdit() {
         // Load custom graders
         if (config.custom_graders && config.custom_graders.length > 0) {
           setCustomGraders(config.custom_graders);
-          setGraderModel(config.custom_graders[0].model || '');
-          setGraderThreshold(String(config.custom_graders[0].threshold ?? 0.7));
         }
       })
       .catch((e: Error) => setError(e.message))
@@ -204,11 +200,18 @@ export function ConfigEdit() {
         : null;
       // Stamp shared model/threshold onto each custom grader
       const gradersPayload = customGraders
-        .filter((g) => g.name.trim() && g.prompt.trim())
+        .filter((g) => {
+          if (!g.name.trim()) return false;
+          const t = g.type ?? 'prompt';
+          if (t === 'prompt') return !!(g.prompt ?? '').trim();
+          if (t === 'string_check') return !!(g.input_value ?? '').trim() && !!(g.operation ?? '').trim() && !!(g.reference_value ?? '').trim();
+          if (t === 'python') return !!(g.source_code ?? '').trim();
+          return false;
+        })
         .map((g) => ({
           ...g,
-          model: graderModel || undefined,
-          threshold: parseFloat(graderThreshold) || 0.7,
+          model: (g.type ?? 'prompt') === 'prompt' ? (g.model || undefined) : undefined,
+          threshold: g.threshold ?? 0.7,
         }));
       await updateConfig(id, {
         name,
@@ -470,10 +473,6 @@ export function ConfigEdit() {
         <CustomGradersEditor
           graders={customGraders}
           onChange={setCustomGraders}
-          graderModel={graderModel}
-          onGraderModelChange={setGraderModel}
-          graderThreshold={graderThreshold}
-          onGraderThresholdChange={setGraderThreshold}
           disabled={isReadonly}
         />
 

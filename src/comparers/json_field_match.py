@@ -48,7 +48,7 @@ class JsonFieldMatchComparer(BaseComparer):
         strip_whitespace (bool): Whether to strip whitespace. Default True.
     """
 
-    async def compare(self, *, expected: str, actual: str) -> tuple[float, bool, dict]:
+    async def compare(self, *, expected: str, actual: str, row_data: dict | None = None) -> tuple[float, bool, dict]:
         """Return 1.0/True if the extracted field value matches expected, 0.0/False otherwise."""
         case_sensitive = self.config.get("case_sensitive", False)
         strip_ws = self.config.get("strip_whitespace", True)
