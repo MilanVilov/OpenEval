@@ -69,6 +69,7 @@ export function ConfigNew() {
   const [model, setModel] = useState('gpt-4.1');
   const [temperature, setTemperature] = useState('0.7');
   const [comparerTypes, setComparerTypes] = useState<Set<string>>(new Set(['exact_match']));
+  const [comparerWeights, setComparerWeights] = useState<Record<string, number>>({});
   const [customGraders, setCustomGraders] = useState<CustomGrader[]>([]);
   const [concurrency, setConcurrency] = useState('5');
   const [reasoningEffort, setReasoningEffort] = useState('medium');
@@ -159,6 +160,19 @@ export function ConfigNew() {
           model: (g.type ?? 'prompt') === 'prompt' ? (g.model || undefined) : undefined,
           threshold: g.threshold ?? 0.7,
         }));
+      // Build comparer_weights: combine built-in comparer weights and custom grader weights
+      const allWeights: Record<string, number> = {};
+      for (const ct of comparerTypes) {
+        const w = comparerWeights[ct];
+        if (w !== undefined && w !== 1) allWeights[ct] = w;
+      }
+      for (const g of gradersPayload) {
+        if (g.name.trim()) {
+          const key = `custom:${g.name.trim()}`;
+          const w = (g as Record<string, unknown>).weight;
+          if (typeof w === 'number' && w !== 1) allWeights[key] = w;
+        }
+      }
       const config = await createConfig({
         name,
         system_prompt: systemPrompt,
@@ -167,6 +181,7 @@ export function ConfigNew() {
         comparer_type: Array.from(comparerTypes).join(','),
         comparer_config: {},
         custom_graders: gradersPayload,
+        comparer_weights: Object.keys(allWeights).length > 0 ? allWeights : undefined,
         tags,
         tools,
         tool_options: toolOptions,
@@ -400,6 +415,18 @@ export function ConfigNew() {
                     className="rounded border-border"
                   />
                   {c.label}
+                  {comparerTypes.has(c.value) && (
+                    <Input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max="1"
+                      value={String(comparerWeights[c.value] ?? 1)}
+                      onChange={(e) => setComparerWeights({ ...comparerWeights, [c.value]: parseFloat(e.target.value) || 0 })}
+                      className="w-16 h-6 text-xs px-1.5"
+                      title="Weight (0–1)"
+                    />
+                  )}
                 </label>
               ))}
             </div>

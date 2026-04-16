@@ -78,7 +78,7 @@ export function CustomGradersEditor({
   }
 
   function updateGrader(index: number, field: keyof CustomGrader, value: string) {
-    const parsed = field === 'threshold' ? (parseFloat(value) || 0.7) : value;
+    const parsed = field === 'threshold' ? (parseFloat(value) || 0.7) : field === 'weight' ? (parseFloat(value) || 0) : value;
     const updated = graders.map((g, i) => {
       if (i !== index) return g;
       const next = { ...g, [field]: parsed };
@@ -217,7 +217,7 @@ export function CustomGradersEditor({
             )}
 
             {/* Per-grader model (prompt only) & threshold */}
-            <div className="grid grid-cols-2 gap-3 pt-1 border-t border-border">
+            <div className={`grid ${graderType === 'prompt' ? 'grid-cols-3' : 'grid-cols-2'} gap-3 pt-1 border-t border-border`}>
               {graderType === 'prompt' && (
                 <div className="space-y-1">
                   <Label className="text-xs">Model</Label>
@@ -255,6 +255,19 @@ export function CustomGradersEditor({
                   disabled={disabled}
                 />
                 <p className="text-xs text-foreground-secondary">Minimum score (0–1) to pass</p>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Weight</Label>
+                <Input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="1"
+                  value={String(grader.weight ?? 1)}
+                  onChange={(e) => updateGrader(index, 'weight', e.target.value)}
+                  disabled={disabled}
+                />
+                <p className="text-xs text-foreground-secondary">0 = informational only</p>
               </div>
             </div>
           </div>

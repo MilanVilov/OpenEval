@@ -147,29 +147,41 @@ async def run_evaluation(run_id: str) -> None:
 
             comparers.append((f"custom:{grader.grader_name}", grader))
 
+        # Look up per-comparer weights (default 1.0 for missing keys)
+        weights_map: dict[str, float] = config.comparer_weights or {}
+
         for result in valid_results:
             if result.actual_output is not None and result.error is None:
                 all_details: dict = {}
-                all_scores: list[float] = []
-                all_passed: list[bool] = []
+                weighted_scores: list[tuple[float, float]] = []  # (weight, score)
+                weighted_passed: list[tuple[float, bool]] = []   # (weight, passed)
                 row = row_data_map.get(result.row_index)
 
                 for cname, comparer in comparers:
+                    w = weights_map.get(cname, 1.0)
                     try:
                         score, cpassed, details = await comparer.compare(
                             expected=result.expected_output,
                             actual=result.actual_output,
                             row_data=row,
                         )
-                        all_details[cname] = {"score": score, "passed": cpassed, **details}
-                        all_scores.append(score)
-                        all_passed.append(cpassed)
+                        all_details[cname] = {"score": score, "passed": cpassed, "weight": w, **details}
+                        weighted_scores.append((w, score))
+                        weighted_passed.append((w, cpassed))
                     except Exception as exc:
-                        all_details[cname] = {"error": str(exc), "passed": False}
-                        all_passed.append(False)
+                        all_details[cname] = {"error": str(exc), "passed": False, "weight": w}
+                        weighted_passed.append((w, False))
 
-                result.comparer_score = sum(all_scores) / max(len(all_scores), 1) if all_scores else 0.0
-                result.passed = all(all_passed) if all_passed else False
+                # Weighted mean score: only graders with weight > 0 contribute
+                total_weight = sum(w for w, _ in weighted_scores if w > 0)
+                if total_weight > 0:
+                    result.comparer_score = sum(w * s for w, s in weighted_scores if w > 0) / total_weight
+                else:
+                    result.comparer_score = 0.0
+
+                # Pass/fail: AND of all graders with weight > 0; weight=0 is informational
+                active_passed = [p for w, p in weighted_passed if w > 0]
+                result.passed = all(active_passed) if active_passed else False
                 result.comparer_details = all_details
 
         # Batch insert results
@@ -212,6 +224,38 @@ async def run_evaluation(run_id: str) -> None:
             else 0
         )
 
+        # Compute per-grader statistics
+        grader_stats: dict[str, dict] = {}
+        for r in valid_results:
+            if not r.comparer_details:
+                continue
+            for gname, detail in r.comparer_details.items():
+                if not isinstance(detail, dict):
+                    continue
+                if gname not in grader_stats:
+                    grader_stats[gname] = {
+                        "total": 0,
+                        "passed": 0,
+                        "failed": 0,
+                        "scores": [],
+                    }
+                stats = grader_stats[gname]
+                stats["total"] += 1
+                if detail.get("passed"):
+                    stats["passed"] += 1
+                else:
+                    stats["failed"] += 1
+                if isinstance(detail.get("score"), (int, float)):
+                    stats["scores"].append(detail["score"])
+
+        # Finalize grader_stats: compute accuracy and avg_score, drop raw scores
+        for stats in grader_stats.values():
+            scores = stats.pop("scores")
+            stats["accuracy"] = stats["passed"] / max(stats["total"], 1)
+            stats["avg_score"] = (
+                round(sum(scores) / len(scores), 4) if scores else 0.0
+            )
+
         summary = {
             "total": total,
             "passed": passed,
@@ -222,6 +266,7 @@ async def run_evaluation(run_id: str) -> None:
             "avg_score": round(avg_score, 4),
             "avg_input_tokens": avg_input_tokens,
             "avg_output_tokens": avg_output_tokens,
+            "grader_stats": grader_stats,
         }
 
         await run_repo.set_summary(run_id, summary=summary)

@@ -20,6 +20,7 @@ export interface CustomGrader {
   source_code?: string;
   // shared
   threshold: number;
+  weight?: number;
 }
 
 export interface EvalConfig {
@@ -34,6 +35,7 @@ export interface EvalConfig {
   comparer_type: string;
   comparer_config: Record<string, unknown>;
   custom_graders: CustomGrader[];
+  comparer_weights: Record<string, number>;
   tags: string[];
   concurrency: number;
   readonly: boolean;
@@ -54,6 +56,7 @@ export interface CreateConfigRequest {
   comparer_type: string;
   comparer_config: Record<string, unknown>;
   custom_graders?: CustomGrader[];
+  comparer_weights?: Record<string, number>;
   tags?: string[];
   concurrency: number;
   readonly?: boolean;
