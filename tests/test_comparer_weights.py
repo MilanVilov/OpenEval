@@ -90,8 +90,8 @@ class TestGraderWeights:
     async def test_no_weights_is_simple_average(self, mock_repos):
         """Without explicit weights, all graders default to weight 1.0 → simple average."""
         config = _make_config(graders=[
-            {"type": "string_check", "name": "check1", "input_value": "{{actual_output}}", "operation": "eq", "reference_value": "hello"},
-            {"type": "string_check", "name": "check2", "input_value": "{{actual_output}}", "operation": "eq", "reference_value": "hello"},
+            {"type": "string_check", "name": "check1", "input_value": "{{ sample.output_text }}", "operation": "equals", "reference_value": "hello"},
+            {"type": "string_check", "name": "check2", "input_value": "{{ sample.output_text }}", "operation": "equals", "reference_value": "hello"},
         ])
         mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
         mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
@@ -134,8 +134,8 @@ class TestGraderWeights:
     async def test_weighted_mean_calculation(self, mock_repos):
         """Weights alter the score average: w*s / sum(w)."""
         config = _make_config(graders=[
-            {"type": "string_check", "name": "check1", "weight": 0.5, "input_value": "{{actual_output}}", "operation": "eq", "reference_value": "hello"},
-            {"type": "string_check", "name": "check2", "weight": 1.0, "input_value": "{{actual_output}}", "operation": "eq", "reference_value": "hello"},
+            {"type": "string_check", "name": "check1", "weight": 0.5, "input_value": "{{ sample.output_text }}", "operation": "equals", "reference_value": "hello"},
+            {"type": "string_check", "name": "check2", "weight": 1.0, "input_value": "{{ sample.output_text }}", "operation": "equals", "reference_value": "hello"},
         ])
         mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
         mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
@@ -174,8 +174,8 @@ class TestGraderWeights:
     async def test_weight_zero_excluded_from_pass_fail(self, mock_repos):
         """A grader with weight=0 is informational — its failure doesn't fail the result."""
         config = _make_config(graders=[
-            {"type": "string_check", "name": "check1", "weight": 0, "input_value": "{{actual_output}}", "operation": "eq", "reference_value": "hello"},
-            {"type": "string_check", "name": "check2", "weight": 1.0, "input_value": "{{actual_output}}", "operation": "eq", "reference_value": "hello"},
+            {"type": "string_check", "name": "check1", "weight": 0, "input_value": "{{ sample.output_text }}", "operation": "equals", "reference_value": "hello"},
+            {"type": "string_check", "name": "check2", "weight": 1.0, "input_value": "{{ sample.output_text }}", "operation": "equals", "reference_value": "hello"},
         ])
         mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
         mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
@@ -217,7 +217,7 @@ class TestGraderWeights:
     async def test_all_weights_zero_gives_zero_score_and_fail(self, mock_repos):
         """If all graders have weight=0, score=0 and passed=False."""
         config = _make_config(graders=[
-            {"type": "string_check", "name": "check1", "weight": 0, "input_value": "{{actual_output}}", "operation": "eq", "reference_value": "hello"},
+            {"type": "string_check", "name": "check1", "weight": 0, "input_value": "{{ sample.output_text }}", "operation": "equals", "reference_value": "hello"},
         ])
         mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
         mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)

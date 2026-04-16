@@ -151,13 +151,15 @@ export function ConfigNew() {
           if (t === 'prompt') return !!(g.prompt ?? '').trim();
           if (t === 'string_check') return !!(g.input_value ?? '').trim() && !!(g.operation ?? '').trim() && !!(g.reference_value ?? '').trim();
           if (t === 'python') return !!(g.source_code ?? '').trim();
-          // semantic_similarity, json_schema, json_field just need a name
+          if (t === 'json_field') return !!(g.field_name ?? '').trim();
+          // semantic_similarity and json_schema just need a name
           return true;
         })
         .map((g) => ({
           ...g,
           name: g.name.trim(),
           model: (g.type === 'prompt' || g.type === 'semantic_similarity') ? (g.model || undefined) : undefined,
+          field_name: g.type === 'json_field' ? ((g.field_name ?? '').trim() || undefined) : undefined,
           threshold: g.threshold ?? 0.7,
           weight: g.weight ?? 1,
         }));

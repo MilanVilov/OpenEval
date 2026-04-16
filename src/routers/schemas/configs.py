@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 
 GraderType = Literal[
@@ -57,7 +57,7 @@ class GraderSchema(BaseModel):
     strip_whitespace: bool | None = None
 
     # --- Shared ---
-    threshold: float = 0.7
+    threshold: float | None = None
     weight: float = 1.0
 
     @field_validator("weight")
@@ -66,6 +66,17 @@ class GraderSchema(BaseModel):
         if not 0 <= v <= 1:
             raise ValueError(f"Weight must be between 0 and 1, got {v}")
         return v
+
+    @model_validator(mode="after")
+    def _apply_type_defaults(self) -> "GraderSchema":
+        """Apply per-type threshold defaults when not explicitly set."""
+        if self.threshold is None:
+            _type_thresholds = {
+                "semantic_similarity": 0.8,
+                "json_schema": 1.0,
+            }
+            self.threshold = _type_thresholds.get(self.type, 0.7)
+        return self
 
 
 class CreateConfigRequest(BaseModel):
@@ -84,6 +95,16 @@ class CreateConfigRequest(BaseModel):
     readonly: bool = False
     reasoning_config: dict | None = None
     response_format: dict | None = None
+
+    @field_validator("graders")
+    @classmethod
+    def _validate_graders(cls, v: list[GraderSchema]) -> list[GraderSchema]:
+        if len(v) == 0:
+            raise ValueError("At least one grader is required")
+        names = [g.name for g in v]
+        if len(names) != len(set(names)):
+            raise ValueError("Grader names must be unique")
+        return v
 
 
 class UpdateConfigRequest(BaseModel):

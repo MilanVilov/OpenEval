@@ -211,6 +211,7 @@ export function ConfigEdit() {
           ...g,
           name: g.name.trim(),
           model: ['prompt', 'semantic_similarity'].includes(g.type ?? 'prompt') ? (g.model || undefined) : undefined,
+          field_name: g.type === 'json_field' ? ((g.field_name ?? '').trim() || undefined) : undefined,
           threshold: g.threshold ?? 0.7,
         }));
       await updateConfig(id, {
