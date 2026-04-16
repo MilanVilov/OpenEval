@@ -97,7 +97,18 @@ export function RunDetail() {
   // Per-grader stats from summary (only meaningful with 2+ graders)
   const graderStats: Record<string, GraderStat> | undefined =
     run.summary?.grader_stats;
-  const hasMultipleGraders = graderStats && Object.keys(graderStats).length >= 2;
+  const hasMultipleGraders = !!graderStats && Object.keys(graderStats).length >= 2;
+
+  // Precompute weight-by-comparer map from the first result that has each comparer's details
+  const weightByComparer: Record<string, number> = {};
+  for (const result of results) {
+    if (!result.comparer_details) continue;
+    for (const [cname, detail] of Object.entries(result.comparer_details)) {
+      if (cname in weightByComparer) continue;
+      const d = detail as Record<string, unknown> | undefined;
+      weightByComparer[cname] = typeof d?.weight === 'number' ? d.weight : 1;
+    }
+  }
 
   return (
     <PageTransition>
@@ -207,9 +218,7 @@ export function RunDetail() {
                     <TableHead>Actual</TableHead>
                     {comparerNames.length > 0 ? (
                       comparerNames.map((name) => {
-                        // Extract weight from the first result that has this comparer
-                        const firstDetail = results.find((r) => r.comparer_details?.[name])?.comparer_details?.[name] as Record<string, unknown> | undefined;
-                        const weight = typeof firstDetail?.weight === 'number' ? firstDetail.weight : 1;
+                        const weight = weightByComparer[name] ?? 1;
                         return (
                         <TableHead key={name} className="w-28 text-center">
                           <div className="flex items-center justify-center gap-1.5">
@@ -219,7 +228,7 @@ export function RunDetail() {
                                 w:{weight}
                               </Badge>
                             )}
-                            {hasMultipleGraders && graderStats[name] && (
+                            {hasMultipleGraders && graderStats?.[name] && (
                               <Badge variant="default" className="text-[10px] px-1.5 py-0">
                                 {formatPercent(graderStats[name].accuracy)}
                               </Badge>

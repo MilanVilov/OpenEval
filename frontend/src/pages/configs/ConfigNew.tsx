@@ -157,6 +157,7 @@ export function ConfigNew() {
         })
         .map((g) => ({
           ...g,
+          name: g.name.trim(),
           model: (g.type ?? 'prompt') === 'prompt' ? (g.model || undefined) : undefined,
           threshold: g.threshold ?? 0.7,
         }));

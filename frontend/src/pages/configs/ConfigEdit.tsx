@@ -154,7 +154,7 @@ export function ConfigEdit() {
         if (config.custom_graders && config.custom_graders.length > 0) {
           const cw = config.comparer_weights || {};
           setCustomGraders(config.custom_graders.map((g: CustomGrader) => {
-            const w = cw[`custom:${g.name}`];
+            const w = cw[`custom:${g.name.trim()}`];
             return w !== undefined && w !== 1 ? { ...g, weight: w } : g;
           }));
         }
@@ -216,6 +216,7 @@ export function ConfigEdit() {
         })
         .map((g) => ({
           ...g,
+          name: g.name.trim(),
           model: (g.type ?? 'prompt') === 'prompt' ? (g.model || undefined) : undefined,
           threshold: g.threshold ?? 0.7,
         }));

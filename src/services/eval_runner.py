@@ -170,6 +170,7 @@ async def run_evaluation(run_id: str) -> None:
                         weighted_passed.append((w, cpassed))
                     except Exception as exc:
                         all_details[cname] = {"error": str(exc), "passed": False, "weight": w}
+                        weighted_scores.append((w, 0.0))
                         weighted_passed.append((w, False))
 
                 # Weighted mean score: only graders with weight > 0 contribute

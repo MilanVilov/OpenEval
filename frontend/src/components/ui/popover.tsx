@@ -18,9 +18,16 @@ export function Popover({ trigger, children, className, align = 'center' }: Popo
         setOpen(false);
       }
     }
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false);
+    }
     if (open) {
       document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleEscape);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+        document.removeEventListener('keydown', handleEscape);
+      };
     }
   }, [open]);
 
@@ -28,11 +35,18 @@ export function Popover({ trigger, children, className, align = 'center' }: Popo
 
   return (
     <div ref={ref} className="relative h-full">
-      <div onClick={() => setOpen(!open)} className="cursor-pointer h-full">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        aria-haspopup="true"
+        aria-expanded={open}
+        className="cursor-pointer h-full w-full text-left"
+      >
         {trigger}
-      </div>
+      </button>
       {open && (
         <div
+          role="dialog"
           className={cn(
             'absolute z-50 mt-2 rounded-md border border-border bg-background-card p-3 shadow-medium animate-fade-in',
             alignClass,

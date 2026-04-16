@@ -105,15 +105,26 @@ class TestComparerWeights:
         ]
         mock_repos["call_llm"].return_value = _make_llm_response("hello")
 
-        await run_evaluation("run1")
+        mock_exact = AsyncMock(return_value=(1.0, True, {}))
+        mock_semantic = AsyncMock(return_value=(0.6, True, {}))
+        with patch("src.comparers.registry.get_comparer") as mock_get:
+            def side_effect(name, cfg):
+                m = MagicMock()
+                if name == "exact_match":
+                    m.compare = mock_exact
+                else:
+                    m.compare = mock_semantic
+                return m
+            mock_get.side_effect = side_effect
+            await run_evaluation("run1")
 
         results = mock_repos["result_repo"].create_batch.call_args[0][0]
         assert len(results) == 1
         r = results[0]
-        # exact_match returns 1.0, semantic_similarity returns some score
-        # Both have default weight 1.0 → simple average
-        assert r.comparer_score is not None
-        assert r.passed is not None
+        # exact_match returns 1.0, semantic_similarity returns 0.6
+        # Both have default weight 1.0 → simple average = 0.8
+        assert r.comparer_score == pytest.approx(0.8)
+        assert r.passed is True
         # Weight stored in details
         for detail in r.comparer_details.values():
             assert detail.get("weight") == 1.0
