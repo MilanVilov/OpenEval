@@ -71,6 +71,7 @@ export function ConfigEdit() {
   const [model, setModel] = useState('gpt-4.1');
   const [temperature, setTemperature] = useState('0.7');
   const [comparerTypes, setComparerTypes] = useState<Set<string>>(new Set(['exact_match']));
+  const [comparerWeights, setComparerWeights] = useState<Record<string, number>>({});
   const [concurrency, setConcurrency] = useState('5');
   const [reasoningEffort, setReasoningEffort] = useState('medium');
   const [reasoningSummary, setReasoningSummary] = useState('auto');
@@ -118,6 +119,7 @@ export function ConfigEdit() {
         setModel(config.model);
         setTemperature(String(config.temperature));
         setComparerTypes(new Set(config.comparer_type.split(',').map((s: string) => s.trim())));
+        setComparerWeights(config.comparer_weights || {});
         setConcurrency(String(config.concurrency));
         setIsReadonly(config.readonly ?? false);
         if (config.reasoning_config?.effort) {
@@ -148,9 +150,13 @@ export function ConfigEdit() {
         if ((config.tool_options as Record<string, string>)?.tool_choice) {
           setToolChoice((config.tool_options as Record<string, string>).tool_choice);
         }
-        // Load custom graders
+        // Load custom graders (with weights from comparer_weights)
         if (config.custom_graders && config.custom_graders.length > 0) {
-          setCustomGraders(config.custom_graders);
+          const cw = config.comparer_weights || {};
+          setCustomGraders(config.custom_graders.map((g: CustomGrader) => {
+            const w = cw[`custom:${g.name.trim()}`];
+            return w !== undefined && w !== 1 ? { ...g, weight: w } : g;
+          }));
         }
       })
       .catch((e: Error) => setError(e.message))
@@ -210,9 +216,23 @@ export function ConfigEdit() {
         })
         .map((g) => ({
           ...g,
+          name: g.name.trim(),
           model: (g.type ?? 'prompt') === 'prompt' ? (g.model || undefined) : undefined,
           threshold: g.threshold ?? 0.7,
         }));
+      // Build comparer_weights: combine built-in comparer weights and custom grader weights
+      const allWeights: Record<string, number> = {};
+      for (const ct of comparerTypes) {
+        const w = comparerWeights[ct];
+        if (w !== undefined && w !== 1) allWeights[ct] = w;
+      }
+      for (const g of gradersPayload) {
+        if (g.name.trim()) {
+          const key = `custom:${g.name.trim()}`;
+          const w = (g as Record<string, unknown>).weight;
+          if (typeof w === 'number' && w !== 1) allWeights[key] = w;
+        }
+      }
       await updateConfig(id, {
         name,
         system_prompt: systemPrompt,
@@ -220,6 +240,7 @@ export function ConfigEdit() {
         temperature: parseFloat(temperature),
         comparer_type: Array.from(comparerTypes).join(','),
         custom_graders: gradersPayload,
+        comparer_weights: allWeights,
         tags,
         tools,
         tool_options: toolOptions,
@@ -460,6 +481,19 @@ export function ConfigEdit() {
                     disabled={isReadonly}
                   />
                   {c.label}
+                  {comparerTypes.has(c.value) && (
+                    <Input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max="1"
+                      value={String(comparerWeights[c.value] ?? 1)}
+                      onChange={(e) => setComparerWeights({ ...comparerWeights, [c.value]: parseFloat(e.target.value) || 0 })}
+                      className="w-16 h-6 text-xs px-1.5"
+                      title="Weight (0–1)"
+                      disabled={isReadonly}
+                    />
+                  )}
                 </label>
               ))}
             </div>

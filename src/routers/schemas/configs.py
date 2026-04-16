@@ -1,6 +1,6 @@
 """Pydantic schemas for EvalConfig endpoints."""
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class CustomGraderSchema(BaseModel):
@@ -47,11 +47,20 @@ class CreateConfigRequest(BaseModel):
     comparer_type: str
     comparer_config: dict = {}
     custom_graders: list[CustomGraderSchema] = []
+    comparer_weights: dict[str, float] = {}
     tags: list[str] = []
     concurrency: int = 5
     readonly: bool = False
     reasoning_config: dict | None = None
     response_format: dict | None = None
+
+    @field_validator("comparer_weights")
+    @classmethod
+    def _validate_weights(cls, v: dict[str, float]) -> dict[str, float]:
+        for key, weight in v.items():
+            if not 0 <= weight <= 1:
+                raise ValueError(f"Weight for '{key}' must be between 0 and 1, got {weight}")
+        return v
 
 
 class UpdateConfigRequest(BaseModel):
@@ -67,11 +76,22 @@ class UpdateConfigRequest(BaseModel):
     comparer_type: str | None = None
     comparer_config: dict | None = None
     custom_graders: list[CustomGraderSchema] | None = None
+    comparer_weights: dict[str, float] | None = None
     tags: list[str] | None = None
     concurrency: int | None = None
     readonly: bool | None = None
     reasoning_config: dict | None = None
     response_format: dict | None = None
+
+    @field_validator("comparer_weights")
+    @classmethod
+    def _validate_weights(cls, v: dict[str, float] | None) -> dict[str, float] | None:
+        if v is None:
+            return v
+        for key, weight in v.items():
+            if not 0 <= weight <= 1:
+                raise ValueError(f"Weight for '{key}' must be between 0 and 1, got {weight}")
+        return v
 
 
 class ConfigResponse(BaseModel):
@@ -88,6 +108,7 @@ class ConfigResponse(BaseModel):
     comparer_type: str
     comparer_config: dict
     custom_graders: list[dict] = []
+    comparer_weights: dict[str, float] = {}
     tags: list[str] = []
     concurrency: int
     readonly: bool = False

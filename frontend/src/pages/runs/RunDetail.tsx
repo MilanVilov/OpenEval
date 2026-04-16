@@ -15,7 +15,9 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { LoadingSkeleton } from '@/components/LoadingSkeleton';
 import { PageTransition } from '@/components/PageTransition';
 import { formatDate, formatPercent, formatTokens } from '@/lib/utils';
-import { Download, Trash2 } from 'lucide-react';
+import { Popover } from '@/components/ui/popover';
+import type { GraderStat } from '@/types/run';
+import { Download, Trash2, Info } from 'lucide-react';
 
 export function RunDetail() {
   const { id } = useParams<{ id: string }>();
@@ -92,6 +94,22 @@ export function RunDetail() {
     )
   );
 
+  // Per-grader stats from summary (only meaningful with 2+ graders)
+  const graderStats: Record<string, GraderStat> | undefined =
+    run.summary?.grader_stats;
+  const hasMultipleGraders = !!graderStats && Object.keys(graderStats).length >= 2;
+
+  // Precompute weight-by-comparer map from the first result that has each comparer's details
+  const weightByComparer: Record<string, number> = {};
+  for (const result of results) {
+    if (!result.comparer_details) continue;
+    for (const [cname, detail] of Object.entries(result.comparer_details)) {
+      if (cname in weightByComparer) continue;
+      const d = detail as Record<string, unknown> | undefined;
+      weightByComparer[cname] = typeof d?.weight === 'number' ? d.weight : 1;
+    }
+  }
+
   return (
     <PageTransition>
       <PageHeader
@@ -128,7 +146,35 @@ export function RunDetail() {
 
       {run.summary && (
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-6 animate-fade-in">
-          <StatCard label="Accuracy" value={formatPercent(run.summary.accuracy)} />
+          {hasMultipleGraders ? (
+            <Popover
+              align="start"
+              className="min-w-[200px]"
+              trigger={
+                <StatCard
+                  label="Accuracy"
+                  value={formatPercent(run.summary.accuracy)}
+                  icon={<Info className="h-3 w-3 text-foreground-secondary" />}
+                />
+              }
+            >
+              <div className="text-xs font-medium uppercase tracking-wide text-foreground-secondary mb-2">
+                Avg Score by Grader
+              </div>
+              <div className="space-y-1.5">
+                {Object.entries(graderStats).map(([name, stat]) => (
+                  <div key={name} className="flex items-center justify-between gap-4 text-sm">
+                    <span className="text-foreground-secondary truncate">{name}</span>
+                    <span className="font-mono font-medium tabular-nums text-foreground">
+                      {stat.avg_score.toFixed(2)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </Popover>
+          ) : (
+            <StatCard label="Accuracy" value={formatPercent(run.summary.accuracy)} />
+          )}
           <StatCard label="Total" value={String(run.summary.total)} />
           <StatCard label="Passed" value={String(run.summary.passed)} />
           <StatCard label="Failed" value={String(run.summary.failed)} />
@@ -171,9 +217,26 @@ export function RunDetail() {
                     <TableHead>Expected</TableHead>
                     <TableHead>Actual</TableHead>
                     {comparerNames.length > 0 ? (
-                      comparerNames.map((name) => (
-                        <TableHead key={name} className="w-24 text-center">{name}</TableHead>
-                      ))
+                      comparerNames.map((name) => {
+                        const weight = weightByComparer[name] ?? 1;
+                        return (
+                        <TableHead key={name} className="w-28 text-center">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <span className={weight === 0 ? 'opacity-50' : ''}>{name}</span>
+                            {weight !== 1 && (
+                              <Badge variant="default" className="text-[10px] px-1 py-0">
+                                w:{weight}
+                              </Badge>
+                            )}
+                            {hasMultipleGraders && graderStats?.[name] && (
+                              <Badge variant="default" className="text-[10px] px-1.5 py-0">
+                                {formatPercent(graderStats[name].accuracy)}
+                              </Badge>
+                            )}
+                          </div>
+                        </TableHead>
+                        );
+                      })
                     ) : (
                       <TableHead className="w-20">Match</TableHead>
                     )}

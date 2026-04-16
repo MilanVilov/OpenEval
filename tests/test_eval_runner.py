@@ -21,6 +21,7 @@ def _make_config(concurrency: int = 3) -> MagicMock:
     config.comparer_type = "exact_match"
     config.comparer_config = {}
     config.custom_graders = []
+    config.comparer_weights = {}
     config.concurrency = concurrency
     config.reasoning_config = None
     config.response_format = None
@@ -352,3 +353,75 @@ class TestRunCompletion:
 
         # Should not have called any further repo methods
         mock_repos["config_repo"].get_by_id.assert_not_called()
+
+
+class TestGraderStats:
+    """Verify per-grader statistics are computed in the run summary."""
+
+    async def test_grader_stats_with_multiple_comparers(self, mock_repos):
+        """Summary should include per-grader pass counts and avg_score."""
+        config = _make_config(concurrency=5)
+        config.comparer_type = "exact_match,pattern_match"
+
+        mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
+        mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
+        mock_repos["dataset_repo"].get_by_id = AsyncMock(return_value=_make_dataset())
+        mock_repos["read_csv"].return_value = [
+            {"input": "q1", "expected_output": "a1"},
+            {"input": "q2", "expected_output": "a2"},
+            {"input": "q3", "expected_output": "a3"},
+        ]
+
+        mock_repos["call_llm"].side_effect = [
+            _make_llm_response("a1", latency_ms=50),
+            _make_llm_response("wrong", latency_ms=50),
+            _make_llm_response("a3", latency_ms=50),
+        ]
+
+        await run_evaluation("run1")
+
+        summary = mock_repos["run_repo"].set_summary.call_args[1]["summary"]
+        assert "grader_stats" in summary
+
+        grader_stats = summary["grader_stats"]
+        # Both comparers should be present
+        assert "exact_match" in grader_stats
+        assert "pattern_match" in grader_stats
+
+        # Each grader stat should have the expected fields
+        for name, stats in grader_stats.items():
+            assert "total" in stats
+            assert "passed" in stats
+            assert "failed" in stats
+            assert "accuracy" in stats
+            assert "avg_score" in stats
+            assert stats["total"] == 3
+            assert stats["passed"] + stats["failed"] == stats["total"]
+
+    async def test_grader_stats_single_comparer(self, mock_repos):
+        """With a single comparer, grader_stats should still be populated."""
+        config = _make_config(concurrency=5)
+        config.comparer_type = "exact_match"
+
+        mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
+        mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
+        mock_repos["dataset_repo"].get_by_id = AsyncMock(return_value=_make_dataset())
+        mock_repos["read_csv"].return_value = [
+            {"input": "q1", "expected_output": "a1"},
+            {"input": "q2", "expected_output": "a2"},
+        ]
+
+        mock_repos["call_llm"].side_effect = [
+            _make_llm_response("a1", latency_ms=50),
+            _make_llm_response("wrong", latency_ms=50),
+        ]
+
+        await run_evaluation("run1")
+
+        summary = mock_repos["run_repo"].set_summary.call_args[1]["summary"]
+        grader_stats = summary["grader_stats"]
+        assert "exact_match" in grader_stats
+        assert grader_stats["exact_match"]["total"] == 2
+        assert grader_stats["exact_match"]["passed"] == 1
+        assert grader_stats["exact_match"]["failed"] == 1
+        assert grader_stats["exact_match"]["accuracy"] == 0.5

@@ -13,6 +13,14 @@ export interface EvalRun {
   dataset_name: string | null;
 }
 
+export interface GraderStat {
+  total: number;
+  passed: number;
+  failed: number;
+  accuracy: number;
+  avg_score: number;
+}
+
 export interface RunSummary {
   total: number;
   passed: number;
@@ -23,6 +31,7 @@ export interface RunSummary {
   avg_score: number;
   avg_input_tokens: number;
   avg_output_tokens: number;
+  grader_stats?: Record<string, GraderStat>;
 }
 
 export interface RunProgress {
