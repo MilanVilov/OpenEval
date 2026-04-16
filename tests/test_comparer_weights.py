@@ -1,4 +1,4 @@
-"""Tests for comparer_weights — weighted mean scoring and pass/fail logic."""
+"""Tests for grader weights — weighted mean scoring and pass/fail logic."""
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -8,12 +8,8 @@ from src.providers.base import LLMResponse
 from src.services.eval_runner import run_evaluation
 
 
-def _make_config(
-    comparer_type: str = "exact_match",
-    comparer_weights: dict | None = None,
-    custom_graders: list | None = None,
-) -> MagicMock:
-    """Create a fake EvalConfig with optional weights."""
+def _make_config(graders: list | None = None) -> MagicMock:
+    """Create a fake EvalConfig with graders."""
     config = MagicMock()
     config.system_prompt = "You are a test assistant."
     config.model = "gpt-4.1"
@@ -21,10 +17,7 @@ def _make_config(
     config.max_tokens = None
     config.tools = []
     config.tool_options = {}
-    config.comparer_type = comparer_type
-    config.comparer_config = {}
-    config.custom_graders = custom_graders or []
-    config.comparer_weights = comparer_weights or {}
+    config.graders = graders or []
     config.concurrency = 5
     config.reasoning_config = None
     config.response_format = None
@@ -91,12 +84,15 @@ def mock_repos():
         }
 
 
-class TestComparerWeights:
-    """Weighted mean scoring and pass/fail with comparer_weights."""
+class TestGraderWeights:
+    """Weighted mean scoring and pass/fail with grader weights."""
 
     async def test_no_weights_is_simple_average(self, mock_repos):
-        """Without comparer_weights, behaviour equals simple average (backward compat)."""
-        config = _make_config(comparer_type="exact_match,semantic_similarity")
+        """Without explicit weights, all graders default to weight 1.0 → simple average."""
+        config = _make_config(graders=[
+            {"type": "string_check", "name": "check1", "input_value": "{{actual_output}}", "operation": "eq", "reference_value": "hello"},
+            {"type": "string_check", "name": "check2", "input_value": "{{actual_output}}", "operation": "eq", "reference_value": "hello"},
+        ])
         mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
         mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
         mock_repos["dataset_repo"].get_by_id = AsyncMock(return_value=_make_dataset())
@@ -105,37 +101,42 @@ class TestComparerWeights:
         ]
         mock_repos["call_llm"].return_value = _make_llm_response("hello")
 
-        mock_exact = AsyncMock(return_value=(1.0, True, {}))
-        mock_semantic = AsyncMock(return_value=(0.6, True, {}))
-        with patch("src.comparers.registry.get_comparer") as mock_get:
-            def side_effect(name, cfg):
+        mock_compare1 = AsyncMock(return_value=(1.0, True, {}))
+        mock_compare2 = AsyncMock(return_value=(0.6, True, {}))
+
+        with (
+            patch("src.comparers.string_check_grader.StringCheckGraderComparer") as MockGrader1,
+        ):
+            # We need to mock both graders created from the same class
+            call_count = {"n": 0}
+            def make_grader(cfg):
+                call_count["n"] += 1
                 m = MagicMock()
-                if name == "exact_match":
-                    m.compare = mock_exact
+                m.grader_name = cfg.get("name", "")
+                if call_count["n"] == 1:
+                    m.compare = mock_compare1
                 else:
-                    m.compare = mock_semantic
+                    m.compare = mock_compare2
                 return m
-            mock_get.side_effect = side_effect
+            MockGrader1.side_effect = make_grader
             await run_evaluation("run1")
 
         results = mock_repos["result_repo"].create_batch.call_args[0][0]
         assert len(results) == 1
         r = results[0]
-        # exact_match returns 1.0, semantic_similarity returns 0.6
+        # check1 returns 1.0, check2 returns 0.6
         # Both have default weight 1.0 → simple average = 0.8
         assert r.comparer_score == pytest.approx(0.8)
         assert r.passed is True
-        # Weight stored in details
         for detail in r.comparer_details.values():
             assert detail.get("weight") == 1.0
 
     async def test_weighted_mean_calculation(self, mock_repos):
         """Weights alter the score average: w*s / sum(w)."""
-        # Use two comparers; we'll mock them to return known scores.
-        config = _make_config(
-            comparer_type="exact_match,semantic_similarity",
-            comparer_weights={"exact_match": 0.5, "semantic_similarity": 1.0},
-        )
+        config = _make_config(graders=[
+            {"type": "string_check", "name": "check1", "weight": 0.5, "input_value": "{{actual_output}}", "operation": "eq", "reference_value": "hello"},
+            {"type": "string_check", "name": "check2", "weight": 1.0, "input_value": "{{actual_output}}", "operation": "eq", "reference_value": "hello"},
+        ])
         mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
         mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
         mock_repos["dataset_repo"].get_by_id = AsyncMock(return_value=_make_dataset())
@@ -144,18 +145,23 @@ class TestComparerWeights:
         ]
         mock_repos["call_llm"].return_value = _make_llm_response("hello")
 
-        # Mock comparers to return fixed scores
-        mock_exact = AsyncMock(return_value=(1.0, True, {}))
-        mock_semantic = AsyncMock(return_value=(0.8, True, {}))
-        with patch("src.comparers.registry.get_comparer") as mock_get:
-            def side_effect(name, cfg):
+        mock_compare1 = AsyncMock(return_value=(1.0, True, {}))
+        mock_compare2 = AsyncMock(return_value=(0.8, True, {}))
+
+        with (
+            patch("src.comparers.string_check_grader.StringCheckGraderComparer") as MockGrader,
+        ):
+            call_count = {"n": 0}
+            def make_grader(cfg):
+                call_count["n"] += 1
                 m = MagicMock()
-                if name == "exact_match":
-                    m.compare = mock_exact
+                m.grader_name = cfg.get("name", "")
+                if call_count["n"] == 1:
+                    m.compare = mock_compare1
                 else:
-                    m.compare = mock_semantic
+                    m.compare = mock_compare2
                 return m
-            mock_get.side_effect = side_effect
+            MockGrader.side_effect = make_grader
             await run_evaluation("run1")
 
         results = mock_repos["result_repo"].create_batch.call_args[0][0]
@@ -167,10 +173,10 @@ class TestComparerWeights:
 
     async def test_weight_zero_excluded_from_pass_fail(self, mock_repos):
         """A grader with weight=0 is informational — its failure doesn't fail the result."""
-        config = _make_config(
-            comparer_type="exact_match,semantic_similarity",
-            comparer_weights={"exact_match": 0, "semantic_similarity": 1.0},
-        )
+        config = _make_config(graders=[
+            {"type": "string_check", "name": "check1", "weight": 0, "input_value": "{{actual_output}}", "operation": "eq", "reference_value": "hello"},
+            {"type": "string_check", "name": "check2", "weight": 1.0, "input_value": "{{actual_output}}", "operation": "eq", "reference_value": "hello"},
+        ])
         mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
         mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
         mock_repos["dataset_repo"].get_by_id = AsyncMock(return_value=_make_dataset())
@@ -179,35 +185,40 @@ class TestComparerWeights:
         ]
         mock_repos["call_llm"].return_value = _make_llm_response("different")
 
-        # exact_match fails (score 0), semantic_similarity passes (score 0.9)
-        mock_exact = AsyncMock(return_value=(0.0, False, {}))
-        mock_semantic = AsyncMock(return_value=(0.9, True, {}))
-        with patch("src.comparers.registry.get_comparer") as mock_get:
-            def side_effect(name, cfg):
+        # check1 fails (score 0), check2 passes (score 0.9)
+        mock_compare1 = AsyncMock(return_value=(0.0, False, {}))
+        mock_compare2 = AsyncMock(return_value=(0.9, True, {}))
+
+        with (
+            patch("src.comparers.string_check_grader.StringCheckGraderComparer") as MockGrader,
+        ):
+            call_count = {"n": 0}
+            def make_grader(cfg):
+                call_count["n"] += 1
                 m = MagicMock()
-                if name == "exact_match":
-                    m.compare = mock_exact
+                m.grader_name = cfg.get("name", "")
+                if call_count["n"] == 1:
+                    m.compare = mock_compare1
                 else:
-                    m.compare = mock_semantic
+                    m.compare = mock_compare2
                 return m
-            mock_get.side_effect = side_effect
+            MockGrader.side_effect = make_grader
             await run_evaluation("run1")
 
         results = mock_repos["result_repo"].create_batch.call_args[0][0]
         r = results[0]
-        # exact_match weight=0 → excluded from score and pass/fail
+        # check1 weight=0 → excluded from score and pass/fail
         assert r.comparer_score == pytest.approx(0.9, abs=1e-4)
-        assert r.passed is True  # Only semantic_similarity matters
+        assert r.passed is True  # Only check2 matters
         # Weight is recorded in details
-        assert r.comparer_details["exact_match"]["weight"] == 0
-        assert r.comparer_details["semantic_similarity"]["weight"] == 1.0
+        assert r.comparer_details["check1"]["weight"] == 0
+        assert r.comparer_details["check2"]["weight"] == 1.0
 
     async def test_all_weights_zero_gives_zero_score_and_fail(self, mock_repos):
         """If all graders have weight=0, score=0 and passed=False."""
-        config = _make_config(
-            comparer_type="exact_match",
-            comparer_weights={"exact_match": 0},
-        )
+        config = _make_config(graders=[
+            {"type": "string_check", "name": "check1", "weight": 0, "input_value": "{{actual_output}}", "operation": "eq", "reference_value": "hello"},
+        ])
         mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
         mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
         mock_repos["dataset_repo"].get_by_id = AsyncMock(return_value=_make_dataset())

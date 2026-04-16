@@ -117,22 +117,17 @@ async def run_evaluation(run_id: str) -> None:
                 valid_results.append(r)
                 row_data_map[r.row_index] = rows[idx]
 
-        # Run comparison pass (lazy import — registry created in T14)
-        from src.comparers.registry import get_comparer
+        # Instantiate graders from the unified graders list
         from src.comparers.custom_grader import CustomGraderComparer
         from src.comparers.string_check_grader import StringCheckGraderComparer
         from src.comparers.python_grader import PythonGraderComparer
+        from src.comparers.semantic_similarity import SemanticSimilarityComparer
+        from src.comparers.json_schema_match import JsonSchemaMatchComparer
+        from src.comparers.json_field_match import JsonFieldMatchComparer
 
-        # Support multiple comparers (comma-separated in comparer_type)
-        comparer_names = [c.strip() for c in config.comparer_type.split(",") if c.strip()]
-        comparers: list[tuple[str, BaseComparer]] = [
-            (name, get_comparer(name, config.comparer_config))
-            for name in comparer_names
-        ]
-
-        # Instantiate custom graders based on their type.
-        custom_grader_defs: list[dict] = config.custom_graders or []
-        for grader_def in custom_grader_defs:
+        grader_defs: list[dict] = config.graders or []
+        comparers: list[tuple[str, BaseComparer]] = []
+        for grader_def in grader_defs:
             grader_type = grader_def.get("type", "prompt")
             grader_cfg = {**grader_def}
 
@@ -140,15 +135,24 @@ async def run_evaluation(run_id: str) -> None:
                 grader = StringCheckGraderComparer(grader_cfg)
             elif grader_type == "python":
                 grader = PythonGraderComparer(grader_cfg)
+            elif grader_type == "semantic_similarity":
+                grader = SemanticSimilarityComparer(grader_cfg)
+            elif grader_type == "json_schema":
+                grader = JsonSchemaMatchComparer(grader_cfg)
+            elif grader_type == "json_field":
+                grader = JsonFieldMatchComparer(grader_cfg)
             else:
                 # Default: prompt-based LLM grader
                 grader_cfg["model"] = grader_def.get("model") or config.model
                 grader = CustomGraderComparer(grader_cfg)
 
-            comparers.append((f"custom:{grader.grader_name}", grader))
+            comparers.append((grader.grader_name, grader))
 
-        # Look up per-comparer weights (default 1.0 for missing keys)
-        weights_map: dict[str, float] = config.comparer_weights or {}
+        # Build per-grader weight lookup from grader definitions
+        weights_map: dict[str, float] = {}
+        for grader_def in grader_defs:
+            gname = grader_def.get("name", "")
+            weights_map[gname] = grader_def.get("weight", 1.0)
 
         for result in valid_results:
             if result.actual_output is not None and result.error is None:

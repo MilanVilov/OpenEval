@@ -1,4 +1,4 @@
-import type { CustomGrader, GraderType, StringCheckOperation } from '@/types/config';
+import type { Grader, GraderType, StringCheckOperation } from '@/types/config';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -41,6 +41,9 @@ const GRADER_TYPE_OPTIONS: { value: GraderType; label: string }[] = [
   { value: 'prompt', label: 'Prompt Grader' },
   { value: 'string_check', label: 'String Check' },
   { value: 'python', label: 'Python' },
+  { value: 'semantic_similarity', label: 'Semantic Similarity' },
+  { value: 'json_schema', label: 'JSON Schema' },
+  { value: 'json_field', label: 'JSON Field' },
 ];
 
 const STRING_CHECK_OPERATIONS: { value: StringCheckOperation; label: string }[] = [
@@ -50,17 +53,26 @@ const STRING_CHECK_OPERATIONS: { value: StringCheckOperation; label: string }[] 
   { value: 'contains_ignore_case', label: 'Contains (ignore case)' },
 ];
 
-interface CustomGradersEditorProps {
-  graders: CustomGrader[];
-  onChange: (graders: CustomGrader[]) => void;
+const GRADER_TYPE_DEFAULTS: Record<GraderType, Partial<Grader>> = {
+  prompt: { prompt: '', threshold: 0.7 },
+  string_check: { operation: 'equals', threshold: 0.7 },
+  python: { source_code: '', threshold: 0.7 },
+  semantic_similarity: { threshold: 0.8 },
+  json_schema: { strict: false, threshold: 1.0 },
+  json_field: { field_name: '', case_sensitive: false, strip_whitespace: true, threshold: 0.7 },
+};
+
+interface GradersEditorProps {
+  graders: Grader[];
+  onChange: (graders: Grader[]) => void;
   disabled?: boolean;
 }
 
-export function CustomGradersEditor({
+export function GradersEditor({
   graders,
   onChange,
   disabled,
-}: CustomGradersEditorProps) {
+}: GradersEditorProps) {
   function addGrader() {
     onChange([
       ...graders,
@@ -69,6 +81,7 @@ export function CustomGradersEditor({
         type: 'prompt',
         prompt: '',
         threshold: 0.7,
+        weight: 1,
       },
     ]);
   }
@@ -77,16 +90,19 @@ export function CustomGradersEditor({
     onChange(graders.filter((_, i) => i !== index));
   }
 
-  function updateGrader(index: number, field: keyof CustomGrader, value: string) {
-    const parsed = field === 'threshold' ? (parseFloat(value) || 0.7) : field === 'weight' ? (parseFloat(value) || 0) : value;
+  function updateGrader(index: number, field: keyof Grader, value: string | boolean) {
+    const parsed = field === 'threshold' || field === 'weight'
+      ? (parseFloat(value as string) || 0)
+      : field === 'strict' || field === 'case_sensitive' || field === 'strip_whitespace'
+        ? value as boolean
+        : value;
     const updated = graders.map((g, i) => {
       if (i !== index) return g;
       const next = { ...g, [field]: parsed };
-      // When switching type, initialize defaults for the new type
+      // When switching type, apply defaults for the new type
       if (field === 'type') {
-        if (value === 'string_check' && !g.operation) {
-          next.operation = 'equals';
-        }
+        const defaults = GRADER_TYPE_DEFAULTS[value as GraderType] ?? {};
+        Object.assign(next, defaults);
       }
       return next;
     });
@@ -96,18 +112,19 @@ export function CustomGradersEditor({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <Label>Custom Graders</Label>
+        <Label>Graders</Label>
         <Button type="button" variant="outline" size="sm" onClick={addGrader} disabled={disabled}>
           <Plus className="mr-1 h-3.5 w-3.5" />
           Add Grader
         </Button>
       </div>
       <p className="text-xs text-foreground-secondary">
-        Add custom evaluation graders: LLM prompt-based, deterministic string checks, or Python code.
+        Add evaluation graders: LLM prompt-based, string checks, Python code, semantic similarity, JSON schema, or JSON field matching.
       </p>
 
       {graders.map((grader, index) => {
         const graderType = (grader.type ?? 'prompt') as GraderType;
+        const showModel = graderType === 'prompt' || graderType === 'semantic_similarity';
         return (
           <div
             key={index}
@@ -216,9 +233,76 @@ export function CustomGradersEditor({
               </>
             )}
 
-            {/* Per-grader model (prompt only) & threshold */}
-            <div className={`grid ${graderType === 'prompt' ? 'grid-cols-3' : 'grid-cols-2'} gap-3 pt-1 border-t border-border`}>
-              {graderType === 'prompt' && (
+            {/* Semantic similarity grader — no extra fields besides model/threshold */}
+            {graderType === 'semantic_similarity' && (
+              <p className="text-xs text-foreground-secondary">
+                Compares expected and actual outputs using cosine similarity of OpenAI embeddings. Select an embedding model below or use the config default.
+              </p>
+            )}
+
+            {/* JSON schema grader fields */}
+            {graderType === 'json_schema' && (
+              <>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={grader.strict ?? false}
+                    onChange={(e) => updateGrader(index, 'strict', e.target.checked)}
+                    className="rounded border-border"
+                    disabled={disabled}
+                  />
+                  Strict mode (actual must have exactly the same keys)
+                </label>
+                <p className="text-xs text-foreground-secondary">
+                  Parses both expected and actual as JSON, then checks if all keys in expected exist in actual with matching values. Extra keys are allowed unless strict mode is enabled.
+                </p>
+              </>
+            )}
+
+            {/* JSON field grader fields */}
+            {graderType === 'json_field' && (
+              <>
+                <div className="space-y-1">
+                  <Label className="text-xs">Field Name</Label>
+                  <Input
+                    value={grader.field_name ?? ''}
+                    onChange={(e) => updateGrader(index, 'field_name', e.target.value)}
+                    placeholder="e.g. answer"
+                    className="font-mono text-sm"
+                    disabled={disabled}
+                  />
+                  <p className="text-xs text-foreground-secondary">
+                    JSON field to extract from the LLM response (searched recursively)
+                  </p>
+                </div>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={grader.case_sensitive ?? false}
+                      onChange={(e) => updateGrader(index, 'case_sensitive', e.target.checked)}
+                      className="rounded border-border"
+                      disabled={disabled}
+                    />
+                    Case sensitive
+                  </label>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={grader.strip_whitespace ?? true}
+                      onChange={(e) => updateGrader(index, 'strip_whitespace', e.target.checked)}
+                      className="rounded border-border"
+                      disabled={disabled}
+                    />
+                    Strip whitespace
+                  </label>
+                </div>
+              </>
+            )}
+
+            {/* Per-grader model & threshold & weight */}
+            <div className={`grid ${showModel ? 'grid-cols-3' : 'grid-cols-2'} gap-3 pt-1 border-t border-border`}>
+              {showModel && (
                 <div className="space-y-1">
                   <Label className="text-xs">Model</Label>
                   <Select
@@ -240,7 +324,9 @@ export function CustomGradersEditor({
                       )
                     )}
                   </Select>
-                  <p className="text-xs text-foreground-secondary">Leave default to use config model</p>
+                  <p className="text-xs text-foreground-secondary">
+                    {graderType === 'semantic_similarity' ? 'Embedding model' : 'Leave default to use config model'}
+                  </p>
                 </div>
               )}
               <div className="space-y-1">

@@ -16,10 +16,8 @@ SAMPLE_CONFIG_PAYLOAD = {
     "max_tokens": 1024,
     "tools": ["file_search"],
     "tool_options": {"vector_store_id": "vs_123"},
-    "comparer_type": "exact_match",
-    "comparer_config": {},
-    "custom_graders": [
-        {"name": "tone", "prompt": "Is the tone polite?", "threshold": 0.8}
+    "graders": [
+        {"name": "tone", "type": "prompt", "prompt": "Is the tone polite?", "threshold": 0.8}
     ],
     "concurrency": 3,
     "reasoning_config": {"effort": "high"},
@@ -99,17 +97,15 @@ async def test_duplicate_config_creates_copy_with_new_id(client: AsyncClient):
         "max_tokens",
         "tools",
         "tool_options",
-        "comparer_type",
-        "comparer_config",
         "concurrency",
         "reasoning_config",
         "response_format",
     ]:
         assert copy[field] == original[field], f"Mismatch on {field}"
 
-    # Custom graders match (without 'model' key since it was omitted in schema)
-    assert len(copy["custom_graders"]) == len(original["custom_graders"])
-    assert copy["custom_graders"][0]["name"] == "tone"
+    # Graders match
+    assert len(copy["graders"]) == len(original["graders"])
+    assert copy["graders"][0]["name"] == "tone"
 
 
 @pytest.mark.asyncio
