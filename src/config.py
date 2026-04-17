@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8000
     cors_origins: str = "http://localhost:5173"
+    slack_webhook_url: str = ""
+    app_base_url: str = ""
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

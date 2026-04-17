@@ -20,6 +20,9 @@ import { ContainerList } from '@/pages/containers/ContainerList';
 import { ContainerNew } from '@/pages/containers/ContainerNew';
 import { ContainerDetail } from '@/pages/containers/ContainerDetail';
 import { Playground } from '@/pages/playground/Playground';
+import { ScheduleList } from '@/pages/schedules/ScheduleList';
+import { ScheduleNew } from '@/pages/schedules/ScheduleNew';
+import { ScheduleEdit } from '@/pages/schedules/ScheduleEdit';
 
 export function App() {
   return (
@@ -39,6 +42,9 @@ export function App() {
             <Route path="/runs/new" element={<RunNew />} />
             <Route path="/runs/compare" element={<RunCompare />} />
             <Route path="/runs/:id" element={<RunDetail />} />
+            <Route path="/schedules" element={<ScheduleList />} />
+            <Route path="/schedules/new" element={<ScheduleNew />} />
+            <Route path="/schedules/:id/edit" element={<ScheduleEdit />} />
             <Route path="/vector-stores" element={<VectorStoreList />} />
             <Route path="/vector-stores/new" element={<VectorStoreNew />} />
             <Route path="/vector-stores/:id" element={<VectorStoreDetail />} />
