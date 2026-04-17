@@ -1,4 +1,4 @@
-export type GraderType = 'prompt' | 'string_check' | 'python';
+export type GraderType = 'prompt' | 'string_check' | 'python' | 'semantic_similarity' | 'json_schema' | 'json_field';
 
 export type StringCheckOperation =
   | 'equals'
@@ -6,7 +6,7 @@ export type StringCheckOperation =
   | 'contains'
   | 'contains_ignore_case';
 
-export interface CustomGrader {
+export interface Grader {
   name: string;
   type: GraderType;
   // prompt grader
@@ -18,9 +18,17 @@ export interface CustomGrader {
   reference_value?: string;
   // python grader
   source_code?: string;
+  // semantic similarity
+  // uses model (above) and threshold (below)
+  // json schema
+  strict?: boolean;
+  // json field
+  field_name?: string;
+  case_sensitive?: boolean;
+  strip_whitespace?: boolean;
   // shared
   threshold: number;
-  weight?: number;
+  weight: number;
 }
 
 export interface EvalConfig {
@@ -32,10 +40,7 @@ export interface EvalConfig {
   max_tokens: number | null;
   tools: string[];
   tool_options: Record<string, unknown>;
-  comparer_type: string;
-  comparer_config: Record<string, unknown>;
-  custom_graders: CustomGrader[];
-  comparer_weights: Record<string, number>;
+  graders: Grader[];
   tags: string[];
   concurrency: number;
   readonly: boolean;
@@ -53,10 +58,7 @@ export interface CreateConfigRequest {
   max_tokens?: number | null;
   tools: string[];
   tool_options: Record<string, unknown>;
-  comparer_type: string;
-  comparer_config: Record<string, unknown>;
-  custom_graders?: CustomGrader[];
-  comparer_weights?: Record<string, number>;
+  graders?: Grader[];
   tags?: string[];
   concurrency: number;
   readonly?: boolean;

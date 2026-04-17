@@ -1,11 +1,10 @@
-"""JSON schema match comparer — validate JSON structure and key values."""
+"""JSON schema grader — validate JSON structure and key values."""
 
 import json
 
-from src.comparers.base import BaseComparer, register_comparer
+from src.comparers.base import BaseComparer
 
 
-@register_comparer("json_schema_match")
 class JsonSchemaMatchComparer(BaseComparer):
     """Compare expected and actual JSON outputs.
 
@@ -13,8 +12,16 @@ class JsonSchemaMatchComparer(BaseComparer):
     with matching values. Extra keys in actual are allowed.
 
     Config options:
+        name (str): Human-readable grader name.
         strict (bool): If True, actual must have exactly the same keys. Default False.
+        threshold (float): Minimum score to pass. Default 1.0.
     """
+
+    def __init__(self, config: dict | None = None) -> None:
+        super().__init__(config)
+        self.grader_name: str = self.config.get("name", "json_schema")
+        self.strict: bool = self.config.get("strict", False)
+        self.threshold: float = self.config.get("threshold", 1.0)
 
     async def compare(self, *, expected: str, actual: str, row_data: dict | None = None) -> tuple[float, bool, dict]:
         """Return score based on matching JSON keys/values."""
@@ -29,7 +36,7 @@ class JsonSchemaMatchComparer(BaseComparer):
             matched = expected_obj == actual_obj
             return (1.0 if matched else 0.0, matched, {"type": "non_dict_comparison"})
 
-        strict = self.config.get("strict", False)
+        strict = self.strict
 
         # Count matching keys
         expected_keys = set(expected_obj.keys())
@@ -54,5 +61,5 @@ class JsonSchemaMatchComparer(BaseComparer):
                 details_keys[key] = f"mismatch: expected={expected_obj[key]!r}, got={actual_obj[key]!r}"
 
         score = matching / total
-        passed = score >= self.config.get("threshold", 1.0)
+        passed = score >= self.threshold
         return score, passed, {"key_results": details_keys, "strict": strict}

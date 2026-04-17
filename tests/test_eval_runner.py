@@ -18,10 +18,7 @@ def _make_config(concurrency: int = 3) -> MagicMock:
     config.max_tokens = None
     config.tools = []
     config.tool_options = {}
-    config.comparer_type = "exact_match"
-    config.comparer_config = {}
-    config.custom_graders = []
-    config.comparer_weights = {}
+    config.graders = [{"type": "string_check", "name": "exact", "input_value": "{{ sample.output_text }}", "operation": "equals", "reference_value": "{{ item.expected_output }}"}]
     config.concurrency = concurrency
     config.reasoning_config = None
     config.response_format = None
@@ -361,7 +358,10 @@ class TestGraderStats:
     async def test_grader_stats_with_multiple_comparers(self, mock_repos):
         """Summary should include per-grader pass counts and avg_score."""
         config = _make_config(concurrency=5)
-        config.comparer_type = "exact_match,pattern_match"
+        config.graders = [
+            {"type": "string_check", "name": "check1", "input_value": "{{ sample.output_text }}", "operation": "equals", "reference_value": "{{ item.expected_output }}"},
+            {"type": "string_check", "name": "check2", "input_value": "{{ sample.output_text }}", "operation": "contains", "reference_value": "{{ item.expected_output }}"},
+        ]
 
         mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
         mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
@@ -384,9 +384,9 @@ class TestGraderStats:
         assert "grader_stats" in summary
 
         grader_stats = summary["grader_stats"]
-        # Both comparers should be present
-        assert "exact_match" in grader_stats
-        assert "pattern_match" in grader_stats
+        # Both graders should be present
+        assert "check1" in grader_stats
+        assert "check2" in grader_stats
 
         # Each grader stat should have the expected fields
         for name, stats in grader_stats.items():
@@ -401,7 +401,7 @@ class TestGraderStats:
     async def test_grader_stats_single_comparer(self, mock_repos):
         """With a single comparer, grader_stats should still be populated."""
         config = _make_config(concurrency=5)
-        config.comparer_type = "exact_match"
+        config.graders = [{"type": "string_check", "name": "exact", "input_value": "{{ sample.output_text }}", "operation": "equals", "reference_value": "{{ item.expected_output }}"}]
 
         mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
         mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
@@ -420,8 +420,8 @@ class TestGraderStats:
 
         summary = mock_repos["run_repo"].set_summary.call_args[1]["summary"]
         grader_stats = summary["grader_stats"]
-        assert "exact_match" in grader_stats
-        assert grader_stats["exact_match"]["total"] == 2
-        assert grader_stats["exact_match"]["passed"] == 1
-        assert grader_stats["exact_match"]["failed"] == 1
-        assert grader_stats["exact_match"]["accuracy"] == 0.5
+        assert "exact" in grader_stats
+        assert grader_stats["exact"]["total"] == 2
+        assert grader_stats["exact"]["passed"] == 1
+        assert grader_stats["exact"]["failed"] == 1
+        assert grader_stats["exact"]["accuracy"] == 0.5

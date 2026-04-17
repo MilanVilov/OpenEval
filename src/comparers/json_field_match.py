@@ -1,9 +1,9 @@
-"""JSON field match comparer — recursively finds a field in JSON and compares its value."""
+"""JSON field grader — recursively finds a field in JSON and compares its value."""
 
 import json
 from typing import Any
 
-from src.comparers.base import BaseComparer, register_comparer
+from src.comparers.base import BaseComparer
 
 
 def _find_field(obj: Any, field_name: str) -> tuple[bool, Any]:
@@ -30,7 +30,6 @@ def _find_field(obj: Any, field_name: str) -> tuple[bool, Any]:
     return False, None
 
 
-@register_comparer("json_field_match")
 class JsonFieldMatchComparer(BaseComparer):
     """Compare expected output against a named field extracted from a JSON LLM response.
 
@@ -38,15 +37,17 @@ class JsonFieldMatchComparer(BaseComparer):
     first attribute matching the configured field name, then compares its
     string value against the expected output.
 
-    Example — given a response like:
-        {"result": {"reasoning": "...", "answer": "Paris"}}
-    and field_name="answer", the comparer extracts "Paris" and compares it.
-
     Config options:
+        name (str): Human-readable grader name.
         field_name (str): JSON field to search for. Default "key".
         case_sensitive (bool): Whether comparison is case-sensitive. Default False.
         strip_whitespace (bool): Whether to strip whitespace. Default True.
+        threshold (float): Minimum score to pass. Default 0.7.
     """
+
+    def __init__(self, config: dict | None = None) -> None:
+        super().__init__(config)
+        self.grader_name: str = self.config.get("name", "json_field")
 
     async def compare(self, *, expected: str, actual: str, row_data: dict | None = None) -> tuple[float, bool, dict]:
         """Return 1.0/True if the extracted field value matches expected, 0.0/False otherwise."""

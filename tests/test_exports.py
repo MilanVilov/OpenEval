@@ -107,7 +107,6 @@ async def test_export_run_returns_full_result_csv(client: AsyncClient, tmp_path:
             name="Math Grading",
             system_prompt="You are helpful.",
             model="gpt-4.1",
-            comparer_type="exact_match",
         )
         dataset = await DatasetRepository(session).create(
             name="Arithmetic",

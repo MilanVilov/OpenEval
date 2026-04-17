@@ -1,25 +1,31 @@
-"""Semantic similarity comparer — cosine similarity via OpenAI embeddings."""
+"""Semantic similarity grader — cosine similarity via OpenAI embeddings."""
 
 import math
 
-from src.comparers.base import BaseComparer, register_comparer
+from src.comparers.base import BaseComparer
 
 
-@register_comparer("semantic_similarity")
 class SemanticSimilarityComparer(BaseComparer):
     """Compare outputs using cosine similarity of OpenAI embeddings.
 
     Config options:
+        name (str): Human-readable grader name.
         threshold (float): Minimum similarity for a pass. Default 0.8.
         model (str): Embedding model to use. Default "text-embedding-3-small".
     """
+
+    def __init__(self, config: dict | None = None) -> None:
+        super().__init__(config)
+        self.grader_name: str = self.config.get("name", "semantic_similarity")
+        self.threshold: float = self.config.get("threshold", 0.8)
+        self.embed_model: str = self.config.get("model", "text-embedding-3-small")
 
     async def compare(self, *, expected: str, actual: str, row_data: dict | None = None) -> tuple[float, bool, dict]:
         """Return cosine similarity score and pass/fail based on threshold."""
         from src.services.openai_client import get_openai_client
 
-        threshold = self.config.get("threshold", 0.8)
-        model = self.config.get("model", "text-embedding-3-small")
+        threshold = self.threshold
+        model = self.embed_model
 
         client = get_openai_client()
         response = await client.embeddings.create(

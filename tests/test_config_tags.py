@@ -12,7 +12,6 @@ SAMPLE_CONFIG = {
     "system_prompt": "You are a helpful assistant.",
     "model": "gpt-4.1",
     "temperature": 0.5,
-    "comparer_type": "exact_match",
     "tags": ["production", "v2"],
 }
 

@@ -85,7 +85,9 @@ export function ConfigList() {
                 <p className="text-xs text-foreground-secondary mt-1 line-clamp-2">{config.system_prompt}</p>
                 <div className="flex items-center gap-2 mt-3">
                   <Badge>{config.model}</Badge>
-                  <Badge>{config.comparer_type}</Badge>
+                  {config.graders && config.graders.length > 0 && (
+                    <Badge>{config.graders.length} grader{config.graders.length !== 1 ? 's' : ''}</Badge>
+                  )}
                 </div>
                 {config.tags && config.tags.length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-1.5">

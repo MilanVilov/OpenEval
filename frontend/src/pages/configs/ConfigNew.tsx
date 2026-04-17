@@ -7,8 +7,8 @@ import { listVectorStores } from '@/api/vectorStores';
 import { listContainers } from '@/api/containers';
 import type { VectorStore } from '@/types/vectorStore';
 import type { Container } from '@/types/container';
-import { CustomGradersEditor } from '@/components/CustomGradersEditor';
-import type { CustomGrader } from '@/types/config';
+import { GradersEditor } from '@/components/CustomGradersEditor';
+import type { Grader } from '@/types/config';
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -68,9 +68,7 @@ export function ConfigNew() {
   const [systemPrompt, setSystemPrompt] = useState('');
   const [model, setModel] = useState('gpt-4.1');
   const [temperature, setTemperature] = useState('0.7');
-  const [comparerTypes, setComparerTypes] = useState<Set<string>>(new Set(['exact_match']));
-  const [comparerWeights, setComparerWeights] = useState<Record<string, number>>({});
-  const [customGraders, setCustomGraders] = useState<CustomGrader[]>([]);
+  const [graders, setGraders] = useState<Grader[]>([]);
   const [concurrency, setConcurrency] = useState('5');
   const [reasoningEffort, setReasoningEffort] = useState('medium');
   const [reasoningSummary, setReasoningSummary] = useState('auto');
@@ -146,43 +144,31 @@ export function ConfigNew() {
       const reasoningConfig = isReasoningModel
         ? { effort: reasoningEffort, ...(reasoningSummary !== 'null' ? { summary: reasoningSummary } : {}) }
         : null;
-      const gradersPayload = customGraders
+      const gradersPayload = graders
         .filter((g) => {
           if (!g.name.trim()) return false;
           const t = g.type ?? 'prompt';
           if (t === 'prompt') return !!(g.prompt ?? '').trim();
           if (t === 'string_check') return !!(g.input_value ?? '').trim() && !!(g.operation ?? '').trim() && !!(g.reference_value ?? '').trim();
           if (t === 'python') return !!(g.source_code ?? '').trim();
-          return false;
+          if (t === 'json_field') return !!(g.field_name ?? '').trim();
+          // semantic_similarity and json_schema just need a name
+          return true;
         })
         .map((g) => ({
           ...g,
           name: g.name.trim(),
-          model: (g.type ?? 'prompt') === 'prompt' ? (g.model || undefined) : undefined,
+          model: (g.type === 'prompt' || g.type === 'semantic_similarity') ? (g.model || undefined) : undefined,
+          field_name: g.type === 'json_field' ? ((g.field_name ?? '').trim() || undefined) : undefined,
           threshold: g.threshold ?? 0.7,
+          weight: g.weight ?? 1,
         }));
-      // Build comparer_weights: combine built-in comparer weights and custom grader weights
-      const allWeights: Record<string, number> = {};
-      for (const ct of comparerTypes) {
-        const w = comparerWeights[ct];
-        if (w !== undefined && w !== 1) allWeights[ct] = w;
-      }
-      for (const g of gradersPayload) {
-        if (g.name.trim()) {
-          const key = `custom:${g.name.trim()}`;
-          const w = (g as Record<string, unknown>).weight;
-          if (typeof w === 'number' && w !== 1) allWeights[key] = w;
-        }
-      }
       const config = await createConfig({
         name,
         system_prompt: systemPrompt,
         model,
         temperature: parseFloat(temperature),
-        comparer_type: Array.from(comparerTypes).join(','),
-        comparer_config: {},
-        custom_graders: gradersPayload,
-        comparer_weights: Object.keys(allWeights).length > 0 ? allWeights : undefined,
+        graders: gradersPayload,
         tags,
         tools,
         tool_options: toolOptions,
@@ -392,55 +378,14 @@ export function ConfigNew() {
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label>Comparers</Label>
-            <div className="space-y-1">
-              {[
-                { value: 'exact_match', label: 'Exact Match' },
-                { value: 'pattern_match', label: 'Pattern Match' },
-                { value: 'semantic_similarity', label: 'Semantic Similarity' },
-                { value: 'llm_judge', label: 'LLM Judge' },
-                { value: 'json_schema_match', label: 'JSON Schema Match' },
-                { value: 'json_field_match', label: 'JSON Field Match' },
-              ].map((c) => (
-                <label key={c.value} className="flex items-center gap-2 text-sm cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={comparerTypes.has(c.value)}
-                    onChange={(e) => {
-                      const next = new Set(comparerTypes);
-                      if (e.target.checked) next.add(c.value); else next.delete(c.value);
-                      setComparerTypes(next);
-                    }}
-                    className="rounded border-border"
-                  />
-                  {c.label}
-                  {comparerTypes.has(c.value) && (
-                    <Input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      max="1"
-                      value={String(comparerWeights[c.value] ?? 1)}
-                      onChange={(e) => setComparerWeights({ ...comparerWeights, [c.value]: parseFloat(e.target.value) || 0 })}
-                      className="w-16 h-6 text-xs px-1.5"
-                      title="Weight (0–1)"
-                    />
-                  )}
-                </label>
-              ))}
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label>Concurrency</Label>
-            <Input type="number" min="1" max="20" value={concurrency} onChange={(e) => setConcurrency(e.target.value)} />
-          </div>
+        <div className="space-y-2">
+          <Label>Concurrency</Label>
+          <Input type="number" min="1" max="20" value={concurrency} onChange={(e) => setConcurrency(e.target.value)} />
         </div>
 
-        <CustomGradersEditor
-          graders={customGraders}
-          onChange={setCustomGraders}
+        <GradersEditor
+          graders={graders}
+          onChange={setGraders}
         />
 
         <div className="rounded-md border border-border p-4 space-y-2">

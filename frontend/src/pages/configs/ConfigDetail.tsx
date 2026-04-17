@@ -98,19 +98,11 @@ export function ConfigDetail() {
               <p className="text-xs text-foreground-secondary uppercase">Temperature</p>
               <p className="text-sm">{config.temperature}</p>
             </div>
-            <div>
-              <p className="text-xs text-foreground-secondary uppercase">Comparers</p>
-              <div className="flex flex-wrap gap-1">
-                {config.comparer_type.split(',').map((c: string) => (
-                  <Badge key={c.trim()}>{c.trim()}</Badge>
-                ))}
-              </div>
-            </div>
-            {config.custom_graders && config.custom_graders.length > 0 && (
+            {config.graders && config.graders.length > 0 && (
               <div>
-                <p className="text-xs text-foreground-secondary uppercase">Custom Graders</p>
+                <p className="text-xs text-foreground-secondary uppercase">Graders</p>
                 <div className="space-y-2 mt-1">
-                  {config.custom_graders.map((g, i) => {
+                  {config.graders.map((g, i) => {
                     const graderType = (g.type ?? 'prompt') as string;
                     return (
                       <div key={i} className="rounded border border-border p-2 text-sm space-y-1">
@@ -118,7 +110,9 @@ export function ConfigDetail() {
                           <Badge variant="default">{g.name || 'Unnamed'}</Badge>
                           <Badge variant="info">{graderType}</Badge>
                           <span className="text-xs text-foreground-secondary">
-                            {graderType === 'prompt' && g.model ? `model: ${g.model} · ` : ''}threshold: {g.threshold}
+                            {['prompt', 'semantic_similarity'].includes(graderType) && g.model ? `model: ${g.model} · ` : ''}
+                            threshold: {g.threshold}
+                            {g.weight !== undefined && g.weight !== 1 ? ` · weight: ${g.weight}` : ''}
                           </span>
                         </div>
                         {graderType === 'prompt' && g.prompt && (
@@ -131,6 +125,19 @@ export function ConfigDetail() {
                         )}
                         {graderType === 'python' && g.source_code && (
                           <p className="text-xs text-foreground-secondary font-mono line-clamp-3">{g.source_code}</p>
+                        )}
+                        {graderType === 'semantic_similarity' && (
+                          <p className="text-xs text-foreground-secondary">Compares expected vs actual using embedding similarity</p>
+                        )}
+                        {graderType === 'json_schema' && (
+                          <p className="text-xs text-foreground-secondary">
+                            Validates output against JSON schema{g.strict ? ' (strict)' : ''}
+                          </p>
+                        )}
+                        {graderType === 'json_field' && g.field_name && (
+                          <p className="text-xs text-foreground-secondary font-mono">
+                            field: {g.field_name}{g.case_sensitive ? ' (case-sensitive)' : ''}{g.strip_whitespace ? ' (strip whitespace)' : ''}
+                          </p>
                         )}
                       </div>
                     );
