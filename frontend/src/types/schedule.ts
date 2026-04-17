@@ -13,6 +13,7 @@ export interface Schedule {
   cron_expression: string;
   enabled: boolean;
   slack_webhook_url: string | null;
+  has_slack_webhook: boolean;
   min_accuracy: number | null;
   last_triggered_at: string | null;
   next_run_at: string | null;
@@ -33,4 +34,14 @@ export interface ScheduleCreateRequest {
   min_accuracy: number | null;
 }
 
-export type ScheduleUpdateRequest = Partial<ScheduleCreateRequest>;
+export interface ScheduleFormData {
+  name: string;
+  eval_config_id: string;
+  dataset_id: string;
+  cron_expression: string;
+  enabled: boolean;
+  slack_webhook_url?: string | null;
+  min_accuracy: number | null;
+}
+
+export type ScheduleUpdateRequest = Partial<ScheduleFormData>;

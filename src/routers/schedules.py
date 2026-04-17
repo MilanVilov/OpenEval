@@ -2,6 +2,7 @@
 
 import asyncio
 from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,17 +23,22 @@ from src.routers.schemas.schedules import (
 )
 from src.services.eval_runner import run_evaluation
 from src.services.scheduler import get_scheduler_service, is_valid_cron
+from src.services.slack_notifier import is_allowed_webhook_url
 
 router = APIRouter(prefix="/api/schedules", tags=["schedules"])
 
 
 async def _schedule_to_response(
-    schedule: Schedule, session: AsyncSession,
+    schedule: Schedule,
+    session: AsyncSession,
+    *,
+    latest: Any | None = None,
 ) -> ScheduleResponse:
     """Convert a :class:`Schedule` ORM object to a response payload."""
     scheduler = get_scheduler_service()
     next_run = scheduler.get_next_run_at(schedule)
-    latest = await RunRepository(session).get_latest_for_schedule(schedule.id)
+    if latest is None:
+        latest = await RunRepository(session).get_latest_for_schedule(schedule.id)
 
     last_run = None
     if latest is not None:
@@ -52,7 +58,8 @@ async def _schedule_to_response(
         dataset_id=schedule.dataset_id,
         cron_expression=schedule.cron_expression,
         enabled=schedule.enabled,
-        slack_webhook_url=schedule.slack_webhook_url,
+        slack_webhook_url=None,
+        has_slack_webhook=bool(schedule.slack_webhook_url),
         min_accuracy=schedule.min_accuracy,
         last_triggered_at=(
             str(schedule.last_triggered_at) if schedule.last_triggered_at else None
@@ -72,6 +79,19 @@ def _validate_cron(expression: str) -> None:
         raise HTTPException(
             status_code=422, detail=f"Invalid cron expression: {expression!r}",
         )
+
+
+def _normalize_webhook_url(webhook_url: str | None) -> str | None:
+    """Normalize and validate an optional Slack webhook URL."""
+    normalized = webhook_url.strip() if isinstance(webhook_url, str) else None
+    if not normalized:
+        return None
+    if not is_allowed_webhook_url(normalized):
+        raise HTTPException(
+            status_code=422,
+            detail="Slack webhook URL must use https://hooks.slack.com/...",
+        )
+    return normalized
 
 
 async def _assert_refs_exist(
@@ -94,7 +114,17 @@ async def list_schedules(
 ) -> list[ScheduleResponse]:
     """List all schedules."""
     schedules = await ScheduleRepository(session).list_all()
-    return [await _schedule_to_response(s, session) for s in schedules]
+    latest_runs = await RunRepository(session).get_latest_for_schedule_ids(
+        [schedule.id for schedule in schedules],
+    )
+    return [
+        await _schedule_to_response(
+            schedule,
+            session,
+            latest=latest_runs.get(schedule.id),
+        )
+        for schedule in schedules
+    ]
 
 
 @router.post("", response_model=ScheduleResponse, status_code=201)
@@ -113,7 +143,7 @@ async def create_schedule(
         dataset_id=body.dataset_id,
         cron_expression=body.cron_expression,
         enabled=body.enabled,
-        slack_webhook_url=body.slack_webhook_url or None,
+        slack_webhook_url=_normalize_webhook_url(body.slack_webhook_url),
         min_accuracy=body.min_accuracy,
     )
     # Re-fetch with relationships eager-loaded
@@ -150,8 +180,8 @@ async def update_schedule(
     await _assert_refs_exist(
         fields.get("eval_config_id"), fields.get("dataset_id"), session,
     )
-    if "slack_webhook_url" in fields and fields["slack_webhook_url"] == "":
-        fields["slack_webhook_url"] = None
+    if "slack_webhook_url" in fields:
+        fields["slack_webhook_url"] = _normalize_webhook_url(fields["slack_webhook_url"])
 
     repo = ScheduleRepository(session)
     schedule = await repo.update(schedule_id, **fields)

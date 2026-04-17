@@ -50,6 +50,7 @@ class ScheduleResponse(BaseModel):
     cron_expression: str
     enabled: bool
     slack_webhook_url: str | None
+    has_slack_webhook: bool
     min_accuracy: float | None
     last_triggered_at: str | None
     next_run_at: str | None

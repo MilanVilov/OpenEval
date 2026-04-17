@@ -3,7 +3,7 @@ import { listConfigs } from '@/api/configs';
 import { listDatasets } from '@/api/datasets';
 import type { EvalConfig } from '@/types/config';
 import type { Dataset } from '@/types/dataset';
-import type { Schedule, ScheduleCreateRequest } from '@/types/schedule';
+import type { Schedule, ScheduleFormData } from '@/types/schedule';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,7 +18,7 @@ type Mode = 'daily' | 'weekly' | 'advanced';
 interface ScheduleFormProps {
   initial?: Schedule;
   submitLabel: string;
-  onSubmit: (data: ScheduleCreateRequest) => Promise<void>;
+  onSubmit: (data: ScheduleFormData) => Promise<void>;
   onCancel: () => void;
 }
 
@@ -38,7 +38,7 @@ export function ScheduleForm({ initial, submitLabel, onSubmit, onCancel }: Sched
   const [configId, setConfigId] = useState(initial?.eval_config_id ?? '');
   const [datasetId, setDatasetId] = useState(initial?.dataset_id ?? '');
   const [enabled, setEnabled] = useState(initial?.enabled ?? true);
-  const [slackUrl, setSlackUrl] = useState(initial?.slack_webhook_url ?? '');
+  const [slackUrl, setSlackUrl] = useState('');
   const [minAccuracyPct, setMinAccuracyPct] = useState<string>(
     initial?.min_accuracy != null ? String(Math.round(initial.min_accuracy * 100)) : '',
   );
@@ -95,7 +95,10 @@ export function ScheduleForm({ initial, submitLabel, onSubmit, onCancel }: Sched
         dataset_id: datasetId,
         cron_expression: effectiveCron,
         enabled,
-        slack_webhook_url: slackUrl.trim() || null,
+        ...(buildWebhookField({
+          hasExistingWebhook: initial?.has_slack_webhook ?? false,
+          value: slackUrl,
+        })),
         min_accuracy: minAccuracy,
       });
     } catch (err) {
@@ -211,7 +214,7 @@ export function ScheduleForm({ initial, submitLabel, onSubmit, onCancel }: Sched
           id="sched-slack"
           value={slackUrl}
           onChange={(e) => setSlackUrl(e.target.value)}
-          placeholder="Uses SLACK_WEBHOOK_URL env if empty"
+          placeholder={getWebhookPlaceholder(initial)}
         />
       </div>
 
@@ -257,10 +260,19 @@ function detectMode(expr: string | undefined): Mode {
   if (!expr) return 'daily';
   const parts = expr.trim().split(/\s+/);
   if (parts.length !== 5) return 'advanced';
-  const [, , dom, month, dow] = parts;
+  const [minute, hour, dom, month, dow] = parts;
+  if (!isPlainCronInteger(minute, 0, 59) || !isPlainCronInteger(hour, 0, 23)) {
+    return 'advanced';
+  }
   if (dom === '*' && month === '*' && dow === '*') return 'daily';
   if (dom === '*' && month === '*' && /^[0-6](,[0-6])*$/.test(dow)) return 'weekly';
   return 'advanced';
+}
+
+function isPlainCronInteger(value: string, min: number, max: number): boolean {
+  if (!/^\d+$/.test(value)) return false;
+  const parsed = parseInt(value, 10);
+  return parsed >= min && parsed <= max;
 }
 
 function extractHour(expr: string): number {
@@ -283,4 +295,25 @@ function extractDays(expr: string): number[] {
     .split(',')
     .map((d) => parseInt(d, 10))
     .filter((d) => !Number.isNaN(d) && d >= 0 && d <= 6);
+}
+
+function buildWebhookField(params: {
+  hasExistingWebhook: boolean;
+  value: string;
+}): Pick<ScheduleFormData, 'slack_webhook_url'> | Record<string, never> {
+  const normalized = params.value.trim();
+  if (normalized) {
+    return { slack_webhook_url: normalized };
+  }
+  if (!params.hasExistingWebhook) {
+    return { slack_webhook_url: null };
+  }
+  return {};
+}
+
+function getWebhookPlaceholder(initial: Schedule | undefined): string {
+  if (initial?.has_slack_webhook) {
+    return 'Leave blank to keep the saved Slack webhook';
+  }
+  return 'Uses SLACK_WEBHOOK_URL env if empty';
 }

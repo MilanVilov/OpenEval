@@ -13,7 +13,6 @@ from datetime import UTC, datetime
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
-from croniter import croniter
 
 from src.db.models import Schedule
 from src.db.repositories import (
@@ -33,7 +32,13 @@ def is_valid_cron(expression: str) -> bool:
     expression = (expression or "").strip()
     if not expression:
         return False
-    return croniter.is_valid(expression)
+    if len(expression.split()) != 5:
+        return False
+    try:
+        CronTrigger.from_crontab(expression, timezone="UTC")
+    except ValueError:
+        return False
+    return True
 
 
 class SchedulerService:
@@ -82,7 +87,8 @@ class SchedulerService:
         if self._scheduler is None:
             return
         job_id = schedule.id
-        self._scheduler.remove_job(job_id) if self._scheduler.get_job(job_id) else None
+        if self._scheduler.get_job(job_id):
+            self._scheduler.remove_job(job_id)
         if schedule.enabled:
             self._register(schedule)
 

@@ -144,6 +144,7 @@ export function ScheduleList() {
                         variant="ghost" size="sm"
                         disabled={busyId === s.id}
                         onClick={() => void handleRunNow(s.id)}
+                        aria-label="Run now"
                         title="Run now"
                       >
                         <Play className="h-4 w-4" />
@@ -157,12 +158,13 @@ export function ScheduleList() {
                         {s.enabled ? 'Disable' : 'Enable'}
                       </Button>
                       <Link to={`/schedules/${s.id}/edit`}>
-                        <Button variant="ghost" size="sm" title="Edit"><Pencil className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="sm" aria-label="Edit schedule" title="Edit"><Pencil className="h-4 w-4" /></Button>
                       </Link>
                       <Button
                         variant="ghost" size="sm"
                         disabled={busyId === s.id}
                         onClick={() => void handleDelete(s.id)}
+                        aria-label="Delete schedule"
                         title="Delete"
                       >
                         <Trash2 className="h-4 w-4" />

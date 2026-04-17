@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getSchedule, updateSchedule } from '@/api/schedules';
-import type { Schedule, ScheduleCreateRequest } from '@/types/schedule';
+import type { Schedule, ScheduleFormData } from '@/types/schedule';
 import { PageHeader } from '@/components/PageHeader';
 import { PageTransition } from '@/components/PageTransition';
 import { LoadingSkeleton } from '@/components/LoadingSkeleton';
@@ -23,7 +23,7 @@ export function ScheduleEdit() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  async function handleSubmit(data: ScheduleCreateRequest): Promise<void> {
+  async function handleSubmit(data: ScheduleFormData): Promise<void> {
     if (!id) return;
     await updateSchedule(id, data);
     navigate('/schedules');

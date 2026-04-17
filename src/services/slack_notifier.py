@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 
@@ -15,14 +16,26 @@ from src.config import get_settings
 logger = logging.getLogger(__name__)
 
 _TIMEOUT_SECONDS = 10.0
+_ALLOWED_WEBHOOK_HOSTS = {"hooks.slack.com"}
+
+
+def is_allowed_webhook_url(webhook_url: str | None) -> bool:
+    """Return whether ``webhook_url`` points at an allowed Slack webhook host."""
+    if not webhook_url:
+        return False
+    parsed = urlparse(webhook_url)
+    return parsed.scheme == "https" and parsed.netloc in _ALLOWED_WEBHOOK_HOSTS
 
 
 def resolve_webhook_url(schedule_override: str | None) -> str | None:
     """Return the effective webhook URL, or ``None`` if Slack is not configured."""
-    if schedule_override:
-        return schedule_override
-    default = get_settings().slack_webhook_url
-    return default or None
+    candidate = schedule_override or get_settings().slack_webhook_url or None
+    if not candidate:
+        return None
+    if is_allowed_webhook_url(candidate):
+        return candidate
+    logger.warning("Slack webhook URL rejected because host or scheme is not allowed")
+    return None
 
 
 def build_run_url(run_id: str) -> str | None:

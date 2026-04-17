@@ -108,6 +108,15 @@ def test_is_valid_cron_rejects_bad_input() -> None:
     assert not is_valid_cron("")
     assert not is_valid_cron("not a cron")
     assert not is_valid_cron("99 * * * *")
+    assert not is_valid_cron("0 0 9 * * *")
+
+
+def test_is_allowed_webhook_url_rejects_non_slack_hosts() -> None:
+    from src.services.slack_notifier import is_allowed_webhook_url
+
+    assert is_allowed_webhook_url("https://hooks.slack.com/services/test")
+    assert not is_allowed_webhook_url("http://hooks.slack.com/services/test")
+    assert not is_allowed_webhook_url("https://example.com/services/test")
 
 
 # ---------------------------------------------------------------------------
@@ -196,6 +205,7 @@ async def test_schedule_crud_and_toggle(client: AsyncClient) -> None:
         "eval_config_id": config_id,
         "dataset_id": dataset_id,
         "cron_expression": "0 9 * * *",
+        "slack_webhook_url": "https://hooks.slack.com/services/test",
         "min_accuracy": 0.8,
     })
     assert resp.status_code == 201, resp.text
@@ -203,6 +213,8 @@ async def test_schedule_crud_and_toggle(client: AsyncClient) -> None:
     assert schedule["enabled"] is True
     assert schedule["config_name"] == "Sched Config"
     assert schedule["dataset_name"] == "Sched Dataset"
+    assert schedule["slack_webhook_url"] is None
+    assert schedule["has_slack_webhook"] is True
     sid = schedule["id"]
 
     # List
@@ -221,6 +233,11 @@ async def test_schedule_crud_and_toggle(client: AsyncClient) -> None:
 
     # Patch with invalid cron → 422
     resp = await client.patch(f"/api/schedules/{sid}", json={"cron_expression": "bad"})
+    assert resp.status_code == 422
+
+    resp = await client.patch(f"/api/schedules/{sid}", json={
+        "slack_webhook_url": "https://example.com/not-slack",
+    })
     assert resp.status_code == 422
 
     # Toggle off

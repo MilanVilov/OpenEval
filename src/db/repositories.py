@@ -6,7 +6,7 @@ All write operations commit and refresh within the method.
 
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -414,6 +414,37 @@ class RunRepository:
         )
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
+
+    async def get_latest_for_schedule_ids(
+        self, schedule_ids: list[str],
+    ) -> dict[str, EvalRun]:
+        """Return the latest run for each schedule id in ``schedule_ids``."""
+        if not schedule_ids:
+            return {}
+
+        ranked_runs = (
+            select(
+                EvalRun.id.label("run_id"),
+                EvalRun.scheduled_by_id.label("schedule_id"),
+                func.row_number().over(
+                    partition_by=EvalRun.scheduled_by_id,
+                    order_by=(EvalRun.created_at.desc(), EvalRun.id.desc()),
+                ).label("row_number"),
+            )
+            .where(EvalRun.scheduled_by_id.in_(schedule_ids))
+            .subquery()
+        )
+        stmt = (
+            select(EvalRun, ranked_runs.c.schedule_id)
+            .join(ranked_runs, EvalRun.id == ranked_runs.c.run_id)
+            .where(ranked_runs.c.row_number == 1)
+        )
+        result = await self._session.execute(stmt)
+
+        latest_runs: dict[str, EvalRun] = {}
+        for run, schedule_id in result.all():
+            latest_runs[schedule_id] = run
+        return latest_runs
 
 
 # ---------------------------------------------------------------------------
