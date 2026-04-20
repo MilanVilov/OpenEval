@@ -1,10 +1,9 @@
 """Schedule CRUD routes — JSON API."""
 
-import asyncio
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models import Schedule
@@ -213,6 +212,7 @@ async def toggle_schedule(
 @router.post("/{schedule_id}/run-now", response_model=ScheduleResponse)
 async def run_schedule_now(
     schedule_id: str,
+    background_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_session),
 ) -> ScheduleResponse:
     """Trigger an immediate run for a schedule (does not alter cron timing)."""
@@ -234,7 +234,7 @@ async def run_schedule_now(
         scheduled_by_id=schedule.id,
     )
     await schedule_repo.mark_triggered(schedule.id, when=datetime.now(UTC))
-    asyncio.create_task(run_evaluation(run.id))
+    background_tasks.add_task(run_evaluation, run.id)
 
     schedule = await schedule_repo.get_by_id(schedule_id)
     assert schedule is not None

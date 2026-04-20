@@ -16,26 +16,30 @@ from src.config import get_settings
 logger = logging.getLogger(__name__)
 
 _TIMEOUT_SECONDS = 10.0
-_ALLOWED_WEBHOOK_HOSTS = {"hooks.slack.com"}
+_ALLOWED_WEBHOOK_HOST = "hooks.slack.com"
 
 
-def is_allowed_webhook_url(webhook_url: str | None) -> bool:
-    """Return whether ``webhook_url`` points at an allowed Slack webhook host."""
-    if not webhook_url:
+def is_allowed_webhook_url(url: str) -> bool:
+    """Return ``True`` if ``url`` is an https Slack incoming-webhook URL.
+
+    Restricting host + scheme prevents the app from being used as a
+    confused-deputy to POST arbitrary JSON to internal services.
+    """
+    if not isinstance(url, str) or not url:
         return False
-    parsed = urlparse(webhook_url)
-    return parsed.scheme == "https" and parsed.netloc in _ALLOWED_WEBHOOK_HOSTS
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return False
+    return parsed.scheme == "https" and parsed.hostname == _ALLOWED_WEBHOOK_HOST
 
 
 def resolve_webhook_url(schedule_override: str | None) -> str | None:
     """Return the effective webhook URL, or ``None`` if Slack is not configured."""
-    candidate = schedule_override or get_settings().slack_webhook_url or None
-    if not candidate:
-        return None
-    if is_allowed_webhook_url(candidate):
-        return candidate
-    logger.warning("Slack webhook URL rejected because host or scheme is not allowed")
-    return None
+    if schedule_override:
+        return schedule_override
+    default = get_settings().slack_webhook_url
+    return default or None
 
 
 def build_run_url(run_id: str) -> str | None:
@@ -145,10 +149,12 @@ def _percent(value: float | None) -> str:
 
 def _format_percent(value: float | None, prev: dict | None, key: str) -> str:
     """Render a percent with a delta if a previous value exists."""
+    if not isinstance(value, (int, float)):
+        return "—"
     current = _percent(value)
     if prev is None or not isinstance(prev.get(key), (int, float)):
         return current
-    delta = (value or 0) - prev[key]
+    delta = value - prev[key]
     return f"{current} {_arrow(delta, unit='pp', scale=100)}"
 
 
