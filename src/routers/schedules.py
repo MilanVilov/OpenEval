@@ -171,6 +171,11 @@ async def update_schedule(
     session: AsyncSession = Depends(get_session),
 ) -> ScheduleResponse:
     """Update an existing schedule."""
+    repo = ScheduleRepository(session)
+    existing_schedule = await repo.get_by_id(schedule_id)
+    if existing_schedule is None:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+
     fields = body.model_dump(exclude_unset=True)
     if not fields:
         raise HTTPException(status_code=422, detail="No fields to update")
@@ -182,10 +187,8 @@ async def update_schedule(
     if "slack_webhook_url" in fields:
         fields["slack_webhook_url"] = _normalize_webhook_url(fields["slack_webhook_url"])
 
-    repo = ScheduleRepository(session)
     schedule = await repo.update(schedule_id, **fields)
-    if schedule is None:
-        raise HTTPException(status_code=404, detail="Schedule not found")
+    assert schedule is not None
     schedule = await repo.get_by_id(schedule.id)
     assert schedule is not None
     get_scheduler_service().sync_schedule(schedule)

@@ -95,10 +95,7 @@ export function ScheduleForm({ initial, submitLabel, onSubmit, onCancel }: Sched
         dataset_id: datasetId,
         cron_expression: effectiveCron,
         enabled,
-        ...(buildWebhookField({
-          hasExistingWebhook: initial?.has_slack_webhook ?? false,
-          value: slackUrl,
-        })),
+        ...buildWebhookField(slackUrl),
         min_accuracy: minAccuracy,
       });
     } catch (err) {
@@ -297,23 +294,17 @@ function extractDays(expr: string): number[] {
     .filter((d) => !Number.isNaN(d) && d >= 0 && d <= 6);
 }
 
-function buildWebhookField(params: {
-  hasExistingWebhook: boolean;
-  value: string;
-}): Pick<ScheduleFormData, 'slack_webhook_url'> | Record<string, never> {
-  const normalized = params.value.trim();
+function buildWebhookField(value: string): Pick<ScheduleFormData, 'slack_webhook_url'> {
+  const normalized = value.trim();
   if (normalized) {
     return { slack_webhook_url: normalized };
   }
-  if (!params.hasExistingWebhook) {
-    return { slack_webhook_url: null };
-  }
-  return {};
+  return { slack_webhook_url: null };
 }
 
 function getWebhookPlaceholder(initial: Schedule | undefined): string {
   if (initial?.has_slack_webhook) {
-    return 'Leave blank to keep the saved Slack webhook';
+    return 'Leave blank to clear the saved Slack webhook';
   }
   return 'Uses SLACK_WEBHOOK_URL env if empty';
 }

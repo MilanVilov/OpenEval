@@ -30,14 +30,23 @@ SAMPLE_CONFIG_PAYLOAD = {
 @pytest.fixture()
 def app():
     """Fresh app against an in-memory SQLite database."""
-    with patch("src.db.session.get_settings") as mock_settings:
+    import src.config as config_mod
+    import src.db.session as session_mod
+
+    config_mod.get_settings.cache_clear()
+
+    with (
+        patch("src.config.get_settings") as mock_config_settings,
+        patch("src.db.session.get_settings") as mock_session_settings,
+    ):
         settings = MagicMock()
         settings.database_url = "sqlite+aiosqlite://"
         settings.upload_dir = "/tmp/openeval_test_uploads"
         settings.cors_origins = ""
-        mock_settings.return_value = settings
-
-        import src.db.session as session_mod
+        settings.slack_webhook_url = ""
+        settings.app_base_url = ""
+        mock_config_settings.return_value = settings
+        mock_session_settings.return_value = settings
 
         session_mod._engine = None
         session_mod._session_factory = None
@@ -47,6 +56,7 @@ def app():
 
         session_mod._engine = None
         session_mod._session_factory = None
+        config_mod.get_settings.cache_clear()
 
 
 @pytest.fixture()
@@ -240,6 +250,13 @@ async def test_schedule_crud_and_toggle(client: AsyncClient) -> None:
     })
     assert resp.status_code == 422
 
+    resp = await client.patch(f"/api/schedules/{sid}", json={
+        "slack_webhook_url": None,
+    })
+    assert resp.status_code == 200
+    assert resp.json()["slack_webhook_url"] is None
+    assert resp.json()["has_slack_webhook"] is False
+
     # Toggle off
     resp = await client.post(f"/api/schedules/{sid}/toggle")
     assert resp.status_code == 200
@@ -278,3 +295,15 @@ async def test_run_now_creates_scheduled_run(client: AsyncClient) -> None:
     assert len(runs) >= 1
     assert runs[0]["eval_config_id"] == config_id
     assert runs[0]["dataset_id"] == dataset_id
+
+
+@pytest.mark.asyncio
+async def test_update_schedule_returns_schedule_not_found_before_ref_checks(
+    client: AsyncClient,
+) -> None:
+    resp = await client.patch("/api/schedules/missing", json={
+        "eval_config_id": "missing-config",
+    })
+
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Schedule not found"
