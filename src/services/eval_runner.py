@@ -11,8 +11,10 @@ from src.db.repositories import (
     DatasetRepository,
     ResultRepository,
     RunRepository,
+    ScheduleRepository,
 )
 from src.db.session import get_session_context
+from src.services import slack_notifier
 from src.services.csv_parser import read_csv_rows
 from src.services.eval_client import call_llm
 
@@ -281,3 +283,49 @@ async def run_evaluation(run_id: str) -> None:
             completed_at=datetime.now(timezone.utc),
         )
         logger.info("Run %s completed: %s", run_id, summary)
+
+        slack_payload = await _gather_slack_payload(session, run_id)
+
+    # Send to Slack outside the DB session so network latency does not
+    # tie up a connection from the pool.
+    if slack_payload is not None:
+        webhook_url, blocks = slack_payload
+        try:
+            await slack_notifier.send(webhook_url, blocks)
+        except Exception as exc:  # noqa: BLE001 — never fail the run over Slack
+            logger.warning("Slack notification failed for run %s: %s", run_id, exc)
+
+
+async def _gather_slack_payload(session, run_id: str) -> tuple[str, list[dict]] | None:
+    """Fetch all data needed to build a Slack message for a scheduled run.
+
+    Returns ``(webhook_url, blocks)`` or ``None`` if no notification should
+    be sent. Never raises — errors are logged and treated as "skip".
+    """
+    try:
+        run_repo = RunRepository(session)
+        run = await run_repo.get_by_id(run_id)
+        if run is None:
+            return None
+        schedule_id = getattr(run, "scheduled_by_id", None)
+        if not isinstance(schedule_id, str):
+            return None
+
+        schedule = await ScheduleRepository(session).get_by_id(schedule_id)
+        if schedule is None:
+            return None
+
+        webhook_url = slack_notifier.resolve_webhook_url(schedule.slack_webhook_url)
+        if not webhook_url:
+            return None
+
+        previous = await run_repo.get_previous_completed_for_schedule(
+            schedule.id, exclude_run_id=run.id,
+        )
+        blocks = slack_notifier.build_blocks(
+            run=run, schedule=schedule, previous_run=previous,
+        )
+        return webhook_url, blocks
+    except Exception as exc:  # noqa: BLE001 — never fail the run over Slack
+        logger.warning("Slack notification skipped for run %s: %s", run_id, exc)
+        return None

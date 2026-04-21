@@ -117,16 +117,22 @@ class EvalRun(Base):
     started_at: Mapped[datetime | None] = mapped_column(default=None)
     completed_at: Mapped[datetime | None] = mapped_column(default=None)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    scheduled_by_id: Mapped[str | None] = mapped_column(
+        ForeignKey("schedules.id", ondelete="SET NULL"),
+        default=None,
+    )
 
     config: Mapped["EvalConfig"] = relationship(back_populates="runs")
     dataset: Mapped["Dataset"] = relationship(back_populates="runs")
     results: Mapped[list["EvalResult"]] = relationship(
         back_populates="run", cascade="all, delete-orphan", passive_deletes=True,
     )
+    schedule: Mapped["Schedule | None"] = relationship(back_populates="runs")
 
     __table_args__ = (
         Index("ix_eval_runs_eval_config_id", "eval_config_id"),
         Index("ix_eval_runs_dataset_id", "dataset_id"),
+        Index("ix_eval_runs_scheduled_by_id", "scheduled_by_id"),
     )
 
     def __repr__(self) -> str:
@@ -162,3 +168,34 @@ class EvalResult(Base):
 
     def __repr__(self) -> str:
         return f"<EvalResult id={self.id!r} row_index={self.row_index}>"
+
+
+class Schedule(Base):
+    """A recurring trigger that creates eval runs on a cron schedule."""
+
+    __tablename__ = "schedules"
+
+    id: Mapped[str] = mapped_column(primary_key=True, default=_new_id)
+    name: Mapped[str]
+    eval_config_id: Mapped[str] = mapped_column(
+        ForeignKey("eval_configs.id", ondelete="CASCADE"),
+    )
+    dataset_id: Mapped[str] = mapped_column(
+        ForeignKey("datasets.id", ondelete="CASCADE"),
+    )
+    cron_expression: Mapped[str]
+    enabled: Mapped[bool] = mapped_column(default=True)
+    slack_webhook_url: Mapped[str | None] = mapped_column(default=None)
+    min_accuracy: Mapped[float | None] = mapped_column(default=None)
+    last_triggered_at: Mapped[datetime | None] = mapped_column(default=None)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        server_default=func.now(), onupdate=func.now(),
+    )
+
+    config: Mapped["EvalConfig"] = relationship()
+    dataset: Mapped["Dataset"] = relationship()
+    runs: Mapped[list["EvalRun"]] = relationship(back_populates="schedule")
+
+    def __repr__(self) -> str:
+        return f"<Schedule id={self.id!r} name={self.name!r} enabled={self.enabled}>"

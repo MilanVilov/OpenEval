@@ -6,11 +6,19 @@ All write operations commit and refresh within the method.
 
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.db.models import Container, Dataset, EvalConfig, EvalResult, EvalRun, VectorStore
+from src.db.models import (
+    Container,
+    Dataset,
+    EvalConfig,
+    EvalResult,
+    EvalRun,
+    Schedule,
+    VectorStore,
+)
 
 # ---------------------------------------------------------------------------
 # EvalConfig
@@ -291,12 +299,14 @@ class RunRepository:
         eval_config_id: str,
         dataset_id: str,
         total_rows: int,
+        scheduled_by_id: str | None = None,
     ) -> EvalRun:
         """Insert a new evaluation run."""
         run = EvalRun(
             eval_config_id=eval_config_id,
             dataset_id=dataset_id,
             total_rows=total_rows,
+            scheduled_by_id=scheduled_by_id,
         )
         self._session.add(run)
         await self._session.commit()
@@ -368,6 +378,157 @@ class RunRepository:
         if run is None:
             return False
         await self._session.delete(run)
+        await self._session.commit()
+        return True
+
+    async def get_previous_completed_for_schedule(
+        self, schedule_id: str, *, exclude_run_id: str,
+    ) -> EvalRun | None:
+        """Return the most recent completed run for a schedule, excluding one id."""
+        stmt = (
+            select(EvalRun)
+            .where(
+                EvalRun.scheduled_by_id == schedule_id,
+                EvalRun.id != exclude_run_id,
+                EvalRun.status == "completed",
+            )
+            .order_by(EvalRun.completed_at.desc())
+            .limit(1)
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_latest_for_schedule(self, schedule_id: str) -> EvalRun | None:
+        """Return the most recently created run for a schedule (any status)."""
+        stmt = (
+            select(EvalRun)
+            .where(EvalRun.scheduled_by_id == schedule_id)
+            .order_by(EvalRun.created_at.desc())
+            .limit(1)
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_latest_for_schedule_ids(
+        self, schedule_ids: list[str],
+    ) -> dict[str, EvalRun]:
+        """Return the latest run for each schedule id in ``schedule_ids``."""
+        if not schedule_ids:
+            return {}
+
+        ranked_runs = (
+            select(
+                EvalRun.id.label("run_id"),
+                EvalRun.scheduled_by_id.label("schedule_id"),
+                func.row_number().over(
+                    partition_by=EvalRun.scheduled_by_id,
+                    order_by=(EvalRun.created_at.desc(), EvalRun.id.desc()),
+                ).label("row_number"),
+            )
+            .where(EvalRun.scheduled_by_id.in_(schedule_ids))
+            .subquery()
+        )
+        stmt = (
+            select(EvalRun, ranked_runs.c.schedule_id)
+            .join(ranked_runs, EvalRun.id == ranked_runs.c.run_id)
+            .where(ranked_runs.c.row_number == 1)
+        )
+        result = await self._session.execute(stmt)
+
+        latest_runs: dict[str, EvalRun] = {}
+        for run, schedule_id in result.all():
+            latest_runs[schedule_id] = run
+        return latest_runs
+
+
+# ---------------------------------------------------------------------------
+# Schedule
+# ---------------------------------------------------------------------------
+
+
+class ScheduleRepository:
+    """Data-access helpers for :class:`Schedule`."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def create(
+        self,
+        *,
+        name: str,
+        eval_config_id: str,
+        dataset_id: str,
+        cron_expression: str,
+        enabled: bool = True,
+        slack_webhook_url: str | None = None,
+        min_accuracy: float | None = None,
+    ) -> Schedule:
+        """Insert a new schedule."""
+        schedule = Schedule(
+            name=name,
+            eval_config_id=eval_config_id,
+            dataset_id=dataset_id,
+            cron_expression=cron_expression,
+            enabled=enabled,
+            slack_webhook_url=slack_webhook_url,
+            min_accuracy=min_accuracy,
+        )
+        self._session.add(schedule)
+        await self._session.commit()
+        await self._session.refresh(schedule)
+        return schedule
+
+    async def get_by_id(self, schedule_id: str) -> Schedule | None:
+        """Return a schedule with config and dataset eagerly loaded."""
+        stmt = (
+            select(Schedule)
+            .options(selectinload(Schedule.config), selectinload(Schedule.dataset))
+            .where(Schedule.id == schedule_id)
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def list_all(self) -> list[Schedule]:
+        """Return every schedule ordered by newest first."""
+        stmt = (
+            select(Schedule)
+            .options(selectinload(Schedule.config), selectinload(Schedule.dataset))
+            .order_by(Schedule.created_at.desc())
+        )
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def list_enabled(self) -> list[Schedule]:
+        """Return all enabled schedules — used for scheduler rehydration."""
+        stmt = select(Schedule).where(Schedule.enabled.is_(True))
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def update(self, schedule_id: str, **fields: object) -> Schedule | None:
+        """Update arbitrary fields. Returns ``None`` if not found."""
+        schedule = await self._session.get(Schedule, schedule_id)
+        if schedule is None:
+            return None
+        for key, value in fields.items():
+            setattr(schedule, key, value)
+        await self._session.commit()
+        await self._session.refresh(schedule)
+        return schedule
+
+    async def mark_triggered(self, schedule_id: str, *, when: object) -> None:
+        """Record the last-triggered timestamp on a schedule."""
+        schedule = await self._session.get(Schedule, schedule_id)
+        if schedule is None:
+            return
+        schedule.last_triggered_at = when
+        await self._session.commit()
+
+    async def delete(self, schedule_id: str) -> bool:
+        """Delete a schedule. Returns ``True`` if it existed."""
+        schedule = await self._session.get(Schedule, schedule_id)
+        if schedule is None:
+            return False
+        await self._session.delete(schedule)
         await self._session.commit()
         return True
 

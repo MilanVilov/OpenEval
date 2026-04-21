@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from src.config import get_settings
+from src.services.scheduler import get_scheduler_service
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -20,7 +21,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     settings = get_settings()
     upload_path = Path(settings.upload_dir)
     upload_path.mkdir(parents=True, exist_ok=True)
-    yield
+    scheduler = get_scheduler_service()
+    await scheduler.start()
+    try:
+        yield
+    finally:
+        await scheduler.shutdown()
 
 
 def create_app() -> FastAPI:
