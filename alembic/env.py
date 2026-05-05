@@ -6,11 +6,11 @@ from logging.config import fileConfig
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
+from alembic import context
 from src.config import get_settings
 
 # Import Base so all model metadata is registered.
 from src.db.models import Base
-from alembic import context
 
 config = context.config
 if config.config_file_name is not None:
@@ -19,7 +19,10 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 # Override the URL from application settings so the single source of truth is config.py.
-config.set_main_option("sqlalchemy.url", get_settings().database_url)
+database_url = get_settings().database_url
+if not database_url:
+    raise ValueError("DATABASE_URL must be set")
+config.set_main_option("sqlalchemy.url", database_url)
 
 
 def run_migrations_offline() -> None:

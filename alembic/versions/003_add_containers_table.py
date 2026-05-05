@@ -17,7 +17,12 @@ def upgrade() -> None:
         sa.Column("openai_container_id", sa.String(length=255), nullable=False),
         sa.Column("name", sa.String(length=255), nullable=False),
         sa.Column("file_count", sa.Integer(), server_default="0", nullable=False),
-        sa.Column("status", sa.String(length=50), server_default="active", nullable=False),
+        sa.Column(
+            "status",
+            sa.String(length=50),
+            server_default=sa.text("'active'"),
+            nullable=False,
+        ),
         sa.Column("created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
     )
 

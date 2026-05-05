@@ -110,7 +110,7 @@ def downgrade() -> None:
                 "comparer_type",
                 sa.String(length=255),
                 nullable=False,
-                server_default="exact_match",
+                server_default=sa.text("'exact_match'"),
             )
         )
         batch_op.add_column(sa.Column("comparer_config", sa.JSON(), nullable=True))

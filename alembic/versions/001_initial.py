@@ -53,7 +53,12 @@ def upgrade() -> None:
         sa.Column("openai_vector_store_id", sa.String(length=255), nullable=False),
         sa.Column("name", sa.String(length=255), nullable=False),
         sa.Column("file_count", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("status", sa.String(length=50), nullable=False, server_default="creating"),
+        sa.Column(
+            "status",
+            sa.String(length=50),
+            nullable=False,
+            server_default=sa.text("'creating'"),
+        ),
         sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
     )
 
@@ -72,7 +77,12 @@ def upgrade() -> None:
             sa.ForeignKey("datasets.id", ondelete="CASCADE"),
             nullable=False,
         ),
-        sa.Column("status", sa.String(length=50), nullable=False, server_default="pending"),
+        sa.Column(
+            "status",
+            sa.String(length=50),
+            nullable=False,
+            server_default=sa.text("'pending'"),
+        ),
         sa.Column("progress", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("total_rows", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("summary", sa.JSON(), nullable=True),

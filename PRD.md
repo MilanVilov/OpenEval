@@ -298,7 +298,7 @@ All runtime configuration via environment variables (loaded with Pydantic Settin
 | Variable | Description | Default |
 |---|---|---|
 | `OPENAI_API_KEY` | OpenAI API key | (required) |
-| `DATABASE_URL` | MySQL connection string | `mysql+aiomysql://openeval:openeval@localhost:3306/openeval` |
+| `DATABASE_URL` | MySQL connection string | required |
 | `UPLOAD_DIR` | Directory for uploaded CSVs | `./data/uploads` |
 | `DEFAULT_CONCURRENCY` | Default parallel requests per run | `5` |
 | `HOST` | Server bind host | `0.0.0.0` |

@@ -59,7 +59,8 @@ docker compose up -d mysql
 
 # Set environment variables
 export OPENAI_API_KEY=sk-...
-export DATABASE_URL=mysql+aiomysql://openeval:openeval@localhost:3306/openeval
+export MYSQL_PASSWORD=<local-mysql-password>
+export DATABASE_URL=mysql+aiomysql://openeval:${MYSQL_PASSWORD}@localhost:3306/openeval
 
 # Run database migrations
 mkdir -p data
@@ -130,7 +131,7 @@ my_comparer = "my_package.comparers:MyComparer"
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `OPENAI_API_KEY` | — | OpenAI API key (required) |
-| `DATABASE_URL` | `mysql+aiomysql://openeval:openeval@localhost:3306/openeval` | Database connection URL |
+| `DATABASE_URL` | required | Database connection URL |
 | `UPLOAD_DIR` | `data/uploads` | Directory for uploaded files |
 | `DEFAULT_CONCURRENCY` | `5` | Default parallel eval workers |
 | `HOST` | `0.0.0.0` | Server bind address |

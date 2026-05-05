@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
     openai_api_key: str = ""
-    database_url: str = "mysql+aiomysql://openeval:openeval@localhost:3306/openeval"
+    database_url: str = ""
     upload_dir: str = "./data/uploads"
     default_concurrency: int = 5
     host: str = "0.0.0.0"

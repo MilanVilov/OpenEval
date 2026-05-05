@@ -60,3 +60,15 @@ def test_get_engine_keeps_sqlite_pragma_for_sqlite(monkeypatch: pytest.MonkeyPat
         "connect",
         session_mod._set_sqlite_pragma,
     )
+
+
+def test_get_engine_requires_database_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Engine creation should fail clearly when DATABASE_URL is missing."""
+    monkeypatch.setattr(
+        session_mod,
+        "get_settings",
+        lambda: SimpleNamespace(database_url=""),
+    )
+
+    with pytest.raises(ValueError, match="DATABASE_URL must be set"):
+        session_mod.get_engine()
