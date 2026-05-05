@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
     openai_api_key: str = ""
-    database_url: str = "sqlite+aiosqlite:///./data/open_eval.db"
+    database_url: str = "mysql+aiomysql://openeval:openeval@localhost:3306/openeval"
     upload_dir: str = "./data/uploads"
     default_concurrency: int = 5
     host: str = "0.0.0.0"
@@ -18,7 +18,11 @@ class Settings(BaseSettings):
     slack_webhook_url: str = ""
     app_base_url: str = ""
 
-    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+    model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+        "extra": "ignore",
+    }
 
 
 @lru_cache

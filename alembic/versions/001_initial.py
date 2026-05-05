@@ -22,16 +22,16 @@ def upgrade() -> None:
     """Create eval_configs, datasets, vector_stores, eval_runs, and eval_results tables."""
     op.create_table(
         "eval_configs",
-        sa.Column("id", sa.String(), primary_key=True),
-        sa.Column("name", sa.String(), nullable=False),
+        sa.Column("id", sa.String(length=32), primary_key=True),
+        sa.Column("name", sa.String(length=255), nullable=False),
         sa.Column("system_prompt", sa.Text(), nullable=False),
-        sa.Column("model", sa.String(), nullable=False),
+        sa.Column("model", sa.String(length=255), nullable=False),
         sa.Column("temperature", sa.Float(), nullable=False, server_default="0.7"),
         sa.Column("max_tokens", sa.Integer(), nullable=True),
-        sa.Column("tools", sa.JSON(), nullable=False, server_default="[]"),
-        sa.Column("tool_options", sa.JSON(), nullable=False, server_default="{}"),
-        sa.Column("comparer_type", sa.String(), nullable=False),
-        sa.Column("comparer_config", sa.JSON(), nullable=False, server_default="{}"),
+        sa.Column("tools", sa.JSON(), nullable=False),
+        sa.Column("tool_options", sa.JSON(), nullable=False),
+        sa.Column("comparer_type", sa.String(length=255), nullable=False),
+        sa.Column("comparer_config", sa.JSON(), nullable=False),
         sa.Column("concurrency", sa.Integer(), nullable=False, server_default="5"),
         sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
@@ -39,9 +39,9 @@ def upgrade() -> None:
 
     op.create_table(
         "datasets",
-        sa.Column("id", sa.String(), primary_key=True),
-        sa.Column("name", sa.String(), nullable=False),
-        sa.Column("file_path", sa.String(), nullable=False),
+        sa.Column("id", sa.String(length=32), primary_key=True),
+        sa.Column("name", sa.String(length=255), nullable=False),
+        sa.Column("file_path", sa.String(length=1024), nullable=False),
         sa.Column("row_count", sa.Integer(), nullable=False),
         sa.Column("columns", sa.JSON(), nullable=False),
         sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
@@ -49,30 +49,30 @@ def upgrade() -> None:
 
     op.create_table(
         "vector_stores",
-        sa.Column("id", sa.String(), primary_key=True),
-        sa.Column("openai_vector_store_id", sa.String(), nullable=False),
-        sa.Column("name", sa.String(), nullable=False),
+        sa.Column("id", sa.String(length=32), primary_key=True),
+        sa.Column("openai_vector_store_id", sa.String(length=255), nullable=False),
+        sa.Column("name", sa.String(length=255), nullable=False),
         sa.Column("file_count", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("status", sa.String(), nullable=False, server_default="'creating'"),
+        sa.Column("status", sa.String(length=50), nullable=False, server_default="creating"),
         sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
     )
 
     op.create_table(
         "eval_runs",
-        sa.Column("id", sa.String(), primary_key=True),
+        sa.Column("id", sa.String(length=32), primary_key=True),
         sa.Column(
             "eval_config_id",
-            sa.String(),
+            sa.String(length=32),
             sa.ForeignKey("eval_configs.id", ondelete="CASCADE"),
             nullable=False,
         ),
         sa.Column(
             "dataset_id",
-            sa.String(),
+            sa.String(length=32),
             sa.ForeignKey("datasets.id", ondelete="CASCADE"),
             nullable=False,
         ),
-        sa.Column("status", sa.String(), nullable=False, server_default="'pending'"),
+        sa.Column("status", sa.String(length=50), nullable=False, server_default="pending"),
         sa.Column("progress", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("total_rows", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("summary", sa.JSON(), nullable=True),
@@ -85,10 +85,10 @@ def upgrade() -> None:
 
     op.create_table(
         "eval_results",
-        sa.Column("id", sa.String(), primary_key=True),
+        sa.Column("id", sa.String(length=32), primary_key=True),
         sa.Column(
             "eval_run_id",
-            sa.String(),
+            sa.String(length=32),
             sa.ForeignKey("eval_runs.id", ondelete="CASCADE"),
             nullable=False,
         ),

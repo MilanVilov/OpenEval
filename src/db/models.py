@@ -3,13 +3,21 @@
 from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import JSON, ForeignKey, Index, Text, func
+from sqlalchemy import JSON, ForeignKey, Index, String, Text, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 def _new_id() -> str:
     """Generate a hex UUID string for use as a primary key."""
     return uuid4().hex
+
+
+ID_LENGTH = 32
+NAME_LENGTH = 255
+STATUS_LENGTH = 50
+PATH_LENGTH = 1024
+URL_LENGTH = 2048
+CRON_LENGTH = 100
 
 
 class Base(DeclarativeBase):
@@ -21,10 +29,10 @@ class EvalConfig(Base):
 
     __tablename__ = "eval_configs"
 
-    id: Mapped[str] = mapped_column(primary_key=True, default=_new_id)
-    name: Mapped[str]
+    id: Mapped[str] = mapped_column(String(ID_LENGTH), primary_key=True, default=_new_id)
+    name: Mapped[str] = mapped_column(String(NAME_LENGTH))
     system_prompt: Mapped[str] = mapped_column(Text)
-    model: Mapped[str]
+    model: Mapped[str] = mapped_column(String(NAME_LENGTH))
     temperature: Mapped[float] = mapped_column(default=0.7)
     max_tokens: Mapped[int | None] = mapped_column(default=None)
     tools: Mapped[list] = mapped_column(JSON, default=list)
@@ -39,7 +47,9 @@ class EvalConfig(Base):
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     runs: Mapped[list["EvalRun"]] = relationship(
-        back_populates="config", cascade="all, delete-orphan", passive_deletes=True,
+        back_populates="config",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
 
     def __repr__(self) -> str:
@@ -51,15 +61,17 @@ class Dataset(Base):
 
     __tablename__ = "datasets"
 
-    id: Mapped[str] = mapped_column(primary_key=True, default=_new_id)
-    name: Mapped[str]
-    file_path: Mapped[str]
+    id: Mapped[str] = mapped_column(String(ID_LENGTH), primary_key=True, default=_new_id)
+    name: Mapped[str] = mapped_column(String(NAME_LENGTH))
+    file_path: Mapped[str] = mapped_column(String(PATH_LENGTH))
     row_count: Mapped[int]
     columns: Mapped[list] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     runs: Mapped[list["EvalRun"]] = relationship(
-        back_populates="dataset", cascade="all, delete-orphan", passive_deletes=True,
+        back_populates="dataset",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
 
     def __repr__(self) -> str:
@@ -71,11 +83,11 @@ class VectorStore(Base):
 
     __tablename__ = "vector_stores"
 
-    id: Mapped[str] = mapped_column(primary_key=True, default=_new_id)
-    openai_vector_store_id: Mapped[str]
-    name: Mapped[str]
+    id: Mapped[str] = mapped_column(String(ID_LENGTH), primary_key=True, default=_new_id)
+    openai_vector_store_id: Mapped[str] = mapped_column(String(NAME_LENGTH))
+    name: Mapped[str] = mapped_column(String(NAME_LENGTH))
     file_count: Mapped[int] = mapped_column(default=0)
-    status: Mapped[str] = mapped_column(default="creating")
+    status: Mapped[str] = mapped_column(String(STATUS_LENGTH), default="creating")
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     def __repr__(self) -> str:
@@ -87,11 +99,11 @@ class Container(Base):
 
     __tablename__ = "containers"
 
-    id: Mapped[str] = mapped_column(primary_key=True, default=_new_id)
-    openai_container_id: Mapped[str]
-    name: Mapped[str]
+    id: Mapped[str] = mapped_column(String(ID_LENGTH), primary_key=True, default=_new_id)
+    openai_container_id: Mapped[str] = mapped_column(String(NAME_LENGTH))
+    name: Mapped[str] = mapped_column(String(NAME_LENGTH))
     file_count: Mapped[int] = mapped_column(default=0)
-    status: Mapped[str] = mapped_column(default="active")
+    status: Mapped[str] = mapped_column(String(STATUS_LENGTH), default="active")
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     def __repr__(self) -> str:
@@ -103,14 +115,16 @@ class EvalRun(Base):
 
     __tablename__ = "eval_runs"
 
-    id: Mapped[str] = mapped_column(primary_key=True, default=_new_id)
+    id: Mapped[str] = mapped_column(String(ID_LENGTH), primary_key=True, default=_new_id)
     eval_config_id: Mapped[str] = mapped_column(
+        String(ID_LENGTH),
         ForeignKey("eval_configs.id", ondelete="CASCADE"),
     )
     dataset_id: Mapped[str] = mapped_column(
+        String(ID_LENGTH),
         ForeignKey("datasets.id", ondelete="CASCADE"),
     )
-    status: Mapped[str] = mapped_column(default="pending")
+    status: Mapped[str] = mapped_column(String(STATUS_LENGTH), default="pending")
     progress: Mapped[int] = mapped_column(default=0)
     total_rows: Mapped[int] = mapped_column(default=0)
     summary: Mapped[dict | None] = mapped_column(JSON, default=None)
@@ -118,6 +132,7 @@ class EvalRun(Base):
     completed_at: Mapped[datetime | None] = mapped_column(default=None)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     scheduled_by_id: Mapped[str | None] = mapped_column(
+        String(ID_LENGTH),
         ForeignKey("schedules.id", ondelete="SET NULL"),
         default=None,
     )
@@ -125,7 +140,9 @@ class EvalRun(Base):
     config: Mapped["EvalConfig"] = relationship(back_populates="runs")
     dataset: Mapped["Dataset"] = relationship(back_populates="runs")
     results: Mapped[list["EvalResult"]] = relationship(
-        back_populates="run", cascade="all, delete-orphan", passive_deletes=True,
+        back_populates="run",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
     schedule: Mapped["Schedule | None"] = relationship(back_populates="runs")
 
@@ -144,8 +161,9 @@ class EvalResult(Base):
 
     __tablename__ = "eval_results"
 
-    id: Mapped[str] = mapped_column(primary_key=True, default=_new_id)
+    id: Mapped[str] = mapped_column(String(ID_LENGTH), primary_key=True, default=_new_id)
     eval_run_id: Mapped[str] = mapped_column(
+        String(ID_LENGTH),
         ForeignKey("eval_runs.id", ondelete="CASCADE"),
     )
     row_index: Mapped[int]
@@ -162,9 +180,7 @@ class EvalResult(Base):
 
     run: Mapped["EvalRun"] = relationship(back_populates="results")
 
-    __table_args__ = (
-        Index("ix_eval_results_eval_run_id", "eval_run_id"),
-    )
+    __table_args__ = (Index("ix_eval_results_eval_run_id", "eval_run_id"),)
 
     def __repr__(self) -> str:
         return f"<EvalResult id={self.id!r} row_index={self.row_index}>"
@@ -175,22 +191,25 @@ class Schedule(Base):
 
     __tablename__ = "schedules"
 
-    id: Mapped[str] = mapped_column(primary_key=True, default=_new_id)
-    name: Mapped[str]
+    id: Mapped[str] = mapped_column(String(ID_LENGTH), primary_key=True, default=_new_id)
+    name: Mapped[str] = mapped_column(String(NAME_LENGTH))
     eval_config_id: Mapped[str] = mapped_column(
+        String(ID_LENGTH),
         ForeignKey("eval_configs.id", ondelete="CASCADE"),
     )
     dataset_id: Mapped[str] = mapped_column(
+        String(ID_LENGTH),
         ForeignKey("datasets.id", ondelete="CASCADE"),
     )
-    cron_expression: Mapped[str]
+    cron_expression: Mapped[str] = mapped_column(String(CRON_LENGTH))
     enabled: Mapped[bool] = mapped_column(default=True)
-    slack_webhook_url: Mapped[str | None] = mapped_column(default=None)
+    slack_webhook_url: Mapped[str | None] = mapped_column(String(URL_LENGTH), default=None)
     min_accuracy: Mapped[float | None] = mapped_column(default=None)
     last_triggered_at: Mapped[datetime | None] = mapped_column(default=None)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), onupdate=func.now(),
+        server_default=func.now(),
+        onupdate=func.now(),
     )
 
     config: Mapped["EvalConfig"] = relationship()

@@ -11,7 +11,7 @@ The app is packaged as a Docker image with a multi-stage build: the React fronte
 - **Repeatable evals**: run the same dataset against different prompts/tool configs and compare results across runs.
 - **Pluggable comparers**: ship 5 built-in comparers; make it trivial for contributors to add new ones.
 - **OpenAI Responses API integration**: first-class support for `file_search` (including vector store creation) and `shell` hosted tools.
-- **Zero-config deployment**: single `docker run` command to get started.
+- **Zero-config deployment**: single `docker compose up` command to get started.
 - **Open-source friendly**: clean module boundaries, well-documented extension points, permissive license.
 
 ## Non-Goals (v1)
@@ -35,7 +35,7 @@ The app is packaged as a Docker image with a multi-stage build: the React fronte
 | Icons | Lucide React (bundled with Shadcn/ui) |
 | Client-side routing | React Router v6 |
 | Data fetching | Plain `fetch` + `useState` / `useEffect` |
-| Database | SQLite via SQLAlchemy (async) + Alembic migrations |
+| Database | MySQL via SQLAlchemy (async) + Alembic migrations |
 | OpenAI SDK | `openai` Python SDK (Responses API) |
 | Task runner | `asyncio` with configurable concurrency (`asyncio.Semaphore`) |
 | Package manager (Python) | `uv` (with pyproject.toml) |
@@ -298,7 +298,7 @@ All runtime configuration via environment variables (loaded with Pydantic Settin
 | Variable | Description | Default |
 |---|---|---|
 | `OPENAI_API_KEY` | OpenAI API key | (required) |
-| `DATABASE_URL` | SQLite connection string | `sqlite+aiosqlite:///./data/open_eval.db` |
+| `DATABASE_URL` | MySQL connection string | `mysql+aiomysql://openeval:openeval@localhost:3306/openeval` |
 | `UPLOAD_DIR` | Directory for uploaded CSVs | `./data/uploads` |
 | `DEFAULT_CONCURRENCY` | Default parallel requests per run | `5` |
 | `HOST` | Server bind host | `0.0.0.0` |
@@ -313,7 +313,8 @@ All runtime configuration via environment variables (loaded with Pydantic Settin
 
 - **Stage 1 — Frontend build**: based on `node:20-slim`. Copies `frontend/`, runs `npm ci && npm run build`. Produces optimized static assets in `frontend/dist/`.
 - **Stage 2 — Python runtime**: based on `python:3.12-slim`. Install Python dependencies via `uv pip install`. Copy source code. Copy built frontend assets from stage 1 into a location served by FastAPI `StaticFiles` (e.g. `/app/static/`).
-- `VOLUME /app/data` — persists SQLite DB + uploaded files across container restarts.
+- `VOLUME /app/data` — persists uploaded files across container restarts.
+- MySQL data is persisted by the `openeval-mysql` Docker Compose volume.
 - `EXPOSE 8000`.
 - Entrypoint: run Alembic migrations then start uvicorn.
 
@@ -321,26 +322,44 @@ All runtime configuration via environment variables (loaded with Pydantic Settin
 
 ```yaml
 services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: openeval
+      MYSQL_USER: openeval
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in an ignored .env file or shell}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in an ignored .env file or shell}
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - openeval-mysql:/var/lib/mysql
+
   openeval:
     build: .
+    depends_on:
+      mysql:
+        condition: service_healthy
     ports:
       - "8000:8000"
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - DATABASE_URL=mysql+aiomysql://openeval:${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in an ignored .env file or shell}@mysql:3306/openeval
     volumes:
       - openeval-data:/app/data
 volumes:
   openeval-data:
+  openeval-mysql:
 ```
 
 ### Usage
 
 ```bash
-# Option 1: docker compose
+# Docker Compose starts both OpenEval and MySQL. Provide secrets via
+# an ignored .env file, shell variables, or a deployment secret manager.
 OPENAI_API_KEY=sk-xxx docker compose up
-
-# Option 2: docker run
-docker run -p 8000:8000 -e OPENAI_API_KEY=sk-xxx -v openeval-data:/app/data openeval
 ```
 
 No user accounts. Whoever can reach `http://host:8000` has full access.
@@ -372,7 +391,7 @@ cd frontend && npm run dev
 ## Milestones
 
 ### M1 — Foundation
-- Project scaffolding (pyproject.toml, Dockerfile, FastAPI app, SQLite + Alembic)
+- Project scaffolding (pyproject.toml, Dockerfile, FastAPI app, MySQL + Alembic)
 - Data models + repositories
 - React frontend scaffolding (Vite + TypeScript + Shadcn/ui + Tailwind CSS + React Router)
 - App shell with navigation layout, routing between empty page stubs

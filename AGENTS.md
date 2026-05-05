@@ -27,7 +27,7 @@ OpenEval is an open-source AI prompt & tool evaluation framework. See `PRD.md` f
 ### Tech Stack
 
 - **Language**: Python 3.12+ (backend), TypeScript 5+ (frontend)
-- **Backend**: FastAPI + SQLAlchemy (async) + SQLite + Alembic
+- **Backend**: FastAPI + SQLAlchemy (async) + MySQL + Alembic
 - **Frontend**: React 18+ (Vite + TypeScript) + Shadcn/ui + Tailwind CSS
 - **Routing**: React Router v6 (client-side), FastAPI (API)
 - **Data Fetching**: Plain fetch + useState/useEffect

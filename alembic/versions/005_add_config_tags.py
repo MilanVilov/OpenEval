@@ -1,7 +1,8 @@
 """Add tags JSON column to eval_configs."""
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "005"
 down_revision = "004"
@@ -10,7 +11,7 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column("eval_configs", sa.Column("tags", sa.JSON(), nullable=True, server_default="[]"))
+    op.add_column("eval_configs", sa.Column("tags", sa.JSON(), nullable=True))
 
 
 def downgrade() -> None:

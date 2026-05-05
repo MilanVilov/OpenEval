@@ -4,11 +4,13 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from sqlalchemy import event
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio.engine import AsyncEngine
 
 from src.config import get_settings
 
-_engine = None
+_engine: AsyncEngine | None = None
 _session_factory: async_sessionmaker[AsyncSession] | None = None
 
 
@@ -19,13 +21,19 @@ def _set_sqlite_pragma(dbapi_connection, connection_record):
     cursor.close()
 
 
-def get_engine():
+def _is_sqlite_url(database_url: str) -> bool:
+    """Return whether a database URL targets SQLite."""
+    return make_url(database_url).get_backend_name() == "sqlite"
+
+
+def get_engine() -> AsyncEngine:
     """Return the async engine, creating it lazily on first call."""
     global _engine
     if _engine is None:
         settings = get_settings()
-        _engine = create_async_engine(settings.database_url, echo=False)
-        event.listen(_engine.sync_engine, "connect", _set_sqlite_pragma)
+        _engine = create_async_engine(settings.database_url, echo=False, pool_pre_ping=True)
+        if _is_sqlite_url(settings.database_url):
+            event.listen(_engine.sync_engine, "connect", _set_sqlite_pragma)
     return _engine
 
 

@@ -8,8 +8,9 @@ dependencies = [
     "fastapi",
     "uvicorn[standard]",
     "sqlalchemy[asyncio]",
-    "aiosqlite",
+    "aiomysql",
     "alembic",
+    "cryptography",
     "python-multipart",
     "httpx",
     "openai",
@@ -30,6 +31,7 @@ json_schema_match = "src.comparers.json_schema_match:JsonSchemaMatchComparer"
 
 [dependency-groups]
 dev = [
+    "aiosqlite",
     "pytest",
     "pytest-asyncio",
     "pytest-cov",

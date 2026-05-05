@@ -18,7 +18,8 @@ uploads/
 
 # Environment
 .env
-.env.local
+.env.*
+!.env.example
 
 # OS
 .DS_Store

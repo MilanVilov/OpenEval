@@ -16,7 +16,7 @@ An open-source AI prompt & tool evaluation framework. Configure prompts, models,
 
 ## Tech Stack
 
-- **Backend**: Python 3.12+, FastAPI, SQLAlchemy (async), SQLite, Alembic
+- **Backend**: Python 3.12+, FastAPI, SQLAlchemy (async), MySQL, Alembic
 - **Frontend**: React 19 (Vite + TypeScript) + Tailwind CSS
 - **AI**: OpenAI Responses API
 - **Package Manager**: uv
@@ -31,19 +31,16 @@ An open-source AI prompt & tool evaluation framework. Configure prompts, models,
 git clone https://github.com/your-org/OpenEval.git
 cd OpenEval
 
-# Copy env file and add your OpenAI API key
+# Copy the example env file for local development only.
+# .env is gitignored and must never be committed.
 cp .env.example .env
-# Edit .env and set OPENAI_API_KEY
+# Edit .env and set OPENAI_API_KEY plus non-default MySQL passwords.
 
 # If using Colima (macOS without Docker Desktop):
 colima start
 
-# Build and run
-docker build -t openeval .
-docker run -p 8000:8000 --env-file .env openeval
-
-# Or with docker-compose (if available):
-docker-compose up --build
+# Build and run the app with MySQL
+docker compose up --build
 ```
 
 Open http://localhost:8000
@@ -57,9 +54,12 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 # Install dependencies
 uv sync
 
+# Start MySQL
+docker compose up -d mysql
+
 # Set environment variables
 export OPENAI_API_KEY=sk-...
-export DATABASE_URL=sqlite+aiosqlite:///data/open_eval.db
+export DATABASE_URL=mysql+aiomysql://openeval:openeval@localhost:3306/openeval
 
 # Run database migrations
 mkdir -p data
@@ -130,11 +130,19 @@ my_comparer = "my_package.comparers:MyComparer"
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `OPENAI_API_KEY` | — | OpenAI API key (required) |
-| `DATABASE_URL` | `sqlite+aiosqlite:///data/open_eval.db` | Database connection URL |
+| `DATABASE_URL` | `mysql+aiomysql://openeval:openeval@localhost:3306/openeval` | Database connection URL |
 | `UPLOAD_DIR` | `data/uploads` | Directory for uploaded files |
 | `DEFAULT_CONCURRENCY` | `5` | Default parallel eval workers |
 | `HOST` | `0.0.0.0` | Server bind address |
 | `PORT` | `8000` | Server port |
+| `MYSQL_DATABASE` | `openeval` | Docker Compose MySQL database name |
+| `MYSQL_USER` | `openeval` | Docker Compose MySQL user |
+| `MYSQL_PASSWORD` | required | Docker Compose MySQL password |
+| `MYSQL_ROOT_PASSWORD` | required | Docker Compose MySQL root password |
+| `MYSQL_PORT` | `3306` | Host port exposed by Docker Compose for MySQL |
+
+Never commit a real `.env` file. Commit only `.env.example` with placeholders; use shell
+environment variables, a local ignored `.env`, or a deployment secret manager for real values.
 
 ## Project Structure
 
