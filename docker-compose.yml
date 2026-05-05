@@ -1,11 +1,31 @@
 services:
+  mysql:
+    image: mysql:8.4
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-openeval}
+      MYSQL_USER: ${MYSQL_USER:-openeval}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in an ignored .env file or shell}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in an ignored .env file or shell}
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - openeval-mysql:/var/lib/mysql
+
   openeval:
     build: .
+    depends_on:
+      mysql:
+        condition: service_healthy
     ports:
       - "${PORT:-8000}:${PORT:-8000}"
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - DATABASE_URL=sqlite+aiosqlite:///./data/open_eval.db
+      - DATABASE_URL=mysql+aiomysql://${MYSQL_USER:-openeval}:${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in an ignored .env file or shell}@mysql:3306/${MYSQL_DATABASE:-openeval}
       - UPLOAD_DIR=./data/uploads
       - PORT=${PORT:-8000}
       - CORS_ORIGINS=${CORS_ORIGINS:-}
@@ -14,3 +34,4 @@ services:
 
 volumes:
   openeval-data:
+  openeval-mysql:

@@ -1,6 +1,10 @@
 #!/bin/bash
 set -e
 
+if [[ "${DATABASE_URL:-}" == mysql+*://*@localhost:* ]] && [[ -f /.dockerenv ]]; then
+    export DATABASE_URL="${DATABASE_URL/@localhost:/@host.docker.internal:}"
+fi
+
 echo "Running database migrations..."
 alembic upgrade head
 

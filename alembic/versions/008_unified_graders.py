@@ -10,6 +10,7 @@ Revises: 007
 import json
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision = "008"
@@ -33,21 +34,16 @@ _COMPARER_TO_GRADER = {
 }
 
 
-def upgrade() -> None:
+def upgrade() -> None:  # noqa: C901
     conn = op.get_bind()
 
     # Step 1: Add new graders column alongside old columns
     with op.batch_alter_table("eval_configs") as batch_op:
-        batch_op.add_column(
-            sa.Column("graders", sa.JSON(), nullable=True, server_default="[]")
-        )
+        batch_op.add_column(sa.Column("graders", sa.JSON(), nullable=True))
 
     # Step 2: Migrate data — convert old columns into graders JSON
     rows = conn.execute(
-        sa.text(
-            "SELECT id, comparer_type, comparer_weights, custom_graders "
-            "FROM eval_configs"
-        )
+        sa.text("SELECT id, comparer_type, comparer_weights, custom_graders FROM eval_configs")
     ).fetchall()
 
     for row in rows:
@@ -108,26 +104,21 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     with op.batch_alter_table("eval_configs") as batch_op:
-        batch_op.add_column(
-            sa.Column("custom_graders", sa.JSON(), nullable=True, server_default="[]")
-        )
+        batch_op.add_column(sa.Column("custom_graders", sa.JSON(), nullable=True))
         batch_op.add_column(
             sa.Column(
-                "comparer_type", sa.String(), nullable=False, server_default="exact_match"
+                "comparer_type",
+                sa.String(length=255),
+                nullable=False,
+                server_default=sa.text("'exact_match'"),
             )
         )
-        batch_op.add_column(
-            sa.Column("comparer_config", sa.JSON(), nullable=False, server_default="{}")
-        )
-        batch_op.add_column(
-            sa.Column("comparer_weights", sa.JSON(), nullable=True, server_default="{}")
-        )
+        batch_op.add_column(sa.Column("comparer_config", sa.JSON(), nullable=True))
+        batch_op.add_column(sa.Column("comparer_weights", sa.JSON(), nullable=True))
 
     # Best-effort: move graders back into custom_graders
     conn = op.get_bind()
-    rows = conn.execute(
-        sa.text("SELECT id, graders FROM eval_configs")
-    ).fetchall()
+    rows = conn.execute(sa.text("SELECT id, graders FROM eval_configs")).fetchall()
 
     for row in rows:
         config_id = row[0]
@@ -138,9 +129,7 @@ def downgrade() -> None:
             graders = graders_raw or []
 
         conn.execute(
-            sa.text(
-                "UPDATE eval_configs SET custom_graders = :cg WHERE id = :id"
-            ),
+            sa.text("UPDATE eval_configs SET custom_graders = :cg WHERE id = :id"),
             {"cg": json.dumps(graders), "id": config_id},
         )
 

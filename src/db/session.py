@@ -4,11 +4,13 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from sqlalchemy import event
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio.engine import AsyncEngine
 
 from src.config import get_settings
 
-_engine = None
+_engine: AsyncEngine | None = None
 _session_factory: async_sessionmaker[AsyncSession] | None = None
 
 
@@ -19,13 +21,27 @@ def _set_sqlite_pragma(dbapi_connection, connection_record):
     cursor.close()
 
 
-def get_engine():
+def _is_sqlite_url(database_url: str) -> bool:
+    """Return whether a database URL targets SQLite."""
+    return make_url(database_url).get_backend_name() == "sqlite"
+
+
+def _get_database_url() -> str:
+    """Return the configured database URL or raise a clear configuration error."""
+    database_url = get_settings().database_url
+    if not database_url:
+        raise ValueError("DATABASE_URL must be set")
+    return database_url
+
+
+def get_engine() -> AsyncEngine:
     """Return the async engine, creating it lazily on first call."""
     global _engine
     if _engine is None:
-        settings = get_settings()
-        _engine = create_async_engine(settings.database_url, echo=False)
-        event.listen(_engine.sync_engine, "connect", _set_sqlite_pragma)
+        database_url = _get_database_url()
+        _engine = create_async_engine(database_url, echo=False, pool_pre_ping=True)
+        if _is_sqlite_url(database_url):
+            event.listen(_engine.sync_engine, "connect", _set_sqlite_pragma)
     return _engine
 
 
