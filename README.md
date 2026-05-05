@@ -54,13 +54,17 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 # Install dependencies
 uv sync
 
+# Create an ignored env file.
+cp .env.example .env
+# Edit .env and replace MYSQL_PASSWORD and MYSQL_ROOT_PASSWORD placeholders.
+# Docker Compose requires both before it can start MySQL.
+
 # Start MySQL
 docker compose up -d mysql
 
-# Set environment variables
+# Set local app secrets in .env or export them in this shell.
 export OPENAI_API_KEY=sk-...
-export MYSQL_PASSWORD=<local-mysql-password>
-export DATABASE_URL=mysql+aiomysql://openeval:${MYSQL_PASSWORD}@localhost:3306/openeval
+export DATABASE_URL=mysql+aiomysql://openeval:<local-mysql-password>@localhost:3306/openeval
 
 # Run database migrations
 mkdir -p data

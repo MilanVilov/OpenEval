@@ -11,7 +11,7 @@ The app is packaged as a Docker image with a multi-stage build: the React fronte
 - **Repeatable evals**: run the same dataset against different prompts/tool configs and compare results across runs.
 - **Pluggable comparers**: ship 5 built-in comparers; make it trivial for contributors to add new ones.
 - **OpenAI Responses API integration**: first-class support for `file_search` (including vector store creation) and `shell` hosted tools.
-- **Zero-config deployment**: single `docker compose up` command to get started.
+- **Compose-based deployment**: `docker compose up` with environment-provided secrets.
 - **Open-source friendly**: clean module boundaries, well-documented extension points, permissive license.
 
 ## Non-Goals (v1)
@@ -357,9 +357,10 @@ volumes:
 ### Usage
 
 ```bash
-# Docker Compose starts both OpenEval and MySQL. Provide secrets via
-# an ignored .env file, shell variables, or a deployment secret manager.
-OPENAI_API_KEY=sk-xxx docker compose up
+# Docker Compose starts both OpenEval and MySQL.
+# Real deployments should provide these via an ignored .env file,
+# shell variables, or a deployment secret manager.
+OPENAI_API_KEY=sk-xxx MYSQL_PASSWORD=... MYSQL_ROOT_PASSWORD=... docker compose up
 ```
 
 No user accounts. Whoever can reach `http://host:8000` has full access.
