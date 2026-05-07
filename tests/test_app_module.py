@@ -3,6 +3,8 @@
 from fastapi import FastAPI
 
 from app import app, create_app
+from app.main import app as main_app
+from app.main import create_app as main_create_app
 
 
 def test_root_app_module_exposes_fastapi_app() -> None:
@@ -15,3 +17,13 @@ def test_root_app_module_reexports_app_factory() -> None:
     created_app = create_app()
     assert isinstance(created_app, FastAPI)
 
+
+def test_app_main_module_exposes_fastapi_app() -> None:
+    """The app.main module should expose a FastAPI instance for Uvicorn."""
+    assert isinstance(main_app, FastAPI)
+
+
+def test_app_main_module_reexports_app_factory() -> None:
+    """The app.main module should re-export the application factory."""
+    created_app = main_create_app()
+    assert isinstance(created_app, FastAPI)

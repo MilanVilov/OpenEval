@@ -18,7 +18,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 WORKDIR /app
 
 # Copy dependency files and source
-COPY app.py .
+COPY app/ app/
 COPY pyproject.toml .
 COPY README.md .
 COPY src/ src/

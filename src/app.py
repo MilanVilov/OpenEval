@@ -3,16 +3,62 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from src.config import get_settings
 from src.services.scheduler import get_scheduler_service
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+def _normalize_base_path(base_url: str) -> str:
+    """Return a normalized URL path prefix derived from ``base_url``."""
+    raw_path = urlparse(base_url).path if "://" in base_url else base_url
+    path = raw_path.strip()
+    if not path or path == "/":
+        return ""
+    return "/" + path.strip("/")
+
+
+def _resolve_spa_file(spa_dir: Path, request_path: str, base_path: str) -> Path | None:
+    """Return the matching built SPA file for ``request_path`` if one exists."""
+    relative_path = request_path.lstrip("/")
+    candidate = spa_dir / relative_path
+    if candidate.is_file():
+        return candidate
+    if not base_path or not request_path.startswith(f"{base_path}/"):
+        return None
+    prefixed_path = request_path.removeprefix(base_path).lstrip("/")
+    candidate = spa_dir / prefixed_path
+    if candidate.is_file():
+        return candidate
+    return None
+
+
+def _prefix_root_relative_urls(index_html: str, base_path: str) -> str:
+    """Prefix root-relative asset URLs in the SPA entrypoint for subpath deploys."""
+    if not base_path:
+        return index_html
+    return (
+        index_html.replace('href="/', f'href="{base_path}/')
+        .replace('src="/', f'src="{base_path}/')
+    )
+
+
+def _get_request_base_path(request: Request, configured_base_path: str) -> str:
+    """Return the effective SPA base path for the current request."""
+    if configured_base_path:
+        return configured_base_path
+    root_path = request.scope.get("root_path", "")
+    if root_path:
+        return _normalize_base_path(root_path)
+    forwarded_prefix = request.headers.get("x-forwarded-prefix", "")
+    return _normalize_base_path(forwarded_prefix)
 
 
 @asynccontextmanager
@@ -32,6 +78,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     settings = get_settings()
+    spa_base_path = _normalize_base_path(settings.app_base_url)
     app = FastAPI(title="OpenEval", lifespan=lifespan)
 
     # CORS middleware for React dev server
@@ -77,12 +124,16 @@ def create_app() -> FastAPI:
 
         # Catch-all: serve index.html for any non-API route so React Router
         # can handle client-side navigation on direct URL access / refresh.
-        @app.get("/{full_path:path}")
-        async def serve_spa(request: Request, full_path: str) -> FileResponse:
+        @app.get("/{full_path:path}", response_model=None)
+        async def serve_spa(request: Request, full_path: str) -> FileResponse | HTMLResponse:
             """Serve the SPA index.html for all non-API routes."""
-            file_path = spa_dir / full_path
-            if file_path.is_file():
+            effective_base_path = _get_request_base_path(request, spa_base_path)
+            request_path = request.url.path
+            file_path = _resolve_spa_file(spa_dir, request_path, effective_base_path)
+            if file_path is not None:
                 return FileResponse(file_path)
-            return FileResponse(spa_dir / "index.html")
+
+            index_html = (spa_dir / "index.html").read_text(encoding="utf-8")
+            return HTMLResponse(_prefix_root_relative_urls(index_html, effective_base_path))
 
     return app

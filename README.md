@@ -56,7 +56,7 @@ uv sync
 
 # Create an ignored env file.
 cp .env.example .env
-# Edit .env and replace MYSQL_PASSWORD and MYSQL_ROOT_PASSWORD placeholders.
+# Edit .env and replace APP_MYSQL_CLIENT_PASS and MYSQL_ROOT_PASSWORD placeholders.
 # Docker Compose requires both before it can start MySQL.
 
 # Start MySQL
@@ -64,7 +64,7 @@ docker compose up -d mysql
 
 # Set local app secrets in .env or export them in this shell.
 export OPENAI_API_KEY=sk-...
-export DATABASE_URL=mysql+aiomysql://openeval:<local-mysql-password>@localhost:3306/openeval
+export APP_MYSQL_CLIENT_PASS=<local-mysql-password>
 
 # Run database migrations
 mkdir -p data
@@ -135,19 +135,24 @@ my_comparer = "my_package.comparers:MyComparer"
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `OPENAI_API_KEY` | — | OpenAI API key (required) |
-| `DATABASE_URL` | required | Database connection URL |
+| `DATABASE_URL` | — | Explicit database connection URL. Overrides MySQL client settings when set |
+| `APP_MYSQL_CLIENT_DB` | required | MySQL database name |
+| `APP_MYSQL_CLIENT_HOST` | `127.0.0.1` | MySQL host when `~/.my.cnf` is not present |
+| `APP_MYSQL_CLIENT_PORT` | `3306` | MySQL port when `~/.my.cnf` is not present |
+| `APP_MYSQL_CLIENT_USER` | `root` | MySQL user when `~/.my.cnf` is not present |
+| `APP_MYSQL_CLIENT_PASS` | — | MySQL password when `~/.my.cnf` is not present |
+| `APP_DB_CONNECTION_POOL` | `5` | MySQL connection pool size |
 | `UPLOAD_DIR` | `data/uploads` | Directory for uploaded files |
 | `DEFAULT_CONCURRENCY` | `5` | Default parallel eval workers |
 | `HOST` | `0.0.0.0` | Server bind address |
 | `PORT` | `8000` | Server port |
-| `MYSQL_DATABASE` | `openeval` | Docker Compose MySQL database name |
-| `MYSQL_USER` | `openeval` | Docker Compose MySQL user |
-| `MYSQL_PASSWORD` | required | Docker Compose MySQL password |
 | `MYSQL_ROOT_PASSWORD` | required | Docker Compose MySQL root password |
 | `MYSQL_PORT` | `3306` | Host port exposed by Docker Compose for MySQL |
 
 Never commit a real `.env` file. Commit only `.env.example` with placeholders; use shell
 environment variables, a local ignored `.env`, or a deployment secret manager for real values.
+When `DATABASE_URL` is unset and `~/.my.cnf` exists, OpenEval reads MySQL connection details
+from the `client` group and uses the `customer_info` user, matching `cw-customer-info`.
 
 ## Project Structure
 

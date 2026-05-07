@@ -1,8 +1,8 @@
 #!/bin/bash
 set -e
 
-if [[ "${DATABASE_URL:-}" == mysql+*://*@localhost:* ]] && [[ -f /.dockerenv ]]; then
-    export DATABASE_URL="${DATABASE_URL/@localhost:/@host.docker.internal:}"
+if [[ "${APP_MYSQL_CLIENT_HOST:-}" =~ ^(localhost|127\.0\.0\.1)$ ]] && [[ -f /.dockerenv ]]; then
+    export APP_MYSQL_CLIENT_HOST="host.docker.internal"
 fi
 
 echo "Running database migrations..."
