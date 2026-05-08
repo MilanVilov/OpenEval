@@ -1,5 +1,7 @@
 """FastAPI application factory."""
 
+import json
+import re
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -41,13 +43,35 @@ def _resolve_spa_file(spa_dir: Path, request_path: str, base_path: str) -> Path 
 
 
 def _prefix_root_relative_urls(index_html: str, base_path: str) -> str:
-    """Prefix root-relative asset URLs in the SPA entrypoint for subpath deploys."""
+    """Prefix entrypoint asset URLs in the SPA entrypoint for subpath deploys."""
     if not base_path:
         return index_html
-    return (
-        index_html.replace('href="/', f'href="{base_path}/')
-        .replace('src="/', f'src="{base_path}/')
+
+    def prefix_match(match: re.Match[str]) -> str:
+        attr = match.group("attr")
+        path = match.group("path")
+        if path == base_path or path.startswith(f"{base_path}/"):
+            return match.group(0)
+        normalized_path = "/" + path.removeprefix("./").lstrip("/")
+        return f"{attr}{base_path}{normalized_path}"
+
+    return re.sub(
+        r'(?P<attr>\b(?:href|src)=["\'])(?P<path>(?:/(?!/)|\./)[^"\']*)',
+        prefix_match,
+        index_html,
     )
+
+
+def _inject_spa_base_path(index_html: str, base_path: str) -> str:
+    """Inject the runtime base path used by the React router."""
+    base_tag = f'<base href="{base_path}/">\n' if base_path else ""
+    config_script = f"{base_tag}<script>window.APP_BASE_URL = {json.dumps(base_path)};</script>"
+    module_script = '<script type="module"'
+    if module_script in index_html:
+        return index_html.replace(module_script, f"{config_script}\n{module_script}", 1)
+    if "</head>" in index_html:
+        return index_html.replace("</head>", f"{config_script}\n</head>", 1)
+    return f"{config_script}\n{index_html}"
 
 
 def _get_request_base_path(request: Request, configured_base_path: str) -> str:
@@ -59,6 +83,30 @@ def _get_request_base_path(request: Request, configured_base_path: str) -> str:
         return _normalize_base_path(root_path)
     forwarded_prefix = request.headers.get("x-forwarded-prefix", "")
     return _normalize_base_path(forwarded_prefix)
+
+
+def _mount_spa_assets(app: FastAPI, spa_dir: Path, base_path: str) -> None:
+    """Mount built SPA assets at root and at the configured base path."""
+    assets_dir = str(spa_dir / "assets")
+    if base_path:
+        app.mount(
+            f"{base_path}/assets",
+            StaticFiles(directory=assets_dir),
+            name="prefixed-static-assets",
+        )
+    app.mount("/assets", StaticFiles(directory=assets_dir), name="static-assets")
+
+
+def _include_api_routers(app: FastAPI, base_path: str) -> None:
+    """Include API routers at root and under the configured SPA base path."""
+    try:
+        from src.routers import router
+    except (ImportError, AttributeError):
+        return
+
+    app.include_router(router)
+    if base_path:
+        app.include_router(router, prefix=base_path)
 
 
 @asynccontextmanager
@@ -98,12 +146,7 @@ def create_app() -> FastAPI:
         return JSONResponse(status_code=500, content={"detail": str(exc)})
 
     # Include API routers
-    try:
-        from src.routers import router
-
-        app.include_router(router)
-    except (ImportError, AttributeError):
-        pass
+    _include_api_routers(app, spa_base_path)
 
     # Serve React build if it exists (production Docker build)
     # Check multiple candidate paths: works both in dev (repo root) and
@@ -120,7 +163,7 @@ def create_app() -> FastAPI:
 
     if spa_dir is not None:
         # Serve static assets (JS, CSS, images, etc.)
-        app.mount("/assets", StaticFiles(directory=str(spa_dir / "assets")), name="static-assets")
+        _mount_spa_assets(app, spa_dir, spa_base_path)
 
         # Catch-all: serve index.html for any non-API route so React Router
         # can handle client-side navigation on direct URL access / refresh.
@@ -134,6 +177,7 @@ def create_app() -> FastAPI:
                 return FileResponse(file_path)
 
             index_html = (spa_dir / "index.html").read_text(encoding="utf-8")
+            index_html = _inject_spa_base_path(index_html, effective_base_path)
             return HTMLResponse(_prefix_root_relative_urls(index_html, effective_base_path))
 
     return app

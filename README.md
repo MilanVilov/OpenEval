@@ -142,6 +142,7 @@ my_comparer = "my_package.comparers:MyComparer"
 | `APP_MYSQL_CLIENT_USER` | `root` | MySQL user when `~/.my.cnf` is not present |
 | `APP_MYSQL_CLIENT_PASS` | — | MySQL password when `~/.my.cnf` is not present |
 | `APP_DB_CONNECTION_POOL` | `5` | MySQL connection pool size |
+| `APP_BASE_URL` | — | URL path prefix when serving the app from a subpath, such as `/admin/evals` |
 | `UPLOAD_DIR` | `data/uploads` | Directory for uploaded files |
 | `DEFAULT_CONCURRENCY` | `5` | Default parallel eval workers |
 | `HOST` | `0.0.0.0` | Server bind address |
