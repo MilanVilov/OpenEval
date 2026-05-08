@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     app_mysql_client_port: int = 3306
     app_mysql_client_user: str = "root"
     app_mysql_client_pass: str = ""
+    data_source_encryption_key: str = ""
     upload_dir: str = "./data/uploads"
     default_concurrency: int = 5
     host: str = "0.0.0.0"

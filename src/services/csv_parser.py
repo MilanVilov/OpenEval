@@ -40,3 +40,12 @@ async def write_csv_rows(
         writer.writeheader()
         for row in rows:
             writer.writerow({col: row.get(col, "") for col in columns})
+
+
+async def append_csv_rows(file_path: str, columns: list[str], rows: list[dict]) -> None:
+    """Append rows to an existing CSV file using the provided column order."""
+    path = Path(file_path)
+    with path.open("a", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=columns)
+        for row in rows:
+            writer.writerow({col: row.get(col, "") for col in columns})

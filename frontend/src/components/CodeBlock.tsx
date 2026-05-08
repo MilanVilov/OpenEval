@@ -5,8 +5,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { Check, Copy, Maximize2, Minimize2 } from 'lucide-react';
 
 interface CodeBlockProps {
-  /** The code string to display. Objects will be auto-stringified. */
-  code: string | object;
+  /** The code value to display. Non-string values will be JSON-stringified. */
+  code: unknown;
   /** Language for syntax highlighting. Defaults to 'json'. */
   language?: string;
   /** Max height before scrolling. Defaults to '400px'. */

@@ -8,12 +8,20 @@ from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import get_settings
-from src.db.repositories import DatasetRepository
+from src.db.repositories import DatasetRepository, ImportPresetRepository
 from src.db.session import get_session
+from src.routers.schemas.data_sources import (
+    AppendDatasetFromSourceRequest,
+    ImportDatasetFromSourceRequest,
+)
 from src.routers.schemas.datasets import (
     DatasetDetailResponse,
     DatasetResponse,
     UpdateRowsRequest,
+)
+from src.services.dataset_imports import (
+    append_imported_dataset_rows,
+    create_imported_dataset,
 )
 from src.services.csv_parser import parse_csv, read_csv_rows, write_csv_rows
 from src.services.csv_export import sanitize_export_name
@@ -29,6 +37,8 @@ def _dataset_to_response(dataset: object) -> DatasetResponse:
         file_path=dataset.file_path,
         row_count=dataset.row_count,
         columns=dataset.columns,
+        import_preset_id=dataset.import_preset_id,
+        has_import_source=dataset.import_source_snapshot is not None,
         created_at=str(dataset.created_at),
     )
 
@@ -97,6 +107,9 @@ async def get_dataset(
         file_path=dataset.file_path,
         row_count=dataset.row_count,
         columns=dataset.columns,
+        import_preset_id=dataset.import_preset_id,
+        has_import_source=dataset.import_source_snapshot is not None,
+        import_source_snapshot=dataset.import_source_snapshot,
         created_at=str(dataset.created_at),
         rows=all_rows,
     )
@@ -135,6 +148,42 @@ async def delete_dataset(
     await repo.delete(dataset_id)
 
 
+@router.post("/import-from-source", response_model=DatasetResponse, status_code=201)
+async def import_dataset_from_source(
+    body: ImportDatasetFromSourceRequest,
+    session: AsyncSession = Depends(get_session),
+) -> DatasetResponse:
+    """Create a new dataset snapshot from selected remote rows."""
+    import_preset_id: str | None = None
+    data_source_id = body.data_source_id
+    records_path = body.records_path
+    field_mapping = body.field_mapping
+
+    if body.preset_id is not None:
+        preset = await ImportPresetRepository(session).get_by_id(body.preset_id)
+        if preset is None:
+            raise HTTPException(status_code=404, detail="Import preset not found")
+        import_preset_id = preset.id
+        data_source_id = preset.data_source_id
+        records_path = preset.records_path
+        field_mapping = preset.field_mapping
+
+    try:
+        dataset = await create_imported_dataset(
+            session,
+            name=body.name,
+            data_source_id=str(data_source_id),
+            records_path=str(records_path),
+            field_mapping={str(key): str(value) for key, value in (field_mapping or {}).items()},
+            selected_records=body.selected_records,
+            import_preset_id=import_preset_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    return _dataset_to_response(dataset)
+
+
 @router.put("/{dataset_id}/rows", response_model=DatasetDetailResponse)
 async def update_dataset_rows(
     dataset_id: str,
@@ -165,6 +214,45 @@ async def update_dataset_rows(
         file_path=dataset.file_path,
         row_count=dataset.row_count,
         columns=dataset.columns,
+        import_preset_id=dataset.import_preset_id,
+        has_import_source=dataset.import_source_snapshot is not None,
+        import_source_snapshot=dataset.import_source_snapshot,
         created_at=str(dataset.created_at),
         rows=body.rows,
+    )
+
+
+@router.post("/{dataset_id}/append-from-source", response_model=DatasetDetailResponse)
+async def append_dataset_from_source(
+    dataset_id: str,
+    body: AppendDatasetFromSourceRequest,
+    session: AsyncSession = Depends(get_session),
+) -> DatasetDetailResponse:
+    """Append selected remote rows into an existing imported dataset."""
+    repo = DatasetRepository(session)
+    dataset = await repo.get_by_id(dataset_id)
+    if dataset is None:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+
+    try:
+        dataset = await append_imported_dataset_rows(
+            session,
+            dataset=dataset,
+            selected_records=body.selected_records,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    rows = await read_csv_rows(dataset.file_path)
+    return DatasetDetailResponse(
+        id=dataset.id,
+        name=dataset.name,
+        file_path=dataset.file_path,
+        row_count=dataset.row_count,
+        columns=dataset.columns,
+        import_preset_id=dataset.import_preset_id,
+        has_import_source=dataset.import_source_snapshot is not None,
+        import_source_snapshot=dataset.import_source_snapshot,
+        created_at=str(dataset.created_at),
+        rows=rows,
     )

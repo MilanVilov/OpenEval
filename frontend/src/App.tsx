@@ -9,6 +9,10 @@ import { ConfigEdit } from '@/pages/configs/ConfigEdit';
 import { DatasetList } from '@/pages/datasets/DatasetList';
 import { DatasetNew } from '@/pages/datasets/DatasetNew';
 import { DatasetDetail } from '@/pages/datasets/DatasetDetail';
+import { DatasetImport } from '@/pages/datasets/DatasetImport';
+import { DataSourceList } from '@/pages/data-sources/DataSourceList';
+import { DataSourceNew } from '@/pages/data-sources/DataSourceNew';
+import { DataSourceDetail } from '@/pages/data-sources/DataSourceDetail';
 import { RunList } from '@/pages/runs/RunList';
 import { RunNew } from '@/pages/runs/RunNew';
 import { RunDetail } from '@/pages/runs/RunDetail';
@@ -36,9 +40,13 @@ export function App() {
             <Route path="/configs/new" element={<ConfigNew />} />
             <Route path="/configs/:id" element={<ConfigDetail />} />
             <Route path="/configs/:id/edit" element={<ConfigEdit />} />
+            <Route path="/data-sources" element={<DataSourceList />} />
+            <Route path="/data-sources/new" element={<DataSourceNew />} />
+            <Route path="/data-sources/:id" element={<DataSourceDetail />} />
             <Route path="/datasets" element={<DatasetList />} />
             <Route path="/datasets/new" element={<DatasetNew />} />
             <Route path="/datasets/:id" element={<DatasetDetail />} />
+            <Route path="/datasets/:id/import" element={<DatasetImport />} />
             <Route path="/runs" element={<RunList />} />
             <Route path="/runs/new" element={<RunNew />} />
             <Route path="/runs/compare" element={<RunCompare />} />
