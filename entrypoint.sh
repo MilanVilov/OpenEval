@@ -5,6 +5,9 @@ if [[ "${APP_MYSQL_CLIENT_HOST:-}" =~ ^(localhost|127\.0\.0\.1)$ ]] && [[ -f /.d
     export APP_MYSQL_CLIENT_HOST="host.docker.internal"
 fi
 
+echo "Creating database if needed..."
+openeval-db-create
+
 echo "Running database migrations..."
 alembic upgrade head
 
