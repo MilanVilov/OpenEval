@@ -21,30 +21,55 @@ interface CompareData {
 
 export function RunCompare() {
   const [searchParams] = useSearchParams();
+  const runAId = searchParams.get('run_a');
+  const runBId = searchParams.get('run_b');
+  const missingParamsError = !runAId || !runBId
+    ? 'Both run_a and run_b query parameters are required'
+    : null;
+  const requestKey = runAId && runBId ? `${runAId}:${runBId}` : null;
+  const [resolvedKey, setResolvedKey] = useState<string | null>(null);
   const [data, setData] = useState<CompareData | null>(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const runA = searchParams.get('run_a');
-    const runB = searchParams.get('run_b');
-    if (!runA || !runB) {
-      setError('Both run_a and run_b query parameters are required');
-      setLoading(false);
+    if (!runAId || !runBId || !requestKey) {
       return;
     }
-    compareRuns(runA, runB)
-      .then(setData)
-      .catch((e: Error) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, [searchParams]);
+    let active = true;
+
+    compareRuns(runAId, runBId)
+      .then((result) => {
+        if (!active) {
+          return;
+        }
+        setData(result);
+        setError(null);
+        setResolvedKey(requestKey);
+      })
+      .catch((compareError: Error) => {
+        if (!active) {
+          return;
+        }
+        setData(null);
+        setError(compareError.message);
+        setResolvedKey(requestKey);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [requestKey, runAId, runBId]);
+
+  const loading = Boolean(requestKey) && resolvedKey !== requestKey;
+  const displayError = missingParamsError ?? (resolvedKey === requestKey ? error : null);
+  const displayData = resolvedKey === requestKey ? data : null;
 
   if (loading) return <LoadingSkeleton rows={5} />;
-  if (error) return <Alert variant="destructive" className="animate-fade-in"><AlertDescription>{error}</AlertDescription></Alert>;
-  if (!data) return <Alert variant="destructive" className="animate-fade-in"><AlertDescription>Comparison data not available</AlertDescription></Alert>;
+  if (displayError) return <Alert variant="destructive" className="animate-fade-in"><AlertDescription>{displayError}</AlertDescription></Alert>;
+  if (!displayData) return <Alert variant="destructive" className="animate-fade-in"><AlertDescription>Comparison data not available</AlertDescription></Alert>;
 
-  const runA = data.run_a;
-  const runB = data.run_b;
+  const runA = displayData.run_a;
+  const runB = displayData.run_b;
 
   return (
     <PageTransition>
@@ -91,8 +116,8 @@ export function RunCompare() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.results_a.map((ra, i) => {
-                  const rb = data.results_b[i];
+                {displayData.results_a.map((ra, i) => {
+                  const rb = displayData.results_b[i];
                   return (
                     <TableRow key={ra.id}>
                       <TableCell>{ra.row_index}</TableCell>

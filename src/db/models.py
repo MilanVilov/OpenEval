@@ -18,6 +18,9 @@ STATUS_LENGTH = 50
 PATH_LENGTH = 1024
 URL_LENGTH = 2048
 CRON_LENGTH = 100
+METHOD_LENGTH = 10
+AUTH_TYPE_LENGTH = 50
+PAGINATION_MODE_LENGTH = 50
 
 
 class Base(DeclarativeBase):
@@ -56,6 +59,66 @@ class EvalConfig(Base):
         return f"<EvalConfig id={self.id!r} name={self.name!r}>"
 
 
+class DataSource(Base):
+    """Reusable remote endpoint configuration for dataset imports."""
+
+    __tablename__ = "data_sources"
+
+    id: Mapped[str] = mapped_column(String(ID_LENGTH), primary_key=True, default=_new_id)
+    name: Mapped[str] = mapped_column(String(NAME_LENGTH))
+    url: Mapped[str] = mapped_column(String(URL_LENGTH))
+    method: Mapped[str] = mapped_column(String(METHOD_LENGTH), default="GET")
+    auth_type: Mapped[str] = mapped_column(String(AUTH_TYPE_LENGTH), default="none")
+    query_params: Mapped[dict] = mapped_column(JSON, default=dict)
+    request_body: Mapped[dict | list | None] = mapped_column(JSON, default=None)
+    headers: Mapped[dict] = mapped_column(JSON, default=dict)
+    encrypted_secrets: Mapped[str | None] = mapped_column(Text, default=None)
+    pagination_mode: Mapped[str] = mapped_column(
+        String(PAGINATION_MODE_LENGTH),
+        default="none",
+    )
+    pagination_config: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
+
+    presets: Mapped[list["ImportPreset"]] = relationship(
+        back_populates="data_source",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    def __repr__(self) -> str:
+        return f"<DataSource id={self.id!r} name={self.name!r}>"
+
+
+class ImportPreset(Base):
+    """Reusable extraction and field-mapping configuration for a data source."""
+
+    __tablename__ = "import_presets"
+
+    id: Mapped[str] = mapped_column(String(ID_LENGTH), primary_key=True, default=_new_id)
+    data_source_id: Mapped[str] = mapped_column(
+        String(ID_LENGTH),
+        ForeignKey("data_sources.id", ondelete="RESTRICT"),
+    )
+    name: Mapped[str] = mapped_column(String(NAME_LENGTH))
+    records_path: Mapped[str] = mapped_column(String(PATH_LENGTH))
+    field_mapping: Mapped[dict] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
+
+    data_source: Mapped["DataSource"] = relationship(back_populates="presets")
+    datasets: Mapped[list["Dataset"]] = relationship(
+        back_populates="import_preset",
+        passive_deletes=True,
+    )
+
+    __table_args__ = (Index("ix_import_presets_data_source_id", "data_source_id"),)
+
+    def __repr__(self) -> str:
+        return f"<ImportPreset id={self.id!r} name={self.name!r}>"
+
+
 class Dataset(Base):
     """An uploaded evaluation dataset."""
 
@@ -66,6 +129,12 @@ class Dataset(Base):
     file_path: Mapped[str] = mapped_column(String(PATH_LENGTH))
     row_count: Mapped[int]
     columns: Mapped[list] = mapped_column(JSON)
+    import_preset_id: Mapped[str | None] = mapped_column(
+        String(ID_LENGTH),
+        ForeignKey("import_presets.id", ondelete="RESTRICT"),
+        default=None,
+    )
+    import_source_snapshot: Mapped[dict | None] = mapped_column(JSON, default=None)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     runs: Mapped[list["EvalRun"]] = relationship(
@@ -73,6 +142,9 @@ class Dataset(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    import_preset: Mapped["ImportPreset | None"] = relationship(back_populates="datasets")
+
+    __table_args__ = (Index("ix_datasets_import_preset_id", "import_preset_id"),)
 
     def __repr__(self) -> str:
         return f"<Dataset id={self.id!r} name={self.name!r}>"

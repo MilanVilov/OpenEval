@@ -4,6 +4,7 @@ import { exportDataset, listDatasets } from '@/api/datasets';
 import type { Dataset } from '@/types/dataset';
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { LoadingSkeleton } from '@/components/LoadingSkeleton';
@@ -76,7 +77,10 @@ export function DatasetList() {
                   style={{ animationDelay: `${idx * 50}ms` }}
                 >
                   <TableCell>
-                    <Link to={`/datasets/${ds.id}`} className="text-foreground-link hover:underline">{ds.name}</Link>
+                    <div className="flex items-center gap-2">
+                      <Link to={`/datasets/${ds.id}`} className="text-foreground-link hover:underline">{ds.name}</Link>
+                      {ds.has_import_source ? <Badge variant="info">Imported</Badge> : null}
+                    </div>
                   </TableCell>
                   <TableCell className="tabular-nums">{ds.row_count}</TableCell>
                   <TableCell>{formatDate(ds.created_at)}</TableCell>

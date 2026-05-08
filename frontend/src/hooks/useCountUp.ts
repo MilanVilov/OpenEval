@@ -6,7 +6,6 @@ export function useCountUp(target: number, duration = 600): number {
 
   useEffect(() => {
     if (target === 0) {
-      setValue(0);
       return;
     }
     const start = performance.now();
@@ -26,5 +25,5 @@ export function useCountUp(target: number, duration = 600): number {
     return () => cancelAnimationFrame(raf);
   }, [target, duration]);
 
-  return value;
+  return target === 0 ? 0 : value;
 }

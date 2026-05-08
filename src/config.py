@@ -10,6 +10,7 @@ class Settings(BaseSettings):
 
     openai_api_key: str = ""
     database_url: str = ""
+    data_source_encryption_key: str = ""
     upload_dir: str = "./data/uploads"
     default_concurrency: int = 5
     host: str = "0.0.0.0"

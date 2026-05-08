@@ -40,6 +40,7 @@ cp .env.example .env
 colima start
 
 # Build and run the app with MySQL
+# Install docker compose if you do not have it by running 'brew install docker-compose'
 docker compose up --build
 ```
 

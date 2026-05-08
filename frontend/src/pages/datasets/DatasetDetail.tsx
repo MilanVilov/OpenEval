@@ -112,6 +112,11 @@ export function DatasetDetail() {
               <Download className="mr-2 h-4 w-4" />
               {downloading ? 'Exporting...' : 'Export CSV'}
             </Button>
+            {dataset.has_import_source ? (
+              <Button variant="outline" size="sm" onClick={() => navigate(`/datasets/${dataset.id}/import`)}>
+                Continue Import
+              </Button>
+            ) : null}
             {dirty && (
               <Button size="sm" onClick={handleSave} disabled={saving}>
                 {saving ? <Spinner className="mr-2" /> : <Save className="mr-2 h-4 w-4" />}

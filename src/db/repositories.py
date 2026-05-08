@@ -12,10 +12,12 @@ from sqlalchemy.orm import selectinload
 
 from src.db.models import (
     Container,
+    DataSource,
     Dataset,
     EvalConfig,
     EvalResult,
     EvalRun,
+    ImportPreset,
     Schedule,
     VectorStore,
 )
@@ -101,6 +103,152 @@ class ConfigRepository:
 
 
 # ---------------------------------------------------------------------------
+# DataSource
+# ---------------------------------------------------------------------------
+
+
+class DataSourceRepository:
+    """Data-access helpers for :class:`DataSource`."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def create(
+        self,
+        *,
+        name: str,
+        url: str,
+        method: str,
+        auth_type: str,
+        query_params: dict | None = None,
+        request_body: dict | list | None = None,
+        headers: dict | None = None,
+        encrypted_secrets: str | None = None,
+        pagination_mode: str = "none",
+        pagination_config: dict | None = None,
+    ) -> DataSource:
+        """Insert a new data source."""
+        source = DataSource(
+            name=name,
+            url=url,
+            method=method,
+            auth_type=auth_type,
+            query_params=query_params if query_params is not None else {},
+            request_body=request_body,
+            headers=headers if headers is not None else {},
+            encrypted_secrets=encrypted_secrets,
+            pagination_mode=pagination_mode,
+            pagination_config=pagination_config if pagination_config is not None else {},
+        )
+        self._session.add(source)
+        await self._session.commit()
+        await self._session.refresh(source)
+        return source
+
+    async def get_by_id(self, source_id: str) -> DataSource | None:
+        """Return a data source by primary key, or ``None``."""
+        return await self._session.get(DataSource, source_id)
+
+    async def list_all(self) -> list[DataSource]:
+        """Return every data source ordered by newest first."""
+        stmt = select(DataSource).order_by(DataSource.created_at.desc())
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def update(self, source_id: str, **fields: object) -> DataSource | None:
+        """Update arbitrary fields on a data source. Returns ``None`` if not found."""
+        source = await self.get_by_id(source_id)
+        if source is None:
+            return None
+        for key, value in fields.items():
+            setattr(source, key, value)
+        await self._session.commit()
+        await self._session.refresh(source)
+        return source
+
+    async def delete(self, source_id: str) -> bool:
+        """Delete a data source. Returns ``True`` if it existed."""
+        source = await self.get_by_id(source_id)
+        if source is None:
+            return False
+        await self._session.delete(source)
+        await self._session.commit()
+        return True
+
+
+# ---------------------------------------------------------------------------
+# ImportPreset
+# ---------------------------------------------------------------------------
+
+
+class ImportPresetRepository:
+    """Data-access helpers for :class:`ImportPreset`."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def create(
+        self,
+        *,
+        data_source_id: str,
+        name: str,
+        records_path: str,
+        field_mapping: dict,
+    ) -> ImportPreset:
+        """Insert a new import preset."""
+        preset = ImportPreset(
+            data_source_id=data_source_id,
+            name=name,
+            records_path=records_path,
+            field_mapping=field_mapping,
+        )
+        self._session.add(preset)
+        await self._session.commit()
+        await self._session.refresh(preset)
+        return preset
+
+    async def get_by_id(self, preset_id: str) -> ImportPreset | None:
+        """Return an import preset by primary key, or ``None``."""
+        stmt = (
+            select(ImportPreset)
+            .options(selectinload(ImportPreset.data_source))
+            .where(ImportPreset.id == preset_id)
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def list_by_data_source(self, data_source_id: str) -> list[ImportPreset]:
+        """Return all import presets for a data source ordered by newest first."""
+        stmt = (
+            select(ImportPreset)
+            .where(ImportPreset.data_source_id == data_source_id)
+            .order_by(ImportPreset.created_at.desc())
+        )
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def update(self, preset_id: str, **fields: object) -> ImportPreset | None:
+        """Update arbitrary fields on an import preset. Returns ``None`` if not found."""
+        preset = await self.get_by_id(preset_id)
+        if preset is None:
+            return None
+        for key, value in fields.items():
+            setattr(preset, key, value)
+        await self._session.commit()
+        await self._session.refresh(preset)
+        return preset
+
+    async def delete(self, preset_id: str) -> bool:
+        """Delete an import preset. Returns ``True`` if it existed."""
+        preset = await self.get_by_id(preset_id)
+        if preset is None:
+            return False
+        await self._session.delete(preset)
+        await self._session.commit()
+        return True
+
+
+# ---------------------------------------------------------------------------
 # Dataset
 # ---------------------------------------------------------------------------
 
@@ -118,6 +266,8 @@ class DatasetRepository:
         file_path: str,
         row_count: int,
         columns: list,
+        import_preset_id: str | None = None,
+        import_source_snapshot: dict | None = None,
     ) -> Dataset:
         """Insert a new dataset record."""
         dataset = Dataset(
@@ -125,6 +275,8 @@ class DatasetRepository:
             file_path=file_path,
             row_count=row_count,
             columns=columns,
+            import_preset_id=import_preset_id,
+            import_source_snapshot=import_source_snapshot,
         )
         self._session.add(dataset)
         await self._session.commit()
