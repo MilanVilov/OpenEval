@@ -5,9 +5,9 @@ import re
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -29,17 +29,34 @@ def _normalize_base_path(base_url: str) -> str:
 
 def _resolve_spa_file(spa_dir: Path, request_path: str, base_path: str) -> Path | None:
     """Return the matching built SPA file for ``request_path`` if one exists."""
-    relative_path = request_path.lstrip("/")
-    candidate = spa_dir / relative_path
-    if candidate.is_file():
-        return candidate
+    file_path = _safe_spa_file(spa_dir, request_path)
+    if file_path is not None:
+        return file_path
     if not base_path or not request_path.startswith(f"{base_path}/"):
         return None
     prefixed_path = request_path.removeprefix(base_path).lstrip("/")
-    candidate = spa_dir / prefixed_path
+    return _safe_spa_file(spa_dir, prefixed_path)
+
+
+def _safe_spa_file(spa_dir: Path, relative_path: str) -> Path | None:
+    """Return a built SPA file only when it remains inside ``spa_dir``."""
+    spa_root = spa_dir.resolve()
+    candidate = (spa_root / unquote(relative_path).lstrip("/")).resolve()
+    try:
+        candidate.relative_to(spa_root)
+    except ValueError:
+        return None
     if candidate.is_file():
         return candidate
     return None
+
+
+def _is_spa_asset_path(request_path: str, base_path: str) -> bool:
+    """Return whether the request targets a built SPA asset."""
+    path = unquote(request_path)
+    return path.startswith("/assets/") or (
+        bool(base_path) and path.startswith(f"{base_path}/assets/")
+    )
 
 
 def _prefix_root_relative_urls(index_html: str, base_path: str) -> str:
@@ -175,6 +192,8 @@ def create_app() -> FastAPI:
             file_path = _resolve_spa_file(spa_dir, request_path, effective_base_path)
             if file_path is not None:
                 return FileResponse(file_path)
+            if _is_spa_asset_path(request_path, effective_base_path):
+                raise HTTPException(status_code=404, detail="Asset not found")
 
             index_html = (spa_dir / "index.html").read_text(encoding="utf-8")
             index_html = _inject_spa_base_path(index_html, effective_base_path)

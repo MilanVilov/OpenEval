@@ -44,7 +44,7 @@ class Settings(BaseSettings):
             return self.database_url
         if not self.app_mysql_client_db:
             return ""
-        if _mysql_defaults_file().exists():
+        if mysql_defaults_file().exists():
             return _build_mysql_defaults_url(self.app_mysql_client_db)
         return _build_mysql_client_url(self)
 
@@ -55,7 +55,7 @@ def get_settings() -> Settings:
     return Settings()
 
 
-def _mysql_defaults_file() -> Path:
+def mysql_defaults_file() -> Path:
     """Return the MySQL defaults file path used by customer-info."""
     return Path(MYSQL_DEFAULTS_FILE).expanduser()
 
@@ -64,7 +64,7 @@ def _build_mysql_defaults_url(database: str) -> str:
     """Build a MySQL URL that reads host and credentials from ``~/.my.cnf``."""
     query = urlencode(
         {
-            "read_default_file": str(_mysql_defaults_file()),
+            "read_default_file": str(mysql_defaults_file()),
             "read_default_group": MYSQL_DEFAULTS_GROUP,
         }
     )

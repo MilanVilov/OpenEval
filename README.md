@@ -26,15 +26,20 @@ An open-source AI prompt & tool evaluation framework. Configure prompts, models,
 
 ### Docker (recommended)
 
+Requires Docker with Compose v2. Check with `docker compose version`.
+
 ```bash
 # Clone the repo
 git clone https://github.com/your-org/OpenEval.git
 cd OpenEval
 
-# Copy the example env file for local development only.
-# .env is gitignored and must never be committed.
+# Copy the local env template. .env is gitignored and must never be committed.
 cp .env.example .env
-# Edit .env and set OPENAI_API_KEY plus non-default MySQL passwords.
+
+# Edit .env and set at least:
+# - OPENAI_API_KEY
+# - APP_MYSQL_CLIENT_PASS
+# - MYSQL_ROOT_PASSWORD
 
 # If using Colima (macOS without Docker Desktop):
 colima start
@@ -45,6 +50,19 @@ docker compose up --build
 ```
 
 Open http://localhost:8000
+
+To run in the background, use `docker compose up --build -d`. Stop the stack with:
+
+```bash
+docker compose down
+```
+
+If host port `3306` is already used by another MySQL server, change `MYSQL_PORT`
+in `.env`, for example `MYSQL_PORT=3307`, then run `docker compose up --build`
+again. The app still connects to MySQL through the private Compose network.
+
+Use Compose for the Docker quick start. A one-off `docker run` needs a separately
+reachable MySQL server and matching credentials.
 
 ### Local Development
 
@@ -57,8 +75,8 @@ uv sync
 
 # Create an ignored env file.
 cp .env.example .env
-# Edit .env and replace APP_MYSQL_CLIENT_PASS and MYSQL_ROOT_PASSWORD placeholders.
-# Docker Compose requires both before it can start MySQL.
+# Edit .env and set OPENAI_API_KEY, APP_MYSQL_CLIENT_PASS, and MYSQL_ROOT_PASSWORD.
+# Docker Compose requires MYSQL_ROOT_PASSWORD before it can start MySQL.
 
 # Start MySQL
 docker compose up -d mysql
@@ -133,23 +151,23 @@ my_comparer = "my_package.comparers:MyComparer"
 
 ## Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `OPENAI_API_KEY` | — | OpenAI API key (required) |
-| `DATABASE_URL` | — | Explicit database connection URL. Overrides MySQL client settings when set |
-| `APP_MYSQL_CLIENT_DB` | required | MySQL database name |
-| `APP_MYSQL_CLIENT_HOST` | `127.0.0.1` | MySQL host when `~/.my.cnf` is not present |
-| `APP_MYSQL_CLIENT_PORT` | `3306` | MySQL port when `~/.my.cnf` is not present |
-| `APP_MYSQL_CLIENT_USER` | `root` | MySQL user when `~/.my.cnf` is not present |
-| `APP_MYSQL_CLIENT_PASS` | — | MySQL password when `~/.my.cnf` is not present |
-| `APP_DB_CONNECTION_POOL` | `5` | MySQL connection pool size |
-| `APP_BASE_URL` | — | URL path prefix when serving the app from a subpath, such as `/admin/evals` |
-| `UPLOAD_DIR` | `data/uploads` | Directory for uploaded files |
-| `DEFAULT_CONCURRENCY` | `5` | Default parallel eval workers |
-| `HOST` | `0.0.0.0` | Server bind address |
-| `PORT` | `8000` | Server port |
-| `MYSQL_ROOT_PASSWORD` | required | Docker Compose MySQL root password |
-| `MYSQL_PORT` | `3306` | Host port exposed by Docker Compose for MySQL |
+| Variable                 | Default        | Description                                                                                         |
+| ------------------------ | -------------- | --------------------------------------------------------------------------------------------------- |
+| `OPENAI_API_KEY`         | —              | OpenAI API key (required)                                                                           |
+| `DATABASE_URL`           | —              | Explicit database connection URL. Overrides MySQL client settings when set                          |
+| `APP_MYSQL_CLIENT_DB`    | required       | MySQL database name                                                                                 |
+| `APP_MYSQL_CLIENT_HOST`  | `127.0.0.1`    | MySQL host when `~/.my.cnf` is not present                                                          |
+| `APP_MYSQL_CLIENT_PORT`  | `3306`         | MySQL port when `~/.my.cnf` is not present                                                          |
+| `APP_MYSQL_CLIENT_USER`  | `root`         | MySQL user when `~/.my.cnf` is not present                                                          |
+| `APP_MYSQL_CLIENT_PASS`  | —              | MySQL password when `~/.my.cnf` is not present                                                      |
+| `APP_DB_CONNECTION_POOL` | `5`            | MySQL connection pool size                                                                          |
+| `APP_BASE_URL`           | —              | URL path prefix when serving the app from a subpath, such as `/admin/evals`                         |
+| `UPLOAD_DIR`             | `data/uploads` | Directory for uploaded files                                                                        |
+| `DEFAULT_CONCURRENCY`    | `5`            | Default parallel eval workers                                                                       |
+| `HOST`                   | `0.0.0.0`      | Server bind address                                                                                 |
+| `PORT`                   | `8000`         | Server port                                                                                         |
+| `MYSQL_ROOT_PASSWORD`    | required       | Docker Compose MySQL root password                                                                  |
+| `MYSQL_PORT`             | `3306`         | Host port exposed by Docker Compose for MySQL; set to `3307` if local port `3306` is already in use |
 
 Never commit a real `.env` file. Commit only `.env.example` with placeholders; use shell
 environment variables, a local ignored `.env`, or a deployment secret manager for real values.

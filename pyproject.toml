@@ -53,7 +53,7 @@ max-complexity = 8
 asyncio_mode = "auto"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src"]
+packages = ["src", "app"]
 
 [build-system]
 requires = ["hatchling"]

@@ -11,8 +11,8 @@ from src.config import (
     MYSQL_DEFAULTS_GROUP,
     MYSQL_DEFAULTS_USER,
     Settings,
-    _mysql_defaults_file,
     get_settings,
+    mysql_defaults_file,
 )
 
 
@@ -30,6 +30,7 @@ async def create_mysql_database(settings: Settings | None = None) -> str:
         await connection.commit()
     finally:
         connection.close()
+        await connection.wait_closed()
 
     return database
 
@@ -42,7 +43,7 @@ def main() -> None:
 
 def _connection_kwargs(settings: Settings) -> dict[str, Any]:
     """Return aiomysql connection arguments without selecting a database."""
-    defaults_file = _mysql_defaults_file()
+    defaults_file = mysql_defaults_file()
     if defaults_file.exists():
         return {
             "read_default_file": str(defaults_file),
