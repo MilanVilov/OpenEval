@@ -81,7 +81,8 @@ def _prefix_root_relative_urls(index_html: str, base_path: str) -> str:
 
 def _inject_spa_base_path(index_html: str, base_path: str) -> str:
     """Inject the runtime base path used by the React router."""
-    base_tag = f'<base href="{base_path}/">\n' if base_path else ""
+    base_href = f"{base_path}/" if base_path else "/"
+    base_tag = f'<base href="{base_href}">\n'
     config_script = f"{base_tag}<script>window.APP_BASE_URL = {json.dumps(base_path)};</script>"
     module_script = '<script type="module"'
     if module_script in index_html:
@@ -98,8 +99,7 @@ def _get_request_base_path(request: Request, configured_base_path: str) -> str:
     root_path = request.scope.get("root_path", "")
     if root_path:
         return _normalize_base_path(root_path)
-    forwarded_prefix = request.headers.get("x-forwarded-prefix", "")
-    return _normalize_base_path(forwarded_prefix)
+    return ""
 
 
 def _mount_spa_assets(app: FastAPI, spa_dir: Path, base_path: str) -> None:

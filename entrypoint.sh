@@ -14,10 +14,8 @@ if [[ -f /.dockerenv ]]; then
 fi
 
 should_create_mysql_db=false
-if [[ -n "${APP_MYSQL_CLIENT_DB:-}" ]]; then
-    if [[ -z "${DATABASE_URL:-}" || "${DATABASE_URL:-}" == mysql+* ]]; then
-        should_create_mysql_db=true
-    fi
+if [[ -n "${APP_MYSQL_CLIENT_DB:-}" && -z "${DATABASE_URL:-}" ]]; then
+    should_create_mysql_db=true
 fi
 
 if [[ "$should_create_mysql_db" == "true" ]]; then
