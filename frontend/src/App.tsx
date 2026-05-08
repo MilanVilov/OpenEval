@@ -27,11 +27,12 @@ import { Playground } from '@/pages/playground/Playground';
 import { ScheduleList } from '@/pages/schedules/ScheduleList';
 import { ScheduleNew } from '@/pages/schedules/ScheduleNew';
 import { ScheduleEdit } from '@/pages/schedules/ScheduleEdit';
+import { getRouterBasename } from '@/lib/runtimeConfig';
 
 export function App() {
   return (
     <ErrorBoundary>
-      <BrowserRouter>
+      <BrowserRouter basename={getRouterBasename()}>
         <Routes>
           <Route element={<AppLayout />}>
             <Route path="/" element={<Dashboard />} />

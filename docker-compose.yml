@@ -4,9 +4,9 @@ services:
     ports:
       - "${MYSQL_PORT:-3306}:3306"
     environment:
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-openeval}
-      MYSQL_USER: ${MYSQL_USER:-openeval}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in an ignored .env file or shell}
+      MYSQL_DATABASE: ${APP_MYSQL_CLIENT_DB:-${MYSQL_DATABASE:-openeval}}
+      MYSQL_USER: ${APP_MYSQL_CLIENT_USER:-${MYSQL_USER:-openeval}}
+      MYSQL_PASSWORD: ${APP_MYSQL_CLIENT_PASS:-${MYSQL_PASSWORD:?Set APP_MYSQL_CLIENT_PASS or MYSQL_PASSWORD in an ignored .env file or shell}}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in an ignored .env file or shell}
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
@@ -25,7 +25,13 @@ services:
       - "${PORT:-8000}:${PORT:-8000}"
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - DATABASE_URL=mysql+aiomysql://${MYSQL_USER:-openeval}:${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in an ignored .env file or shell}@mysql:3306/${MYSQL_DATABASE:-openeval}
+      - APP_MYSQL_CLIENT_DB=${APP_MYSQL_CLIENT_DB:-${MYSQL_DATABASE:-openeval}}
+      - APP_MYSQL_CLIENT_HOST=mysql
+      - APP_MYSQL_CLIENT_PORT=3306
+      - APP_MYSQL_CLIENT_USER=${APP_MYSQL_CLIENT_USER:-${MYSQL_USER:-openeval}}
+      - APP_MYSQL_CLIENT_PASS=${APP_MYSQL_CLIENT_PASS:-${MYSQL_PASSWORD:?Set APP_MYSQL_CLIENT_PASS or MYSQL_PASSWORD in an ignored .env file or shell}}
+      - APP_DB_CONNECTION_POOL=${APP_DB_CONNECTION_POOL:-5}
+      - APP_BASE_URL=${APP_BASE_URL:-}
       - UPLOAD_DIR=./data/uploads
       - PORT=${PORT:-8000}
       - CORS_ORIGINS=${CORS_ORIGINS:-}

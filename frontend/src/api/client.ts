@@ -1,4 +1,4 @@
-const API_BASE = '/api';
+import { getApiBaseUrl } from '@/lib/runtimeConfig';
 
 export class ApiError extends Error {
   status: number;
@@ -13,7 +13,7 @@ export class ApiError extends Error {
 }
 
 export async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(`${getApiBaseUrl()}${path}`, {
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     ...options,
   });
@@ -27,7 +27,7 @@ export async function apiFetch<T>(path: string, options?: RequestInit): Promise<
 }
 
 export async function downloadFile(path: string): Promise<void> {
-  const res = await fetch(`${API_BASE}${path}`);
+  const res = await fetch(`${getApiBaseUrl()}${path}`);
   if (!res.ok) {
     throw new ApiError(res.status, await res.text());
   }

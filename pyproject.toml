@@ -21,6 +21,7 @@ dependencies = [
 
 [project.scripts]
 openeval = "src.app:create_app"
+openeval-db-create = "src.db.create_database:main"
 
 [project.entry-points."open_eval.comparers"]
 exact_match = "src.comparers.exact_match:ExactMatchComparer"
@@ -52,7 +53,7 @@ max-complexity = 8
 asyncio_mode = "auto"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src"]
+packages = ["src", "app"]
 
 [build-system]
 requires = ["hatchling"]

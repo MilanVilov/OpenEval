@@ -298,7 +298,13 @@ All runtime configuration via environment variables (loaded with Pydantic Settin
 | Variable | Description | Default |
 |---|---|---|
 | `OPENAI_API_KEY` | OpenAI API key | (required) |
-| `DATABASE_URL` | MySQL connection string | required |
+| `DATABASE_URL` | Explicit MySQL connection string | optional override |
+| `APP_MYSQL_CLIENT_DB` | MySQL database name | required when `DATABASE_URL` is unset |
+| `APP_MYSQL_CLIENT_HOST` | MySQL host | `127.0.0.1` |
+| `APP_MYSQL_CLIENT_PORT` | MySQL port | `3306` |
+| `APP_MYSQL_CLIENT_USER` | MySQL user | `root` |
+| `APP_MYSQL_CLIENT_PASS` | MySQL password | empty |
+| `APP_DB_CONNECTION_POOL` | MySQL connection pool size | `5` |
 | `UPLOAD_DIR` | Directory for uploaded CSVs | `./data/uploads` |
 | `DEFAULT_CONCURRENCY` | Default parallel requests per run | `5` |
 | `HOST` | Server bind host | `0.0.0.0` |
@@ -327,7 +333,7 @@ services:
     environment:
       MYSQL_DATABASE: openeval
       MYSQL_USER: openeval
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in an ignored .env file or shell}
+      MYSQL_PASSWORD: ${APP_MYSQL_CLIENT_PASS:?Set APP_MYSQL_CLIENT_PASS in an ignored .env file or shell}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in an ignored .env file or shell}
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
@@ -346,7 +352,11 @@ services:
       - "8000:8000"
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - DATABASE_URL=mysql+aiomysql://openeval:${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in an ignored .env file or shell}@mysql:3306/openeval
+      - APP_MYSQL_CLIENT_DB=openeval
+      - APP_MYSQL_CLIENT_HOST=mysql
+      - APP_MYSQL_CLIENT_PORT=3306
+      - APP_MYSQL_CLIENT_USER=openeval
+      - APP_MYSQL_CLIENT_PASS=${APP_MYSQL_CLIENT_PASS:?Set APP_MYSQL_CLIENT_PASS in an ignored .env file or shell}
     volumes:
       - openeval-data:/app/data
 volumes:
@@ -360,7 +370,7 @@ volumes:
 # Docker Compose starts both OpenEval and MySQL.
 # Real deployments should provide these via an ignored .env file,
 # shell variables, or a deployment secret manager.
-OPENAI_API_KEY=sk-xxx MYSQL_PASSWORD=... MYSQL_ROOT_PASSWORD=... docker compose up
+OPENAI_API_KEY=sk-xxx APP_MYSQL_CLIENT_PASS=... MYSQL_ROOT_PASSWORD=... docker compose up
 ```
 
 No user accounts. Whoever can reach `http://host:8000` has full access.

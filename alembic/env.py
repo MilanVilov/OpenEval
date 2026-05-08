@@ -19,9 +19,9 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 # Override the URL from application settings so the single source of truth is config.py.
-database_url = get_settings().database_url
+database_url = get_settings().resolved_database_url()
 if not database_url:
-    raise ValueError("DATABASE_URL must be set")
+    raise ValueError("DATABASE_URL or APP_MYSQL_CLIENT_DB must be set")
 config.set_main_option("sqlalchemy.url", database_url)
 
 

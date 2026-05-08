@@ -1,8 +1,28 @@
 #!/bin/bash
 set -e
 
-if [[ "${DATABASE_URL:-}" == mysql+*://*@localhost:* ]] && [[ -f /.dockerenv ]]; then
-    export DATABASE_URL="${DATABASE_URL/@localhost:/@host.docker.internal:}"
+if [[ -f /.dockerenv ]]; then
+    if [[ "${APP_MYSQL_CLIENT_HOST:-}" =~ ^(localhost|127\.0\.0\.1)$ ]]; then
+        export APP_MYSQL_CLIENT_HOST="host.docker.internal"
+    fi
+    if [[ "${DATABASE_URL:-}" == mysql+*://*@localhost:* ]]; then
+        export DATABASE_URL="${DATABASE_URL/@localhost:/@host.docker.internal:}"
+    fi
+    if [[ "${DATABASE_URL:-}" == mysql+*://*@127.0.0.1:* ]]; then
+        export DATABASE_URL="${DATABASE_URL/@127.0.0.1:/@host.docker.internal:}"
+    fi
+fi
+
+should_create_mysql_db=false
+if [[ -n "${APP_MYSQL_CLIENT_DB:-}" && -z "${DATABASE_URL:-}" ]]; then
+    should_create_mysql_db=true
+fi
+
+if [[ "$should_create_mysql_db" == "true" ]]; then
+    echo "Creating database if needed..."
+    openeval-db-create
+else
+    echo "Skipping database creation."
 fi
 
 echo "Running database migrations..."
