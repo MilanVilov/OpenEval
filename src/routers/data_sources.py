@@ -25,6 +25,7 @@ from src.services.data_source_crypto import (
     decrypt_secret_payload,
     encrypt_secret_payload,
 )
+from src.services.data_source_duplicates import duplicate_data_source
 from src.services.remote_data_sources import explore_data_source
 
 router = APIRouter(prefix="/api/data-sources", tags=["data-sources"])
@@ -228,6 +229,22 @@ async def get_data_source(
     if source is None:
         raise HTTPException(status_code=404, detail="Data source not found")
     return _source_to_detail_response(source)
+
+
+@router.post("/{source_id}/duplicate", response_model=DataSourceResponse, status_code=201)
+async def duplicate_data_source_route(
+    source_id: str,
+    session: AsyncSession = Depends(get_session),
+) -> DataSourceResponse:
+    """Duplicate a data source and its saved mappings."""
+    duplicate = await duplicate_data_source(
+        source_id,
+        source_repo=DataSourceRepository(session),
+        preset_repo=ImportPresetRepository(session),
+    )
+    if duplicate is None:
+        raise HTTPException(status_code=404, detail="Data source not found")
+    return _source_to_response(duplicate)
 
 
 @router.put("/{source_id}", response_model=DataSourceDetailResponse)

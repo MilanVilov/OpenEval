@@ -7,6 +7,17 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Spinner } from '@/components/Spinner';
+import {
+  buildPaginationPlaceholder,
+  PAGINATION_CONFIG_EXAMPLES,
+  PUBLIC_HEADERS_EXAMPLE,
+  PUBLIC_HEADERS_EXAMPLES,
+  QUERY_PARAMS_EXAMPLE,
+  QUERY_PARAMS_EXAMPLES,
+  SECRET_HEADERS_DESCRIPTION,
+  SECRET_HEADERS_EXAMPLE,
+  SECRET_HEADERS_EXAMPLES,
+} from './dataSourceForm.examples';
 
 interface DataSourceFormProps {
   mode: 'create' | 'edit';
@@ -221,16 +232,7 @@ export function DataSourceForm({
           <JsonExamples
             title="Query param examples"
             description="Use this for non-secret URL parameters that should always be sent with the request."
-            examples={[
-              {
-                label: 'Filtering',
-                value: QUERY_PARAMS_EXAMPLE,
-              },
-              {
-                label: 'Sorting and includes',
-                value: '{\n  "sortBy": "createdAt",\n  "order": "desc",\n  "include": "reviews"\n}',
-              },
-            ]}
+            examples={QUERY_PARAMS_EXAMPLES}
           />
         }
       />
@@ -243,16 +245,7 @@ export function DataSourceForm({
           <JsonExamples
             title="Public header examples"
             description="Use this for non-secret headers that are safe to show again in the UI."
-            examples={[
-              {
-                label: 'Standard JSON request',
-                value: PUBLIC_HEADERS_EXAMPLE,
-              },
-              {
-                label: 'Versioned API',
-                value: '{\n  "Accept": "application/json",\n  "X-Api-Version": "2026-05-01"\n}',
-              },
-            ]}
+            examples={PUBLIC_HEADERS_EXAMPLES}
           />
         }
       />
@@ -264,17 +257,8 @@ export function DataSourceForm({
         helperText={
           <JsonExamples
             title="Secret header examples"
-            description="Use this for API keys and other sensitive header values. Secret headers are encrypted before they are stored and only their names are shown again in the UI."
-            examples={[
-              {
-                label: 'API key',
-                value: SECRET_HEADERS_EXAMPLE,
-              },
-              {
-                label: 'Client credentials',
-                value: '{\n  "X-Client-Id": "client_123",\n  "X-Client-Secret": "super-secret-value"\n}',
-              },
-            ]}
+            description={SECRET_HEADERS_DESCRIPTION}
+            examples={SECRET_HEADERS_EXAMPLES}
           />
         }
       />
@@ -300,28 +284,7 @@ export function DataSourceForm({
           <JsonExamples
             title="Pagination config examples"
             description="Choose the pagination mode above, then use the matching config. The examples below cover all supported modes."
-            examples={[
-              {
-                label: 'None',
-                value: '{}',
-              },
-              {
-                label: 'Page',
-                value: '{\n  "page_param": "page",\n  "page_size_param": "limit",\n  "page_size": 25,\n  "start_page": 1,\n  "has_more_path": "$.meta.has_more"\n}',
-              },
-              {
-                label: 'Offset + limit',
-                value: '{\n  "offset_param": "skip",\n  "limit_param": "limit",\n  "page_size": 30,\n  "start_offset": 0\n}',
-              },
-              {
-                label: 'Next token',
-                value: '{\n  "token_param": "cursor",\n  "response_token_path": "$.nextCursor"\n}',
-              },
-              {
-                label: 'Send pagination in POST body',
-                value: '{\n  "offset_param": "skip",\n  "limit_param": "limit",\n  "page_size": 30,\n  "placement": "body"\n}',
-              },
-            ]}
+            examples={PAGINATION_CONFIG_EXAMPLES}
           />
         }
       />
@@ -391,26 +354,6 @@ function JsonExamples({ title, description, examples }: JsonExamplesProps) {
   );
 }
 
-const QUERY_PARAMS_EXAMPLE = '{\n  "category": "dessert",\n  "include": "reviews"\n}';
-
-const PUBLIC_HEADERS_EXAMPLE = '{\n  "Accept": "application/json",\n  "User-Agent": "OpenEval Importer"\n}';
-
-const SECRET_HEADERS_EXAMPLE = '{\n  "X-Api-Key": "secret-key-value"\n}';
-
-function buildPaginationPlaceholder(
-  paginationMode: 'none' | 'page' | 'offset' | 'next_token',
-): string {
-  if (paginationMode === 'page') {
-    return '{\n  "page_param": "page",\n  "page_size_param": "limit",\n  "page_size": 25,\n  "start_page": 1,\n  "has_more_path": "$.meta.has_more"\n}';
-  }
-  if (paginationMode === 'offset') {
-    return '{\n  "offset_param": "skip",\n  "limit_param": "limit",\n  "page_size": 30,\n  "start_offset": 0\n}';
-  }
-  if (paginationMode === 'next_token') {
-    return '{\n  "token_param": "cursor",\n  "response_token_path": "$.nextCursor"\n}';
-  }
-  return '{}';
-}
 
 function parseStringMap(text: string, label: string): Record<string, string> {
   const parsed = parseJsonObject(text, label);

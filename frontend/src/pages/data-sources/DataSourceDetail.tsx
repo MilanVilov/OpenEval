@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   createImportPreset,
+  duplicateDataSource,
   deleteDataSource,
   deleteImportPreset,
   getDataSource,
@@ -19,7 +20,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { PageTransition } from '@/components/PageTransition';
 import { DataSourceForm } from '@/components/dataSources/DataSourceForm';
 import { RemoteImportExplorer } from '@/components/dataSources/RemoteImportExplorer';
-import { Plus, Trash2 } from 'lucide-react';
+import { Copy, Plus, Trash2 } from 'lucide-react';
 
 export function DataSourceDetail() {
   const { id } = useParams<{ id: string }>();
@@ -30,6 +31,7 @@ export function DataSourceDetail() {
   const [loading, setLoading] = useState(true);
   const [sourceSubmitting, setSourceSubmitting] = useState(false);
   const [presetSubmitting, setPresetSubmitting] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
   const [sourceError, setSourceError] = useState<string | null>(null);
   const [presetError, setPresetError] = useState<string | null>(null);
@@ -51,7 +53,7 @@ export function DataSourceDetail() {
       ]);
       setSource(nextSource);
       setPresets(nextPresets);
-      setSelectedPresetId((current) => current ?? nextPresets[0]?.id ?? null);
+      setSelectedPresetId(nextPresets[0]?.id ?? null);
     } catch (loadError) {
       setPageError(loadError instanceof Error ? loadError.message : 'Failed to load data source');
     } finally {
@@ -84,6 +86,22 @@ export function DataSourceDetail() {
       navigate('/data-sources');
     } catch (deleteError) {
       setPageError(deleteError instanceof Error ? deleteError.message : 'Failed to delete data source');
+    }
+  }
+
+  async function handleDuplicateSource() {
+    if (!id) {
+      return;
+    }
+    setDuplicating(true);
+    setPageError(null);
+    try {
+      const duplicate = await duplicateDataSource(id);
+      navigate(`/data-sources/${duplicate.id}`);
+    } catch (duplicateError) {
+      setPageError(duplicateError instanceof Error ? duplicateError.message : 'Failed to duplicate data source');
+    } finally {
+      setDuplicating(false);
     }
   }
 
@@ -140,9 +158,14 @@ export function DataSourceDetail() {
         title={source.name}
         description="Update the connection, manage saved mappings, and import selected rows into datasets."
         action={(
-          <Button variant="destructive" size="sm" onClick={handleDeleteSource}>
-            <Trash2 className="mr-2 h-4 w-4" />Delete Source
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => void handleDuplicateSource()} disabled={duplicating}>
+              <Copy className="mr-2 h-4 w-4" />{duplicating ? 'Duplicating…' : 'Duplicate'}
+            </Button>
+            <Button variant="destructive" size="sm" onClick={handleDeleteSource}>
+              <Trash2 className="mr-2 h-4 w-4" />Delete Source
+            </Button>
+          </div>
         )}
       />
 

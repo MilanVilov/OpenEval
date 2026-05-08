@@ -20,6 +20,11 @@ import type {
   JsonValue,
 } from '@/types/dataSource';
 import { ArrowLeft, ArrowRight, Download, Trash2 } from 'lucide-react';
+import {
+  buildDisabledReason,
+  buildDraftFieldMapping,
+  splitInitialFieldMapping,
+} from './remoteImportExplorer.helpers';
 
 interface RemoteImportExplorerProps {
   sourceId: string;
@@ -44,6 +49,51 @@ interface BasketItem {
   selectionId: string;
   record: JsonValue;
   mappedRow: Record<string, string>;
+}
+
+interface PaginationActionsProps {
+  loading: boolean;
+  hasPrevious: boolean;
+  hasNext: boolean;
+  onPrevious: () => void;
+  onNext: () => void;
+  showExplore?: boolean;
+  onExplore?: () => void;
+}
+
+function PaginationActions({
+  loading,
+  hasPrevious,
+  hasNext,
+  onPrevious,
+  onNext,
+  showExplore = false,
+  onExplore,
+}: PaginationActionsProps) {
+  return (
+    <div className="flex gap-2">
+      <Button
+        variant="outline"
+        onClick={onPrevious}
+        disabled={loading || !hasPrevious}
+      >
+        <ArrowLeft className="mr-2 h-4 w-4" />Previous
+      </Button>
+      <Button
+        variant="outline"
+        onClick={onNext}
+        disabled={loading || !hasNext}
+      >
+        <ArrowRight className="mr-2 h-4 w-4" />Next
+      </Button>
+      {showExplore ? (
+        <Button onClick={onExplore} disabled={loading}>
+          {loading ? <Spinner className="mr-2" /> : <Download className="mr-2 h-4 w-4" />}
+          {loading ? 'Loading...' : 'Explore'}
+        </Button>
+      ) : null}
+    </div>
+  );
 }
 
 export function RemoteImportExplorer({
@@ -252,26 +302,15 @@ export function RemoteImportExplorer({
               Inspect the remote JSON and paginate through it. Then choose which array contains the records you want to map.
             </p>
           </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => void handleExplore(exploreResult?.previous_page_state)}
-              disabled={loading || !exploreResult?.previous_page_state}
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />Previous
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => void handleExplore(exploreResult?.next_page_state)}
-              disabled={loading || !exploreResult?.next_page_state}
-            >
-              <ArrowRight className="mr-2 h-4 w-4" />Next
-            </Button>
-            <Button onClick={() => void handleExplore()} disabled={loading}>
-              {loading ? <Spinner className="mr-2" /> : <Download className="mr-2 h-4 w-4" />}
-              {loading ? 'Loading...' : 'Explore'}
-            </Button>
-          </div>
+          <PaginationActions
+            loading={loading}
+            hasPrevious={Boolean(exploreResult?.previous_page_state)}
+            hasNext={Boolean(exploreResult?.next_page_state)}
+            onPrevious={() => void handleExplore(exploreResult?.previous_page_state)}
+            onNext={() => void handleExplore(exploreResult?.next_page_state)}
+            showExplore
+            onExplore={() => void handleExplore()}
+          />
         </CardHeader>
         <CardContent className="space-y-4">
           {mode === 'append' && activeRecordsPath ? (
@@ -450,11 +489,20 @@ export function RemoteImportExplorer({
       ) : null}
 
       <Card>
-        <CardHeader>
-          <CardTitle>Mapped Preview</CardTitle>
-          <p className="text-sm text-foreground-secondary">
-            This is the current page transformed into dataset rows. Add rows from here into the basket.
-          </p>
+        <CardHeader className="flex flex-row items-start justify-between gap-4">
+          <div>
+            <CardTitle>Mapped Preview</CardTitle>
+            <p className="text-sm text-foreground-secondary">
+              This is the current page transformed into dataset rows. Add rows from here into the basket and paginate through mapped pages here.
+            </p>
+          </div>
+          <PaginationActions
+            loading={loading}
+            hasPrevious={Boolean(exploreResult?.previous_page_state)}
+            hasNext={Boolean(exploreResult?.next_page_state)}
+            onPrevious={() => void handleExplore(exploreResult?.previous_page_state)}
+            onNext={() => void handleExplore(exploreResult?.next_page_state)}
+          />
         </CardHeader>
         <CardContent className="space-y-4">
           {currentMappedRows.length > 0 ? (
@@ -595,87 +643,4 @@ export function RemoteImportExplorer({
       </Card>
     </div>
   );
-}
-
-function splitInitialFieldMapping(fieldMapping?: Record<string, string>): {
-  input: string;
-  expectedOutput: string;
-} {
-  const input = fieldMapping?.input ?? '';
-  const expectedOutput = fieldMapping?.expected_output ?? '';
-
-  return {
-    input,
-    expectedOutput,
-  };
-}
-
-function buildDraftFieldMapping({
-  mode,
-  inputTemplate,
-  expectedOutputTemplate,
-  lockedFieldMapping,
-}: {
-  mode: 'create' | 'append';
-  inputTemplate: string;
-  expectedOutputTemplate: string;
-  lockedFieldMapping?: Record<string, string>;
-}): {
-  fieldMapping: Record<string, string> | null;
-  error: string | null;
-} {
-  if (mode === 'append') {
-    return {
-      fieldMapping: lockedFieldMapping ?? null,
-      error: lockedFieldMapping ? null : 'Locked dataset mapping is missing',
-    };
-  }
-
-  const input = inputTemplate.trim();
-  const expectedOutput = expectedOutputTemplate.trim();
-  if (!input && !expectedOutput) {
-    return { fieldMapping: null, error: null };
-  }
-  if (!input || !expectedOutput) {
-    return {
-      fieldMapping: null,
-      error: 'Both input and expected_output mappings are required',
-    };
-  }
-
-  return {
-    fieldMapping: {
-      input,
-      expected_output: expectedOutput,
-    },
-    error: null,
-  };
-}
-
-function buildDisabledReason({
-  mode,
-  basketCount,
-  datasetName,
-  recordsPath,
-  hasMapping,
-}: {
-  mode: 'create' | 'append';
-  basketCount: number;
-  datasetName: string;
-  recordsPath: string;
-  hasMapping: boolean;
-}): string {
-  if (basketCount === 0) {
-    return 'Add rows from the mapped preview into the basket.';
-  }
-  if (mode === 'create' && !datasetName.trim()) {
-    return 'Enter a dataset name in the basket section.';
-  }
-  if (!recordsPath.trim()) {
-    return 'Choose the records path before creating the dataset.';
-  }
-  if (!hasMapping) {
-    return 'Define input and expected_output mappings, then click Show Mapped Data.';
-  }
-  return '';
 }

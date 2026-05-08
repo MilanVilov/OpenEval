@@ -40,6 +40,10 @@ export function deleteDataSource(id: string): Promise<void> {
   return apiFetch(`/data-sources/${id}`, { method: 'DELETE' });
 }
 
+export function duplicateDataSource(id: string): Promise<DataSource> {
+  return apiFetch(`/data-sources/${id}/duplicate`, { method: 'POST' });
+}
+
 export function listImportPresets(sourceId: string): Promise<ImportPreset[]> {
   return apiFetch(`/data-sources/${sourceId}/presets`);
 }

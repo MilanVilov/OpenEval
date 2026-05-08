@@ -129,6 +129,168 @@ async def test_data_source_crud_redacts_secrets_and_enforces_delete_conflicts(
 
 
 @pytest.mark.asyncio
+async def test_duplicate_data_source_copies_connection_and_saved_mappings(
+    client: AsyncClient,
+) -> None:
+    """Duplicating a data source should copy its request config, secrets, and presets."""
+    source_id = await _create_source(client)
+    await _create_preset(client, source_id)
+
+    duplicate_response = await client.post(f"/api/data-sources/{source_id}/duplicate")
+    assert duplicate_response.status_code == 201
+    duplicate = duplicate_response.json()
+    assert duplicate["id"] != source_id
+    assert duplicate["name"] == "Remote Tickets copy"
+    assert duplicate["has_secret_credentials"] is True
+    assert duplicate["secret_header_names"] == ["X-Api-Key"]
+
+    duplicate_detail = await client.get(f"/api/data-sources/{duplicate['id']}")
+    assert duplicate_detail.status_code == 200
+    detail_body = duplicate_detail.json()
+    assert detail_body["url"] == "https://example.test/tickets"
+    assert detail_body["method"] == "GET"
+    assert detail_body["auth_type"] == "bearer"
+    assert detail_body["query_params"] == {"scope": "all"}
+    assert detail_body["headers"] == {"X-Public": "visible"}
+    assert detail_body["pagination_mode"] == "page"
+    assert detail_body["pagination_config"] == {
+        "page_param": "page",
+        "page_size_param": "limit",
+        "page_size": 2,
+        "has_more_path": "$.meta.has_more",
+    }
+
+    duplicate_presets = await client.get(f"/api/data-sources/{duplicate['id']}/presets")
+    assert duplicate_presets.status_code == 200
+    duplicate_presets_body = duplicate_presets.json()
+    assert len(duplicate_presets_body) == 1
+    assert duplicate_presets_body[0]["data_source_id"] == duplicate["id"]
+    assert duplicate_presets_body[0]["name"] == "Ticket Mapping"
+    assert duplicate_presets_body[0]["records_path"] == "$.items"
+    assert duplicate_presets_body[0]["field_mapping"] == {
+        "input": "question",
+        "expected_output": "answer",
+        "category": "kind",
+    }
+
+
+@pytest.mark.asyncio
+async def test_duplicate_data_source_not_found_returns_404(
+    client: AsyncClient,
+) -> None:
+    """Duplicating a missing data source should return 404."""
+    response = await client.post("/api/data-sources/missing/duplicate")
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Data source not found"}
+
+
+@pytest.mark.asyncio
+async def test_import_preset_crud_round_trip(
+    client: AsyncClient,
+) -> None:
+    """Presets should support create, list, get, update, and delete for one source."""
+    source_id = await _create_source(client)
+
+    create_response = await client.post(
+        f"/api/data-sources/{source_id}/presets",
+        json={
+            "name": "Draft Mapping",
+            "records_path": "$.recipes",
+            "field_mapping": {
+                "input": "name",
+                "expected_output": "instructions[0]",
+            },
+        },
+    )
+    assert create_response.status_code == 201
+    created = create_response.json()
+    preset_id = created["id"]
+    assert created["data_source_id"] == source_id
+    assert created["records_path"] == "$.recipes"
+
+    list_response = await client.get(f"/api/data-sources/{source_id}/presets")
+    assert list_response.status_code == 200
+    assert [preset["id"] for preset in list_response.json()] == [preset_id]
+
+    detail_response = await client.get(f"/api/data-sources/{source_id}/presets/{preset_id}")
+    assert detail_response.status_code == 200
+    assert detail_response.json()["field_mapping"] == {
+        "input": "name",
+        "expected_output": "instructions[0]",
+    }
+
+    update_response = await client.put(
+        f"/api/data-sources/{source_id}/presets/{preset_id}",
+        json={
+            "name": "Draft Mapping Updated",
+            "field_mapping": {
+                "input": "Recipe: {name}",
+                "expected_output": "{instructions[0]}",
+            },
+        },
+    )
+    assert update_response.status_code == 200
+    updated = update_response.json()
+    assert updated["name"] == "Draft Mapping Updated"
+    assert updated["field_mapping"] == {
+        "input": "Recipe: {name}",
+        "expected_output": "{instructions[0]}",
+    }
+
+    delete_response = await client.delete(f"/api/data-sources/{source_id}/presets/{preset_id}")
+    assert delete_response.status_code == 204
+
+    empty_list_response = await client.get(f"/api/data-sources/{source_id}/presets")
+    assert empty_list_response.status_code == 200
+    assert empty_list_response.json() == []
+
+
+@pytest.mark.asyncio
+async def test_explore_data_source_supports_inline_mapping_without_preset(
+    client: AsyncClient,
+) -> None:
+    """Explore should preview mapped rows from a draft records path and mapping."""
+    source_id = await _create_source(client)
+
+    async def fake_request_json(data_source, *, request_params, request_body):
+        return {
+            "recipes": [
+                {
+                    "name": "Mango Salsa Chicken",
+                    "difficulty": "Easy",
+                    "instructions": ["Season chicken", "Serve over rice"],
+                }
+            ],
+            "total": 1,
+            "skip": 0,
+            "limit": 30,
+        }
+
+    with patch("src.services.remote_data_sources._request_json", new=fake_request_json):
+        response = await client.post(
+            f"/api/data-sources/{source_id}/explore",
+            json={
+                "records_path": "$.recipes",
+                "field_mapping": {
+                    "input": "Recipe: {name}",
+                    "expected_output": '{difficulty == "Easy" ? instructions[0] : "Skip"}',
+                },
+            },
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert "$.recipes" in body["candidate_array_paths"]
+    assert "instructions[]" in body["field_candidates"]
+    assert body["mapped_rows"] == [
+        {
+            "input": "Recipe: Mango Salsa Chicken",
+            "expected_output": "Season chicken",
+        }
+    ]
+
+
+@pytest.mark.asyncio
 async def test_explore_data_source_returns_mapped_rows_and_page_states(
     client: AsyncClient,
 ) -> None:
@@ -285,3 +447,54 @@ async def test_import_from_source_without_preset_supports_template_mapping(
     assert detail.json()["rows"][0]["input"] == 'Recipe: Choco Chip Cookies\nIngredients: ["Flour","Butter"]'
     assert detail.json()["rows"][0]["expected_output"] == "Mix Then Bake"
     assert detail.json()["import_source_snapshot"]["records_path"] == "$.recipes"
+
+
+@pytest.mark.asyncio
+async def test_import_from_source_supports_nested_conditional_mapping(
+    client: AsyncClient,
+) -> None:
+    """Direct imports should honor conditional mapping expressions with nested arrays."""
+    source_id = await _create_source(client)
+
+    create_dataset = await client.post(
+        "/api/datasets/import-from-source",
+        json={
+            "name": "Lot Labels",
+            "data_source_id": source_id,
+            "records_path": "$.logs",
+            "field_mapping": {
+                "input": "name",
+                "expected_output": '{logs[].metadata[].lot_id = 12 ? "Lot 12" : "Other lot"}',
+            },
+            "selected_records": [
+                {
+                    "name": "alpha",
+                    "logs": [
+                        {
+                            "metadata": [
+                                {"lot_id": 12},
+                                {"lot_id": 8},
+                            ]
+                        }
+                    ],
+                },
+                {
+                    "name": "beta",
+                    "logs": [
+                        {
+                            "metadata": [
+                                {"lot_id": 5},
+                            ]
+                        }
+                    ],
+                },
+            ],
+        },
+    )
+    assert create_dataset.status_code == 201
+
+    dataset_id = create_dataset.json()["id"]
+    detail = await client.get(f"/api/datasets/{dataset_id}")
+    assert detail.status_code == 200
+    assert detail.json()["rows"][0]["expected_output"] == "Lot 12"
+    assert detail.json()["rows"][1]["expected_output"] == "Other lot"
