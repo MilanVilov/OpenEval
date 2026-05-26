@@ -136,8 +136,7 @@ class FakeConnection:
     def __init__(self) -> None:
         self.cursor_instance = FakeCursor()
         self.committed = False
-        self.closed = False
-        self.waited_closed = False
+        self.ensured_closed = False
 
     def cursor(self) -> FakeCursor:
         """Return the fake cursor."""
@@ -147,13 +146,9 @@ class FakeConnection:
         """Record that the transaction was committed."""
         self.committed = True
 
-    def close(self) -> None:
-        """Record that close was called."""
-        self.closed = True
-
-    async def wait_closed(self) -> None:
+    async def ensure_closed(self) -> None:
         """Record that the connection was fully closed."""
-        self.waited_closed = True
+        self.ensured_closed = True
 
 
 async def test_create_mysql_database_uses_client_settings(
@@ -189,8 +184,7 @@ async def test_create_mysql_database_uses_client_settings(
     )
     assert "CREATE DATABASE IF NOT EXISTS `open``eval`" in connection.cursor_instance.sql
     assert connection.committed is True
-    assert connection.closed is True
-    assert connection.waited_closed is True
+    assert connection.ensured_closed is True
 
 
 async def test_create_mysql_database_uses_defaults_file(

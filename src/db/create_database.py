@@ -29,8 +29,7 @@ async def create_mysql_database(settings: Settings | None = None) -> str:
             await cursor.execute(_create_database_sql(database))
         await connection.commit()
     finally:
-        connection.close()
-        await connection.wait_closed()
+        await connection.ensure_closed()
 
     return database
 
