@@ -260,3 +260,116 @@ def test_parse_json_in_conditional_expression() -> None:
 
     assert rows[0]["label"] == "billing"
     assert rows[1]["label"] == "low_confidence"
+
+
+def test_find_returns_first_matching_item() -> None:
+    """find() should return the first array item satisfying the condition."""
+    records = [
+        {
+            "metadata": [
+                {"key": "lot_id", "value": "103023117"},
+                {"key": "context", "value": "the_context_value"},
+                {"key": "other", "value": "ignored"},
+            ]
+        }
+    ]
+
+    rows = map_records(
+        records,
+        {
+            "context": 'find(metadata, key == "context").value',
+            "lot_id": 'find(metadata, key == "lot_id").value',
+        },
+    )
+
+    assert rows[0]["context"] == "the_context_value"
+    assert rows[0]["lot_id"] == "103023117"
+
+
+def test_find_returns_empty_when_no_match() -> None:
+    """find() should return empty when no item matches the condition."""
+    records = [
+        {
+            "metadata": [
+                {"key": "lot_id", "value": "123"},
+            ]
+        }
+    ]
+
+    rows = map_records(records, {"result": 'find(metadata, key == "missing").value'})
+
+    assert rows[0]["result"] == ""
+
+
+def test_find_combined_with_parse_json() -> None:
+    """find() + parse_json() should extract fields from JSON-in-a-string in a matched item."""
+    records = [
+        {
+            "metadata": [
+                {
+                    "id": 6518615,
+                    "key": "context",
+                    "value": '{"object_journey":"sold_after_delivery","customer_type":"seller","lot_id":103023117}',
+                },
+                {"id": 6518616, "key": "lot_id", "value": "103023117"},
+            ]
+        }
+    ]
+
+    rows = map_records(
+        records,
+        {
+            "journey": 'parse_json(find(metadata, key == "context").value).object_journey',
+            "customer": 'parse_json(find(metadata, key == "context").value).customer_type',
+            "lot": 'parse_json(find(metadata, key == "context").value).lot_id',
+            "full_context": 'parse_json(find(metadata, key == "context").value)',
+        },
+    )
+
+    assert rows[0]["journey"] == "sold_after_delivery"
+    assert rows[0]["customer"] == "seller"
+    assert rows[0]["lot"] == "103023117"
+    assert '"object_journey":"sold_after_delivery"' in rows[0]["full_context"]
+
+
+def test_find_in_template_expression() -> None:
+    """find() should work inside template curly braces."""
+    records = [
+        {
+            "id": 42,
+            "tags": [
+                {"id": 1, "name": "billing"},
+                {"id": 2, "name": "urgent"},
+            ],
+        }
+    ]
+
+    rows = map_records(
+        records,
+        {
+            "label": '{find(tags, id == 1).name}',
+            "summary": "ID: {id} - Tag: {find(tags, id == 2).name}",
+        },
+    )
+
+    assert rows[0]["label"] == "billing"
+    assert rows[0]["summary"] == "ID: 42 - Tag: urgent"
+
+
+def test_find_with_string_comparison() -> None:
+    """find() condition should work with string equality using = alias."""
+    records = [
+        {
+            "items": [
+                {"type": "header", "content": "Title"},
+                {"type": "body", "content": "Hello world"},
+            ]
+        }
+    ]
+
+    rows = map_records(
+        records,
+        {"body": 'find(items, type = "body").content'},
+    )
+
+    assert rows[0]["body"] == "Hello world"

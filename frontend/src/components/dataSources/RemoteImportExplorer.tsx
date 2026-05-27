@@ -122,7 +122,9 @@ export function RemoteImportExplorer({
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const activeRecordsPath = (recordsPath ?? draftRecordsPath).trim();
+  const activeRecordsPath = mode === 'append' && recordsPath
+    ? recordsPath.trim()
+    : draftRecordsPath.trim();
   const mappingResult = buildDraftFieldMapping({
     mode,
     inputTemplate,
@@ -360,14 +362,14 @@ export function RemoteImportExplorer({
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => void handleExplore(exploreResult.current_page_state, draftRecordsPath)}
+                      onClick={() => void handleExplore(exploreResult.current_page_state)}
                       disabled={loading || !draftRecordsPath.trim()}
                     >
                       Load Records
                     </Button>
                   </div>
                   <p className="text-xs text-foreground-secondary">
-                    After inspecting the response, choose the array that contains your records. That path drives mapping and basket selection.
+                    This path determines which array items become rows. All mapping expressions and the mapped preview are resolved against records at this path.
                   </p>
                   {activeRecordsPath ? (
                     <div className="flex flex-wrap items-center gap-2">
@@ -409,10 +411,55 @@ export function RemoteImportExplorer({
           <CardHeader>
             <CardTitle>Create Mapping</CardTitle>
             <p className="text-sm text-foreground-secondary">
-              Define how remote fields become dataset columns. Use single paths like <code>name</code>, compose strings with placeholders like <code>{'{name} - {difficulty}'}</code>, or use a simple condition like <code>{'{logs[].metadata[].lot_id = 12 ? "Lot 12" : "Other lot"}'}</code>.
+              Define how remote fields become dataset columns using the expression language below.
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
+            <details className="rounded-md border border-border bg-background-secondary/60 px-4 py-3">
+              <summary className="cursor-pointer text-sm font-medium text-foreground">
+                Mapping Expression Reference
+              </summary>
+              <div className="mt-3 space-y-3 text-sm text-foreground-secondary">
+                <div>
+                  <p className="font-medium text-foreground">Paths</p>
+                  <p>Access fields with dot notation: <code>name</code>, <code>nested.field</code>, <code>items[0].title</code></p>
+                  <p>Wildcards expand arrays: <code>{'items[].name'}</code> → all names as a list</p>
+                </div>
+                <div>
+                  <p className="font-medium text-foreground">Templates</p>
+                  <p>Compose strings with <code>{'{'}...{'}'}</code> placeholders:</p>
+                  <p className="font-mono text-xs">{'Recipe: {name} - Difficulty: {difficulty}'}</p>
+                </div>
+                <div>
+                  <p className="font-medium text-foreground">Conditionals</p>
+                  <p>Ternary expressions: <code>{'condition ? true_value : false_value'}</code></p>
+                  <p className="font-mono text-xs">{'{difficulty == "Easy" ? "Quick" : "Complex"}'}</p>
+                  <p className="font-mono text-xs">{'{logs[].metadata[].lot_id = 12 ? "Lot 12" : "Other lot"}'}</p>
+                </div>
+                <div>
+                  <p className="font-medium text-foreground">parse_json(expr)</p>
+                  <p>Parse a JSON string field into an object, then access inner keys:</p>
+                  <p className="font-mono text-xs">parse_json(output).key</p>
+                  <p className="font-mono text-xs">parse_json(output).confidence</p>
+                  <p className="font-mono text-xs">{'{parse_json(output).reasoning}'}</p>
+                  <p className="mt-1 text-xs">Useful when a field contains a stringified JSON object like <code>{'"{\\"key\\":\\"value\\"}"'}</code></p>
+                </div>
+                <div>
+                  <p className="font-medium text-foreground">find(array, condition)</p>
+                  <p>Find the first item in an array that matches a condition:</p>
+                  <p className="font-mono text-xs">{'find(metadata, key == "context").value'}</p>
+                  <p className="font-mono text-xs">{'find(tags, id == 1).name'}</p>
+                  <p className="mt-1 text-xs">The condition is evaluated against each item in the array. Returns the first match.</p>
+                </div>
+                <div>
+                  <p className="font-medium text-foreground">Combining functions</p>
+                  <p>Nest functions to handle complex data like JSON-in-a-string inside arrays:</p>
+                  <p className="font-mono text-xs">{'parse_json(find(metadata, key == "context").value).customer_type'}</p>
+                  <p className="font-mono text-xs">{'{parse_json(find(metadata, key == "context").value).lot_id}'}</p>
+                </div>
+              </div>
+            </details>
+
             <div className="space-y-2">
               <Label>Dataset input</Label>
               <Textarea
@@ -431,7 +478,7 @@ export function RemoteImportExplorer({
                 onChange={(event) => setExpectedOutputTemplate(event.target.value)}
                 rows={4}
                 className="font-mono text-xs"
-                placeholder={'{logs[].metadata[].lot_id = 12 ? "Lot 12" : "Other lot"}'}
+                placeholder={'parse_json(find(metadata, key == "context").value).customer_type'}
               />
             </div>
 
