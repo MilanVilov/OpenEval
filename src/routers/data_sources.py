@@ -73,6 +73,7 @@ def _source_to_detail_response(source: object) -> DataSourceDetailResponse:
         request_body=source.request_body,
         headers=source.headers or {},
         pagination_config=source.pagination_config or {},
+        skip_ssl_verify=source.skip_ssl_verify,
     )
 
 
@@ -159,6 +160,10 @@ def _merge_source_update(
             "pagination_config",
             existing_source.pagination_config or {},
         ),
+        "skip_ssl_verify": fields.get(
+            "skip_ssl_verify",
+            existing_source.skip_ssl_verify,
+        ),
         "bearer_token": secret_payload.get("bearer_token"),
         "basic_username": secret_payload.get("basic_username"),
         "basic_password": secret_payload.get("basic_password"),
@@ -177,6 +182,7 @@ def _merge_source_update(
         "headers": validated.headers,
         "pagination_mode": validated.pagination_mode,
         "pagination_config": validated.pagination_config,
+        "skip_ssl_verify": validated.skip_ssl_verify,
     }, encrypted
 
 
@@ -215,6 +221,7 @@ async def create_data_source(
         encrypted_secrets=encrypted,
         pagination_mode=body.pagination_mode,
         pagination_config=body.pagination_config,
+        skip_ssl_verify=body.skip_ssl_verify,
     )
     return _source_to_response(source)
 

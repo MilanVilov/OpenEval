@@ -201,3 +201,48 @@ async def test_explore_data_source_includes_auth_and_secret_headers() -> None:
     assert calls[0]["headers"]["Authorization"] == "Bearer secret-token"
     assert calls[0]["headers"]["X-Api-Key"] == "abc"
     assert calls[0]["headers"]["X-Public"] == "visible"
+
+
+@pytest.mark.asyncio
+async def test_explore_data_source_skip_ssl_verify_disables_tls_verification() -> None:
+    """The data source skip_ssl_verify flag should map to httpx verify=False."""
+    source = DataSource(
+        name="Users",
+        url="https://example.test/users",
+        method="GET",
+        auth_type="none",
+        query_params={},
+        request_body=None,
+        headers={},
+        encrypted_secrets=None,
+        pagination_mode="none",
+        pagination_config={},
+        skip_ssl_verify=True,
+    )
+    calls: list[dict[str, object]] = []
+
+    class FakeAsyncClient:
+        def __init__(self, *, timeout: float, verify: bool):
+            calls.append({"timeout": timeout, "verify": verify})
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def request(self, method, url, params=None, json=None, headers=None):
+            return httpx.Response(
+                200,
+                json={"items": [{"question": "q1", "answer": "a1"}]},
+                request=httpx.Request(method, url),
+            )
+
+    with patch("src.services.remote_data_sources.httpx.AsyncClient", new=FakeAsyncClient):
+        await explore_data_source(
+            source,
+            records_path="$.items",
+            field_mapping={"input": "question", "expected_output": "answer"},
+        )
+
+    assert calls[0]["verify"] is False

@@ -25,6 +25,7 @@ export interface DataSourceDetail extends DataSource {
   request_body: JsonValue | null;
   headers: Record<string, string>;
   pagination_config: Record<string, JsonValue>;
+  skip_ssl_verify: boolean;
 }
 
 export interface DataSourcePayload {
@@ -37,6 +38,7 @@ export interface DataSourcePayload {
   headers: Record<string, string>;
   pagination_mode: 'none' | 'page' | 'offset' | 'next_token';
   pagination_config: Record<string, JsonValue>;
+  skip_ssl_verify?: boolean;
   bearer_token?: string;
   basic_username?: string;
   basic_password?: string;

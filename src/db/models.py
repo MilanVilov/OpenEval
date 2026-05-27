@@ -78,6 +78,7 @@ class DataSource(Base):
         default="none",
     )
     pagination_config: Mapped[dict] = mapped_column(JSON, default=dict)
+    skip_ssl_verify: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
