@@ -9,6 +9,7 @@ import re
 _INDEX_OR_WILDCARD_PATTERN = re.compile(r"\[(\d*)\]")
 _TEMPLATE_PATTERN = re.compile(r"\{([^{}]+)\}")
 _NUMBER_PATTERN = re.compile(r"-?\d+(?:\.\d+)?")
+_FUNCTION_CALL_PATTERN = re.compile(r"^([a-zA-Z_][a-zA-Z0-9_]*)\(")
 _COMPARISON_OPERATORS = ("==", "!=", ">=", "<=", ">", "<", "=")
 _WILDCARD = object()
 _MISSING = object()
@@ -151,6 +152,10 @@ def _evaluate_expression(record: object, expression: str) -> object | None:
     if literal is not _MISSING:
         return literal
 
+    func_result = _try_evaluate_function_call(record, stripped)
+    if func_result is not _MISSING:
+        return func_result
+
     return resolve_path(record, stripped)
 
 
@@ -166,6 +171,98 @@ def _evaluate_condition(record: object, expression: str) -> bool:
     left_value = _evaluate_expression(record, left_expression)
     right_value = _evaluate_expression(record, right_expression)
     return _compare_values(left_value, right_value, operator)
+
+
+# ---------------------------------------------------------------------------
+# Built-in DSL functions
+# ---------------------------------------------------------------------------
+
+_DSL_FUNCTIONS: dict[str, object] = {}
+
+
+def _try_evaluate_function_call(record: object, expression: str) -> object:
+    """Detect and evaluate a function call expression, returning _MISSING if not a function call."""
+    match = _FUNCTION_CALL_PATTERN.match(expression)
+    if match is None:
+        return _MISSING
+
+    func_name = match.group(1)
+    if func_name not in _DSL_FUNCTIONS:
+        return _MISSING
+
+    # Find the matching closing parenthesis
+    open_index = match.end() - 1  # index of '('
+    close_index = _find_matching_paren(expression, open_index)
+    if close_index is None:
+        return _MISSING
+
+    argument_str = expression[open_index + 1 : close_index].strip()
+    suffix = expression[close_index + 1 :]
+
+    # Evaluate the argument expression against the record
+    arg_value = _evaluate_expression(record, argument_str)
+
+    # Call the function
+    handler = _DSL_FUNCTIONS[func_name]
+    result = handler(arg_value)  # type: ignore[operator]
+
+    # If there's a trailing path (e.g. ".key" or ".nested.field"), resolve it on the result
+    if suffix:
+        if suffix.startswith("."):
+            suffix = suffix[1:]
+        return resolve_path(result, suffix)
+
+    return result
+
+
+def _find_matching_paren(expression: str, open_index: int) -> int | None:
+    """Find the closing parenthesis matching the one at open_index."""
+    depth = 0
+    quote: str | None = None
+    escaped = False
+
+    for i in range(open_index, len(expression)):
+        char = expression[i]
+        if quote is not None:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == quote:
+                quote = None
+            continue
+
+        if char in ('"', "'"):
+            quote = char
+            continue
+
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth == 0:
+                return i
+
+    return None
+
+
+def _builtin_parse_json(value: object | None) -> object | None:
+    """Parse a JSON string into a Python object for further path access."""
+    if value is None:
+        return None
+    if isinstance(value, (dict, list)):
+        # Already structured data, return as-is
+        return value
+    raw = str(value)
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except (json.JSONDecodeError, ValueError):
+        return None
+
+
+_DSL_FUNCTIONS["parse_json"] = _builtin_parse_json
 
 
 def _split_ternary_expression(expression: str) -> tuple[str, str, str] | None:

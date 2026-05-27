@@ -161,3 +161,102 @@ def test_list_field_candidates_uses_schema_style_paths() -> None:
     assert "ingredients[]" in candidates
     assert "steps[].text" in candidates
     assert "steps[0].text" not in candidates
+
+
+def test_parse_json_extracts_nested_key_from_json_string() -> None:
+    """parse_json() should parse a JSON string and allow further path access."""
+    records = [
+        {
+            "output": '{"reasoning":"Some reasoning text","confidence":95,"key":"object_disputes_after_delivery.not_conform"}',
+        }
+    ]
+
+    rows = map_records(
+        records,
+        {
+            "category": "parse_json(output).key",
+            "confidence": "parse_json(output).confidence",
+            "reasoning": "parse_json(output).reasoning",
+        },
+    )
+
+    assert rows[0]["category"] == "object_disputes_after_delivery.not_conform"
+    assert rows[0]["confidence"] == "95"
+    assert rows[0]["reasoning"] == "Some reasoning text"
+
+
+def test_parse_json_in_template_expression() -> None:
+    """parse_json() should work within template curly braces."""
+    records = [
+        {
+            "output": '{"key":"billing.refund","confidence":88}',
+            "id": "12345",
+        }
+    ]
+
+    rows = map_records(
+        records,
+        {
+            "label": "{parse_json(output).key}",
+            "summary": "ID: {id} - Category: {parse_json(output).key} ({parse_json(output).confidence}%)",
+        },
+    )
+
+    assert rows[0]["label"] == "billing.refund"
+    assert rows[0]["summary"] == "ID: 12345 - Category: billing.refund (88%)"
+
+
+def test_parse_json_with_nested_path() -> None:
+    """parse_json() should support multi-level nested path access."""
+    records = [
+        {
+            "data": '{"result":{"labels":["a","b"],"status":"ok"}}',
+        }
+    ]
+
+    rows = map_records(
+        records,
+        {
+            "status": "parse_json(data).result.status",
+            "labels": "parse_json(data).result.labels",
+        },
+    )
+
+    assert rows[0]["status"] == "ok"
+    assert rows[0]["labels"] == '["a","b"]'
+
+
+def test_parse_json_with_invalid_json_returns_empty() -> None:
+    """parse_json() on a non-JSON string should return empty."""
+    records = [{"output": "not valid json"}]
+
+    rows = map_records(records, {"result": "parse_json(output).key"})
+
+    assert rows[0]["result"] == ""
+
+
+def test_parse_json_on_already_structured_data() -> None:
+    """parse_json() on a dict value should pass it through unchanged."""
+    records = [{"output": {"key": "already_parsed", "score": 42}}]
+
+    rows = map_records(records, {"result": "parse_json(output).key"})
+
+    assert rows[0]["result"] == "already_parsed"
+
+
+def test_parse_json_in_conditional_expression() -> None:
+    """parse_json() should work in conditional ternary expressions."""
+    records = [
+        {"output": '{"confidence":95,"key":"billing"}'},
+        {"output": '{"confidence":40,"key":"unknown"}'},
+    ]
+
+    rows = map_records(
+        records,
+        {
+            "label": '{parse_json(output).confidence > 80 ? parse_json(output).key : "low_confidence"}',
+        },
+    )
+
+    assert rows[0]["label"] == "billing"
+    assert rows[1]["label"] == "low_confidence"
