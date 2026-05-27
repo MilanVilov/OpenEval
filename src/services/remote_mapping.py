@@ -9,6 +9,7 @@ import re
 _INDEX_OR_WILDCARD_PATTERN = re.compile(r"\[(\d*)\]")
 _TEMPLATE_PATTERN = re.compile(r"\{([^{}]+)\}")
 _NUMBER_PATTERN = re.compile(r"-?\d+(?:\.\d+)?")
+_FUNCTION_CALL_PATTERN = re.compile(r"^([a-zA-Z_][a-zA-Z0-9_]*)\(")
 _COMPARISON_OPERATORS = ("==", "!=", ">=", "<=", ">", "<", "=")
 _WILDCARD = object()
 _MISSING = object()
@@ -151,6 +152,10 @@ def _evaluate_expression(record: object, expression: str) -> object | None:
     if literal is not _MISSING:
         return literal
 
+    func_result = _try_evaluate_function_call(record, stripped)
+    if func_result is not _MISSING:
+        return func_result
+
     return resolve_path(record, stripped)
 
 
@@ -166,6 +171,172 @@ def _evaluate_condition(record: object, expression: str) -> bool:
     left_value = _evaluate_expression(record, left_expression)
     right_value = _evaluate_expression(record, right_expression)
     return _compare_values(left_value, right_value, operator)
+
+
+# ---------------------------------------------------------------------------
+# Built-in DSL functions
+# ---------------------------------------------------------------------------
+
+# Function handlers receive (record, raw_args) where raw_args is a list of
+# unevaluated argument expression strings. Each function evaluates its own args.
+_DSL_FUNCTIONS: dict[str, object] = {}
+
+
+def _try_evaluate_function_call(record: object, expression: str) -> object:
+    """Detect and evaluate a function call expression, returning _MISSING if not a function call."""
+    match = _FUNCTION_CALL_PATTERN.match(expression)
+    if match is None:
+        return _MISSING
+
+    func_name = match.group(1)
+    if func_name not in _DSL_FUNCTIONS:
+        return _MISSING
+
+    # Find the matching closing parenthesis
+    open_index = match.end() - 1  # index of '('
+    close_index = _find_matching_paren(expression, open_index)
+    if close_index is None:
+        return _MISSING
+
+    argument_str = expression[open_index + 1 : close_index].strip()
+    suffix = expression[close_index + 1 :]
+
+    # Split arguments by top-level commas
+    raw_args = _split_function_args(argument_str)
+
+    # Call the function with the record and raw argument strings
+    handler = _DSL_FUNCTIONS[func_name]
+    result = handler(record, raw_args)  # type: ignore[operator]
+
+    # If there's a trailing path (e.g. ".key" or ".nested.field"), resolve it on the result
+    if suffix:
+        if suffix.startswith("."):
+            suffix = suffix[1:]
+        return resolve_path(result, suffix)
+
+    return result
+
+
+def _split_function_args(argument_str: str) -> list[str]:
+    """Split a function argument string by top-level commas."""
+    if not argument_str:
+        return []
+
+    args: list[str] = []
+    current_start = 0
+    depth_paren = 0
+    depth_bracket = 0
+    quote: str | None = None
+    escaped = False
+
+    for i, char in enumerate(argument_str):
+        if quote is not None:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == quote:
+                quote = None
+            continue
+
+        if char in ('"', "'"):
+            quote = char
+            continue
+
+        if char == "(":
+            depth_paren += 1
+        elif char == ")":
+            depth_paren -= 1
+        elif char == "[":
+            depth_bracket += 1
+        elif char == "]":
+            depth_bracket -= 1
+        elif char == "," and depth_paren == 0 and depth_bracket == 0:
+            args.append(argument_str[current_start:i].strip())
+            current_start = i + 1
+
+    args.append(argument_str[current_start:].strip())
+    return args
+
+
+def _find_matching_paren(expression: str, open_index: int) -> int | None:
+    """Find the closing parenthesis matching the one at open_index."""
+    depth = 0
+    quote: str | None = None
+    escaped = False
+
+    for i in range(open_index, len(expression)):
+        char = expression[i]
+        if quote is not None:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == quote:
+                quote = None
+            continue
+
+        if char in ('"', "'"):
+            quote = char
+            continue
+
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth == 0:
+                return i
+
+    return None
+
+
+def _builtin_parse_json(record: object, args: list[str]) -> object | None:
+    """Parse a JSON string into a Python object for further path access."""
+    if len(args) != 1:
+        return None
+    value = _evaluate_expression(record, args[0])
+    if value is None:
+        return None
+    if isinstance(value, (dict, list)):
+        # Already structured data, return as-is
+        return value
+    raw = str(value)
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except (json.JSONDecodeError, ValueError):
+        return None
+
+
+_DSL_FUNCTIONS["parse_json"] = _builtin_parse_json
+
+
+def _builtin_find(record: object, args: list[str]) -> object | None:
+    """Find the first item in an array that satisfies a condition.
+
+    Usage: find(array_expression, condition)
+    Example: find(metadata, key == "context")
+
+    The condition is evaluated against each array item as its own record.
+    Returns the first matching item, or None if nothing matches.
+    """
+    if len(args) != 2:
+        return None
+
+    array_value = _evaluate_expression(record, args[0])
+    if not isinstance(array_value, list):
+        return None
+
+    condition_expr = args[1].strip()
+    for item in array_value:
+        if _evaluate_condition(item, condition_expr):
+            return item
+
+    return None
+
+
+_DSL_FUNCTIONS["find"] = _builtin_find
 
 
 def _split_ternary_expression(expression: str) -> tuple[str, str, str] | None:
