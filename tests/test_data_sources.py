@@ -77,6 +77,7 @@ async def _create_source(client: AsyncClient) -> str:
             "headers": {"X-Public": "visible"},
             "bearer_token": "top-secret",
             "secret_headers": {"X-Api-Key": "hidden"},
+            "skip_ssl_verify": True,
             "pagination_mode": "page",
             "pagination_config": {
                 "page_param": "page",
@@ -121,6 +122,7 @@ async def test_data_source_crud_redacts_secrets_and_enforces_delete_conflicts(
     assert detail.json()["secret_header_names"] == ["X-Api-Key"]
     assert "bearer_token" not in detail.text
     assert detail.json()["headers"] == {"X-Public": "visible"}
+    assert detail.json()["skip_ssl_verify"] is True
 
     await _create_preset(client, source_id)
 
@@ -152,6 +154,7 @@ async def test_duplicate_data_source_copies_connection_and_saved_mappings(
     assert detail_body["auth_type"] == "bearer"
     assert detail_body["query_params"] == {"scope": "all"}
     assert detail_body["headers"] == {"X-Public": "visible"}
+    assert detail_body["skip_ssl_verify"] is True
     assert detail_body["pagination_mode"] == "page"
     assert detail_body["pagination_config"] == {
         "page_param": "page",

@@ -28,6 +28,7 @@ async def duplicate_data_source(
         encrypted_secrets=original.encrypted_secrets,
         pagination_mode=original.pagination_mode,
         pagination_config=original.pagination_config or {},
+        skip_ssl_verify=original.skip_ssl_verify,
     )
 
     presets = await preset_repo.list_by_data_source(source_id)

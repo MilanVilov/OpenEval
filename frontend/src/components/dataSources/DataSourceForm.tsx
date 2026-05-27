@@ -71,6 +71,7 @@ export function DataSourceForm({
   const [bearerToken, setBearerToken] = useState('');
   const [basicUsername, setBasicUsername] = useState('');
   const [basicPassword, setBasicPassword] = useState('');
+  const [skipSslVerify, setSkipSslVerify] = useState(() => initial?.skip_ssl_verify ?? false);
   const [formError, setFormError] = useState<string | null>(null);
   const paginationConfigPlaceholder = buildPaginationPlaceholder(paginationMode);
 
@@ -89,6 +90,7 @@ export function DataSourceForm({
         request_body: method === 'POST' ? parseOptionalJson(requestBodyText) : null,
         pagination_mode: paginationMode,
         pagination_config: parseJsonObject(paginationConfigText, 'Pagination config'),
+        skip_ssl_verify: skipSslVerify,
       };
 
       if (mode === 'create' || bearerToken.trim() !== '') {
@@ -288,6 +290,18 @@ export function DataSourceForm({
           />
         }
       />
+
+      <div className="flex items-center gap-2">
+        <input
+          id="skip-ssl-verify"
+          type="checkbox"
+          checked={skipSslVerify}
+          onChange={(event) => setSkipSslVerify(event.target.checked)}
+          className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+        />
+        <Label htmlFor="skip-ssl-verify">Skip SSL certificate verification</Label>
+        <span className="text-xs text-foreground-secondary">(equivalent to curl -k)</span>
+      </div>
 
       <div className="flex justify-end gap-2 pt-2">
         {onCancel ? <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button> : null}

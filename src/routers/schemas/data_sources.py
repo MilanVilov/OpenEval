@@ -28,6 +28,7 @@ class DataSourceCreateRequest(BaseModel):
     secret_headers: dict[str, str] = Field(default_factory=dict)
     pagination_mode: PaginationMode = "none"
     pagination_config: dict = Field(default_factory=dict)
+    skip_ssl_verify: bool = False
 
     @model_validator(mode="after")
     def validate_payload(self) -> "DataSourceCreateRequest":
@@ -61,6 +62,7 @@ class DataSourceUpdateRequest(BaseModel):
     secret_headers: dict[str, str] | None = None
     pagination_mode: PaginationMode | None = None
     pagination_config: dict | None = None
+    skip_ssl_verify: bool | None = None
 
 
 class DataSourceResponse(BaseModel):
@@ -87,6 +89,7 @@ class DataSourceDetailResponse(DataSourceResponse):
     request_body: dict | list | None
     headers: dict[str, str]
     pagination_config: dict
+    skip_ssl_verify: bool
 
 
 class ImportPresetCreateRequest(BaseModel):

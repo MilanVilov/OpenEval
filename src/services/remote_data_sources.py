@@ -103,7 +103,7 @@ async def _request_json(
     """Execute the remote request and return a parsed JSON payload."""
     headers = _build_request_headers(data_source)
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=30.0, verify=not data_source.skip_ssl_verify) as client:
         response = await client.request(
             data_source.method,
             data_source.url,

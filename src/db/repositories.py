@@ -126,6 +126,7 @@ class DataSourceRepository:
         encrypted_secrets: str | None = None,
         pagination_mode: str = "none",
         pagination_config: dict | None = None,
+        skip_ssl_verify: bool = False,
     ) -> DataSource:
         """Insert a new data source."""
         source = DataSource(
@@ -139,6 +140,7 @@ class DataSourceRepository:
             encrypted_secrets=encrypted_secrets,
             pagination_mode=pagination_mode,
             pagination_config=pagination_config if pagination_config is not None else {},
+            skip_ssl_verify=skip_ssl_verify,
         )
         self._session.add(source)
         await self._session.commit()
