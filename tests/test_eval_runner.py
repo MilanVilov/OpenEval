@@ -60,7 +60,7 @@ def mock_repos():
         patch("src.services.eval_runner.ConfigRepository") as mock_config_repo_cls,
         patch("src.services.eval_runner.DatasetRepository") as mock_dataset_repo_cls,
         patch("src.services.eval_runner.ResultRepository") as mock_result_repo_cls,
-        patch("src.services.eval_runner.read_csv_rows") as mock_read_csv,
+        patch("src.services.eval_runner.read_dataset_rows") as mock_read_csv,
         patch("src.services.eval_runner.call_llm") as mock_call_llm,
     ):
         # Set up the async session context manager
@@ -98,7 +98,7 @@ class TestLatencyPerRow:
         config = _make_config(concurrency=5)
         mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
         mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
-        mock_repos["dataset_repo"].get_by_id = AsyncMock(return_value=_make_dataset())
+        mock_repos["dataset_repo"].get_by_id_with_content = AsyncMock(return_value=_make_dataset())
         mock_repos["read_csv"].return_value = [
             {"input": "q1", "expected_output": "a1"},
             {"input": "q2", "expected_output": "a2"},
@@ -127,7 +127,7 @@ class TestLatencyPerRow:
         config = _make_config(concurrency=5)
         mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
         mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
-        mock_repos["dataset_repo"].get_by_id = AsyncMock(return_value=_make_dataset())
+        mock_repos["dataset_repo"].get_by_id_with_content = AsyncMock(return_value=_make_dataset())
         mock_repos["read_csv"].return_value = [
             {"input": "q1", "expected_output": "a1"},
             {"input": "q2", "expected_output": "a2"},
@@ -150,7 +150,7 @@ class TestLatencyPerRow:
         config = _make_config(concurrency=5)
         mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
         mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
-        mock_repos["dataset_repo"].get_by_id = AsyncMock(return_value=_make_dataset())
+        mock_repos["dataset_repo"].get_by_id_with_content = AsyncMock(return_value=_make_dataset())
         mock_repos["read_csv"].return_value = [
             {"input": "q1", "expected_output": "a1"},
             {"input": "q2", "expected_output": "a2"},
@@ -187,7 +187,7 @@ class TestConcurrency:
         config = _make_config(concurrency=concurrency_limit)
         mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
         mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
-        mock_repos["dataset_repo"].get_by_id = AsyncMock(return_value=_make_dataset())
+        mock_repos["dataset_repo"].get_by_id_with_content = AsyncMock(return_value=_make_dataset())
         mock_repos["read_csv"].return_value = [
             {"input": f"q{i}", "expected_output": f"a{i}"} for i in range(6)
         ]
@@ -225,7 +225,7 @@ class TestConcurrency:
         config = _make_config(concurrency=1)  # Serial execution
         mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
         mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
-        mock_repos["dataset_repo"].get_by_id = AsyncMock(return_value=_make_dataset())
+        mock_repos["dataset_repo"].get_by_id_with_content = AsyncMock(return_value=_make_dataset())
 
         num_rows = 5
         mock_repos["read_csv"].return_value = [
@@ -252,7 +252,7 @@ class TestLatencyMeasuresOnlyApiCall:
         config = _make_config(concurrency=1)
         mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
         mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
-        mock_repos["dataset_repo"].get_by_id = AsyncMock(return_value=_make_dataset())
+        mock_repos["dataset_repo"].get_by_id_with_content = AsyncMock(return_value=_make_dataset())
         mock_repos["read_csv"].return_value = [
             {"input": "q1", "expected_output": "a1"},
             {"input": "q2", "expected_output": "a2"},
@@ -285,7 +285,7 @@ class TestFileSearchToolPassed:
 
         mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
         mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
-        mock_repos["dataset_repo"].get_by_id = AsyncMock(return_value=_make_dataset())
+        mock_repos["dataset_repo"].get_by_id_with_content = AsyncMock(return_value=_make_dataset())
         mock_repos["read_csv"].return_value = [
             {"input": "What is X?", "expected_output": "X is Y"},
         ]
@@ -306,7 +306,7 @@ class TestFileSearchToolPassed:
 
         mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
         mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
-        mock_repos["dataset_repo"].get_by_id = AsyncMock(return_value=_make_dataset())
+        mock_repos["dataset_repo"].get_by_id_with_content = AsyncMock(return_value=_make_dataset())
         mock_repos["read_csv"].return_value = [
             {"input": "Hello", "expected_output": "Hi"},
         ]
@@ -328,7 +328,7 @@ class TestRunCompletion:
         config = _make_config(concurrency=5)
         mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
         mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
-        mock_repos["dataset_repo"].get_by_id = AsyncMock(return_value=_make_dataset())
+        mock_repos["dataset_repo"].get_by_id_with_content = AsyncMock(return_value=_make_dataset())
         mock_repos["read_csv"].return_value = [
             {"input": "q1", "expected_output": "a1"},
         ]
@@ -365,7 +365,7 @@ class TestGraderStats:
 
         mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
         mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
-        mock_repos["dataset_repo"].get_by_id = AsyncMock(return_value=_make_dataset())
+        mock_repos["dataset_repo"].get_by_id_with_content = AsyncMock(return_value=_make_dataset())
         mock_repos["read_csv"].return_value = [
             {"input": "q1", "expected_output": "a1"},
             {"input": "q2", "expected_output": "a2"},
@@ -405,7 +405,7 @@ class TestGraderStats:
 
         mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
         mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
-        mock_repos["dataset_repo"].get_by_id = AsyncMock(return_value=_make_dataset())
+        mock_repos["dataset_repo"].get_by_id_with_content = AsyncMock(return_value=_make_dataset())
         mock_repos["read_csv"].return_value = [
             {"input": "q1", "expected_output": "a1"},
             {"input": "q2", "expected_output": "a2"},

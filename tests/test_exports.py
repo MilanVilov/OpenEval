@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import inspect
 
 from src.app import create_app
 from src.db.models import Base
@@ -90,6 +91,89 @@ async def test_export_dataset_returns_csv_attachment(client: AsyncClient):
     assert 'filename="Support-Tickets.csv"' in export_response.headers["content-disposition"]
     assert "input,expected_output" in export_response.text
     assert "hello,world" in export_response.text
+
+
+@pytest.mark.asyncio
+async def test_dataset_detail_reads_csv_snapshot_when_local_file_is_missing(
+    client: AsyncClient,
+):
+    """Dataset detail uses the database CSV snapshot if the local file is gone."""
+    response = await client.post(
+        "/api/datasets",
+        data={"name": "Ephemeral Upload"},
+        files={
+            "file": (
+                "tickets.csv",
+                "input,expected_output\nhello,world\n",
+                "text/csv",
+            )
+        },
+    )
+    assert response.status_code == 201
+    body = response.json()
+    Path(body["file_path"]).unlink()
+
+    detail_response = await client.get(f"/api/datasets/{body['id']}")
+
+    assert detail_response.status_code == 200
+    assert detail_response.json()["rows"] == [{"input": "hello", "expected_output": "world"}]
+
+
+@pytest.mark.asyncio
+async def test_export_dataset_uses_csv_snapshot_when_local_file_is_missing(
+    client: AsyncClient,
+):
+    """Dataset export uses the database CSV snapshot if the local file is gone."""
+    response = await client.post(
+        "/api/datasets",
+        data={"name": "Ephemeral Upload"},
+        files={
+            "file": (
+                "tickets.csv",
+                "input,expected_output\nhello,world\n",
+                "text/csv",
+            )
+        },
+    )
+    assert response.status_code == 201
+    body = response.json()
+    Path(body["file_path"]).unlink()
+
+    export_response = await client.get(f"/api/datasets/{body['id']}/export")
+
+    assert export_response.status_code == 200
+    assert export_response.headers["content-type"].startswith("text/csv")
+    assert "hello,world" in export_response.text
+
+
+@pytest.mark.asyncio
+async def test_list_datasets_defers_csv_content(client: AsyncClient):
+    """Dataset list queries do not eagerly load CSV snapshots."""
+    response = await client.post(
+        "/api/datasets",
+        data={"name": "Large Upload"},
+        files={
+            "file": (
+                "large.csv",
+                "input,expected_output\nhello,world\n",
+                "text/csv",
+            )
+        },
+    )
+    assert response.status_code == 201
+    dataset_id = response.json()["id"]
+
+    async with get_session_context() as session:
+        repo = DatasetRepository(session)
+        listed_dataset = (await repo.list_all())[0]
+        assert "csv_content" in inspect(listed_dataset).unloaded
+
+    async with get_session_context() as session:
+        repo = DatasetRepository(session)
+        loaded_dataset = await repo.get_by_id_with_content(dataset_id)
+
+    assert loaded_dataset is not None
+    assert "csv_content" not in inspect(loaded_dataset).unloaded
 
 
 @pytest.mark.asyncio

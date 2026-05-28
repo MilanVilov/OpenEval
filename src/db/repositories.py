@@ -8,12 +8,12 @@ from __future__ import annotations
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, undefer
 
 from src.db.models import (
     Container,
-    DataSource,
     Dataset,
+    DataSource,
     EvalConfig,
     EvalResult,
     EvalRun,
@@ -268,6 +268,7 @@ class DatasetRepository:
         file_path: str,
         row_count: int,
         columns: list,
+        csv_content: str | None = None,
         import_preset_id: str | None = None,
         import_source_snapshot: dict | None = None,
     ) -> Dataset:
@@ -275,6 +276,7 @@ class DatasetRepository:
         dataset = Dataset(
             name=name,
             file_path=file_path,
+            csv_content=csv_content,
             row_count=row_count,
             columns=columns,
             import_preset_id=import_preset_id,
@@ -288,6 +290,16 @@ class DatasetRepository:
     async def get_by_id(self, dataset_id: str) -> Dataset | None:
         """Return a dataset by primary key, or ``None``."""
         return await self._session.get(Dataset, dataset_id)
+
+    async def get_by_id_with_content(self, dataset_id: str) -> Dataset | None:
+        """Return a dataset with its CSV content loaded, or ``None``."""
+        stmt = (
+            select(Dataset)
+            .options(undefer(Dataset.csv_content))
+            .where(Dataset.id == dataset_id)
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
 
     async def list_all(self) -> list[Dataset]:
         """Return every dataset ordered by newest first."""

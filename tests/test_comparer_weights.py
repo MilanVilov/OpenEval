@@ -56,7 +56,7 @@ def mock_repos():
         patch("src.services.eval_runner.ConfigRepository") as mock_config_repo_cls,
         patch("src.services.eval_runner.DatasetRepository") as mock_dataset_repo_cls,
         patch("src.services.eval_runner.ResultRepository") as mock_result_repo_cls,
-        patch("src.services.eval_runner.read_csv_rows") as mock_read_csv,
+        patch("src.services.eval_runner.read_dataset_rows") as mock_read_csv,
         patch("src.services.eval_runner.call_llm") as mock_call_llm,
     ):
         session_mock = AsyncMock()
@@ -95,7 +95,7 @@ class TestGraderWeights:
         ])
         mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
         mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
-        mock_repos["dataset_repo"].get_by_id = AsyncMock(return_value=_make_dataset())
+        mock_repos["dataset_repo"].get_by_id_with_content = AsyncMock(return_value=_make_dataset())
         mock_repos["read_csv"].return_value = [
             {"input": "hello", "expected_output": "hello"},
         ]
@@ -139,7 +139,7 @@ class TestGraderWeights:
         ])
         mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
         mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
-        mock_repos["dataset_repo"].get_by_id = AsyncMock(return_value=_make_dataset())
+        mock_repos["dataset_repo"].get_by_id_with_content = AsyncMock(return_value=_make_dataset())
         mock_repos["read_csv"].return_value = [
             {"input": "hello", "expected_output": "hello"},
         ]
@@ -179,7 +179,7 @@ class TestGraderWeights:
         ])
         mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
         mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
-        mock_repos["dataset_repo"].get_by_id = AsyncMock(return_value=_make_dataset())
+        mock_repos["dataset_repo"].get_by_id_with_content = AsyncMock(return_value=_make_dataset())
         mock_repos["read_csv"].return_value = [
             {"input": "hello", "expected_output": "world"},
         ]
@@ -221,7 +221,7 @@ class TestGraderWeights:
         ])
         mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
         mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
-        mock_repos["dataset_repo"].get_by_id = AsyncMock(return_value=_make_dataset())
+        mock_repos["dataset_repo"].get_by_id_with_content = AsyncMock(return_value=_make_dataset())
         mock_repos["read_csv"].return_value = [
             {"input": "hello", "expected_output": "hello"},
         ]

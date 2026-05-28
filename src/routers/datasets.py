@@ -1,13 +1,12 @@
 """Dataset upload and management routes — JSON API."""
 
+import csv
 from pathlib import Path
-from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config import get_settings
 from src.db.repositories import DatasetRepository, ImportPresetRepository
 from src.db.session import get_session
 from src.routers.schemas.data_sources import (
@@ -19,12 +18,19 @@ from src.routers.schemas.datasets import (
     DatasetResponse,
     UpdateRowsRequest,
 )
+from src.services.csv_export import sanitize_export_name
+from src.services.csv_parser import parse_csv_content
 from src.services.dataset_imports import (
     append_imported_dataset_rows,
     create_imported_dataset,
 )
-from src.services.csv_parser import parse_csv, read_csv_rows, write_csv_rows
-from src.services.csv_export import sanitize_export_name
+from src.services.dataset_storage import (
+    build_dataset_file_path,
+    decode_csv_upload,
+    read_dataset_rows,
+    serialize_dataset_rows,
+    write_dataset_file_copy,
+)
 
 router = APIRouter(prefix="/api/datasets", tags=["datasets"])
 
@@ -40,6 +46,15 @@ def _dataset_to_response(dataset: object) -> DatasetResponse:
         import_preset_id=dataset.import_preset_id,
         has_import_source=dataset.import_source_snapshot is not None,
         created_at=str(dataset.created_at),
+    )
+
+
+def _csv_response(csv_content: str, filename: str) -> Response:
+    """Return CSV content as a downloadable attachment."""
+    return Response(
+        content=csv_content,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
@@ -59,31 +74,27 @@ async def upload_dataset(
     file: UploadFile = File(...),
 ) -> DatasetResponse:
     """Upload a CSV dataset."""
-    settings = get_settings()
-    file_name = f"{uuid4().hex}.csv"
-    file_path = Path(settings.upload_dir) / file_name
-    file_path.parent.mkdir(parents=True, exist_ok=True)
-
     content = await file.read()
-    file_path.write_bytes(content)
+    file_path = build_dataset_file_path()
 
     try:
-        metadata = await parse_csv(str(file_path))
-    except Exception:
-        file_path.unlink(missing_ok=True)
-        raise HTTPException(status_code=422, detail="Invalid CSV file")
+        csv_content = decode_csv_upload(content)
+        metadata = parse_csv_content(csv_content)
+    except (UnicodeDecodeError, csv.Error) as exc:
+        raise HTTPException(status_code=422, detail="Invalid CSV file") from exc
 
     required = {"input", "expected_output"}
     if not required.issubset(set(metadata["columns"])):
-        file_path.unlink(missing_ok=True)
         raise HTTPException(
             status_code=422,
             detail="CSV must have 'input' and 'expected_output' columns",
         )
 
+    write_dataset_file_copy(str(file_path), csv_content)
     dataset = await DatasetRepository(session).create(
         name=name,
         file_path=str(file_path),
+        csv_content=csv_content,
         row_count=metadata["row_count"],
         columns=metadata["columns"],
     )
@@ -96,11 +107,11 @@ async def get_dataset(
     session: AsyncSession = Depends(get_session),
 ) -> DatasetDetailResponse:
     """Return dataset detail with preview rows."""
-    dataset = await DatasetRepository(session).get_by_id(dataset_id)
+    dataset = await DatasetRepository(session).get_by_id_with_content(dataset_id)
     if not dataset:
         raise HTTPException(status_code=404, detail="Dataset not found")
 
-    all_rows = await read_csv_rows(dataset.file_path)
+    all_rows = await read_dataset_rows(dataset)
     return DatasetDetailResponse(
         id=dataset.id,
         name=dataset.name,
@@ -119,13 +130,16 @@ async def get_dataset(
 async def export_dataset(
     dataset_id: str,
     session: AsyncSession = Depends(get_session),
-) -> FileResponse:
+) -> Response:
     """Download the full dataset as a CSV attachment."""
-    dataset = await DatasetRepository(session).get_by_id(dataset_id)
+    dataset = await DatasetRepository(session).get_by_id_with_content(dataset_id)
     if not dataset:
         raise HTTPException(status_code=404, detail="Dataset not found")
 
     filename = f"{sanitize_export_name(dataset.name, fallback='dataset')}.csv"
+    if dataset.csv_content is not None:
+        return _csv_response(dataset.csv_content, filename)
+
     return FileResponse(
         path=dataset.file_path,
         media_type="text/csv; charset=utf-8",
@@ -201,12 +215,12 @@ async def update_dataset_rows(
     if not required.issubset(set(columns)):
         raise HTTPException(status_code=422, detail="Dataset missing required columns")
 
-    await write_csv_rows(dataset.file_path, columns, body.rows)
+    csv_content = serialize_dataset_rows(columns, body.rows)
+    write_dataset_file_copy(dataset.file_path, csv_content)
 
     new_count = len(body.rows)
-    if new_count != dataset.row_count:
-        await repo.update(dataset_id, row_count=new_count)
-        dataset = await repo.get_by_id(dataset_id)
+    await repo.update(dataset_id, row_count=new_count, csv_content=csv_content)
+    dataset = await repo.get_by_id(dataset_id)
 
     return DatasetDetailResponse(
         id=dataset.id,
@@ -230,7 +244,7 @@ async def append_dataset_from_source(
 ) -> DatasetDetailResponse:
     """Append selected remote rows into an existing imported dataset."""
     repo = DatasetRepository(session)
-    dataset = await repo.get_by_id(dataset_id)
+    dataset = await repo.get_by_id_with_content(dataset_id)
     if dataset is None:
         raise HTTPException(status_code=404, detail="Dataset not found")
 
@@ -243,7 +257,7 @@ async def append_dataset_from_source(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    rows = await read_csv_rows(dataset.file_path)
+    rows = await read_dataset_rows(dataset)
     return DatasetDetailResponse(
         id=dataset.id,
         name=dataset.name,

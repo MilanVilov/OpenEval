@@ -10,7 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.config import get_settings
 from src.db.models import Dataset
 from src.db.repositories import DatasetRepository
-from src.services.csv_parser import append_csv_rows, write_csv_rows
+from src.services.dataset_storage import (
+    read_dataset_rows,
+    serialize_dataset_rows,
+    write_dataset_file_copy,
+)
 from src.services.remote_mapping import map_records
 
 
@@ -45,7 +49,8 @@ async def create_imported_dataset(
     )
     columns = list(field_mapping.keys())
     file_path = _build_dataset_file_path()
-    await write_csv_rows(str(file_path), columns, rows)
+    csv_content = serialize_dataset_rows(columns, rows)
+    write_dataset_file_copy(str(file_path), csv_content)
 
     snapshot = build_import_source_snapshot(
         data_source_id=data_source_id,
@@ -55,6 +60,7 @@ async def create_imported_dataset(
     return await DatasetRepository(session).create(
         name=name,
         file_path=str(file_path),
+        csv_content=csv_content,
         row_count=len(rows),
         columns=columns,
         import_preset_id=import_preset_id,
@@ -82,10 +88,16 @@ async def append_imported_dataset_rows(
         field_mapping={str(key): str(value) for key, value in field_mapping.items()},
         columns=list(dataset.columns),
     )
-    await append_csv_rows(dataset.file_path, dataset.columns, rows)
+    existing_rows = await read_dataset_rows(dataset)
+    csv_content = serialize_dataset_rows(dataset.columns, [*existing_rows, *rows])
+    write_dataset_file_copy(dataset.file_path, csv_content)
 
     new_count = dataset.row_count + len(rows)
-    updated = await DatasetRepository(session).update(dataset.id, row_count=new_count)
+    updated = await DatasetRepository(session).update(
+        dataset.id,
+        row_count=new_count,
+        csv_content=csv_content,
+    )
     assert updated is not None
     return updated
 
