@@ -15,7 +15,7 @@ from src.db.repositories import (
 )
 from src.db.session import get_session_context
 from src.services import slack_notifier
-from src.services.csv_parser import read_csv_rows
+from src.services.dataset_storage import read_dataset_rows
 from src.services.eval_client import call_llm
 
 logger = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ async def run_evaluation(run_id: str) -> None:
             return
 
         config = await config_repo.get_by_id(run.eval_config_id)
-        dataset = await dataset_repo.get_by_id(run.dataset_id)
+        dataset = await dataset_repo.get_by_id_with_content(run.dataset_id)
         if not config or not dataset:
             await run_repo.update_status(run_id, status="failed")
             return
@@ -53,7 +53,7 @@ async def run_evaluation(run_id: str) -> None:
 
         # Read CSV rows
         try:
-            rows = await read_csv_rows(dataset.file_path)
+            rows = await read_dataset_rows(dataset)
         except Exception as exc:
             logger.error("Failed to read dataset: %s", exc)
             await run_repo.update_status(run_id, status="failed")

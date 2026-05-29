@@ -4,6 +4,7 @@ from datetime import datetime
 from uuid import uuid4
 
 from sqlalchemy import JSON, ForeignKey, Index, String, Text, func
+from sqlalchemy.dialects import mysql
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -128,6 +129,11 @@ class Dataset(Base):
     id: Mapped[str] = mapped_column(String(ID_LENGTH), primary_key=True, default=_new_id)
     name: Mapped[str] = mapped_column(String(NAME_LENGTH))
     file_path: Mapped[str] = mapped_column(String(PATH_LENGTH))
+    csv_content: Mapped[str | None] = mapped_column(
+        Text().with_variant(mysql.LONGTEXT(), "mysql"),
+        default=None,
+        deferred=True,
+    )
     row_count: Mapped[int]
     columns: Mapped[list] = mapped_column(JSON)
     import_preset_id: Mapped[str | None] = mapped_column(
