@@ -48,6 +48,7 @@ async def run_evaluation(run_id: str) -> None:
                     run_id,
                     status="failed",
                     error_message="Run failed because the referenced config or dataset was not found.",
+                    completed_at=datetime.now(UTC),
                 )
                 return
 
@@ -68,6 +69,7 @@ async def run_evaluation(run_id: str) -> None:
                     run_id,
                     status="failed",
                     error_message=_format_error_message("Failed to read dataset", exc),
+                    completed_at=datetime.now(UTC),
                 )
                 return
 
@@ -223,7 +225,7 @@ async def run_evaluation(run_id: str) -> None:
             failed = sum(1 for r in valid_results if r.passed is False)
             errors = sum(1 for r in valid_results if r.error)
             avg_latency = (
-                sum(r.latency_ms for r in valid_results if r.latency_ms)
+                sum(r.latency_ms for r in valid_results if r.latency_ms is not None)
                 / max(total, 1)
             )
             scored = [r for r in valid_results if r.comparer_score is not None]
