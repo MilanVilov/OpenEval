@@ -207,6 +207,7 @@ class EvalRun(Base):
     progress: Mapped[int] = mapped_column(default=0)
     total_rows: Mapped[int] = mapped_column(default=0)
     summary: Mapped[dict | None] = mapped_column(JSON, default=None)
+    error_message: Mapped[str | None] = mapped_column(Text, default=None)
     started_at: Mapped[datetime | None] = mapped_column(default=None)
     completed_at: Mapped[datetime | None] = mapped_column(default=None)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())

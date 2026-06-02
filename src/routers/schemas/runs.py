@@ -20,6 +20,7 @@ class RunResponse(BaseModel):
     progress: int
     total_rows: int
     summary: dict | None
+    error_message: str | None = None
     started_at: str | None
     completed_at: str | None
     created_at: str
@@ -36,6 +37,7 @@ class RunProgressResponse(BaseModel):
     progress: int
     total_rows: int
     summary: dict | None = None
+    error_message: str | None = None
 
 
 class ResultResponse(BaseModel):

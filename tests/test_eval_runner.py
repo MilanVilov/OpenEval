@@ -351,6 +351,43 @@ class TestRunCompletion:
         # Should not have called any further repo methods
         mock_repos["config_repo"].get_by_id.assert_not_called()
 
+    async def test_finalization_error_marks_run_failed(self, mock_repos):
+        """Unhandled finalization errors should not leave a run marked running."""
+        config = _make_config(concurrency=5)
+        mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
+        mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
+        mock_repos["dataset_repo"].get_by_id_with_content = AsyncMock(return_value=_make_dataset())
+        mock_repos["read_csv"].return_value = [
+            {"input": "q1", "expected_output": "a1"},
+        ]
+        mock_repos["call_llm"].return_value = _make_llm_response("a1", latency_ms=50)
+        mock_repos["result_repo"].create_batch.side_effect = RuntimeError("insert failed")
+
+        await run_evaluation("run1")
+
+        final_call = mock_repos["run_repo"].update_status.call_args_list[-1]
+        assert final_call[1]["status"] == "failed"
+        assert final_call[1]["error_message"] == (
+            "Run failed during evaluation: RuntimeError: insert failed"
+        )
+
+    async def test_progress_error_does_not_block_completion(self, mock_repos):
+        """Progress write failures should not prevent final status completion."""
+        config = _make_config(concurrency=5)
+        mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
+        mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
+        mock_repos["dataset_repo"].get_by_id_with_content = AsyncMock(return_value=_make_dataset())
+        mock_repos["read_csv"].return_value = [
+            {"input": "q1", "expected_output": "a1"},
+        ]
+        mock_repos["call_llm"].return_value = _make_llm_response("a1", latency_ms=50)
+        mock_repos["run_repo"].update_progress.side_effect = RuntimeError("progress failed")
+
+        await run_evaluation("run1")
+
+        final_call = mock_repos["run_repo"].update_status.call_args_list[-1]
+        assert final_call[1]["status"] == "completed"
+
 
 class TestGraderStats:
     """Verify per-grader statistics are computed in the run summary."""

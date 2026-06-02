@@ -144,6 +144,14 @@ export function RunDetail() {
         </Card>
       )}
 
+      {run.status === 'failed' && run.error_message && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription className="whitespace-pre-wrap">
+            <span className="font-medium">Run failed:</span> {run.error_message}
+          </AlertDescription>
+        </Alert>
+      )}
+
       {run.summary && (
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-6 animate-fade-in">
           {hasMultipleGraders ? (

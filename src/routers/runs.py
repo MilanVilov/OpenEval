@@ -34,6 +34,7 @@ def _run_to_response(run: object) -> RunResponse:
         progress=run.progress,
         total_rows=run.total_rows,
         summary=run.summary,
+        error_message=run.error_message,
         started_at=str(run.started_at) if run.started_at else None,
         completed_at=str(run.completed_at) if run.completed_at else None,
         created_at=str(run.created_at),
@@ -160,6 +161,7 @@ async def run_progress(
         progress=run.progress,
         total_rows=run.total_rows,
         summary=run.summary,
+        error_message=run.error_message,
     )
 
 
