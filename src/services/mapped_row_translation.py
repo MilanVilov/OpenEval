@@ -97,7 +97,7 @@ async def _request_translation_batches(
     translations: list[str] = []
     for batch in _batch_inputs(inputs):
         translations.extend(
-            await _request_translations(
+            await _request_translation_batch_with_fallback(
                 batch,
                 target_language=target_language,
                 provider=provider,
@@ -112,6 +112,48 @@ def _batch_inputs(inputs: list[str]) -> list[list[str]]:
         inputs[index : index + MAX_TRANSLATION_BATCH_SIZE]
         for index in range(0, len(inputs), MAX_TRANSLATION_BATCH_SIZE)
     ]
+
+
+async def _request_translation_batch_with_fallback(
+    inputs: list[str],
+    *,
+    target_language: str,
+    provider: BaseLLMProvider,
+) -> list[str]:
+    """Translate one batch, falling back to single-row requests on format mismatch."""
+    try:
+        return await _request_translations(
+            inputs,
+            target_language=target_language,
+            provider=provider,
+        )
+    except ValueError:
+        if len(inputs) == 1:
+            raise
+        return await _request_single_row_translations(
+            inputs,
+            target_language=target_language,
+            provider=provider,
+        )
+
+
+async def _request_single_row_translations(
+    inputs: list[str],
+    *,
+    target_language: str,
+    provider: BaseLLMProvider,
+) -> list[str]:
+    """Translate rows one at a time as a resilient fallback path."""
+    translations: list[str] = []
+    for input_text in inputs:
+        translations.extend(
+            await _request_translations(
+                [input_text],
+                target_language=target_language,
+                provider=provider,
+            ),
+        )
+    return translations
 
 
 def _parse_translations(response_text: str, *, expected_count: int) -> list[str]:

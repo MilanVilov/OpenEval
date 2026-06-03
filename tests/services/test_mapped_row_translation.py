@@ -51,3 +51,43 @@ async def test_translate_input_column_batches_large_pages() -> None:
     assert captured_inputs[1] == [f"Question {MAX_TRANSLATION_BATCH_SIZE}"]
     assert translated_rows[0]["input"] == "translated:Question 0"
     assert translated_rows[-1]["expected_output"] == f"Answer {MAX_TRANSLATION_BATCH_SIZE}"
+
+
+@pytest.mark.asyncio
+async def test_translate_input_column_falls_back_to_single_rows_on_count_mismatch() -> None:
+    """A malformed batch response should retry each row individually."""
+    captured_inputs: list[list[str]] = []
+
+    async def fake_generate(**kwargs: object) -> LLMResponse:
+        payload = json.loads(str(kwargs["user_input"]))
+        batch_inputs = [str(item) for item in payload["inputs"]]
+        captured_inputs.append(batch_inputs)
+
+        if len(batch_inputs) > 1:
+            translations = [f"translated:{batch_inputs[0]}"]
+        else:
+            translations = [f"translated:{batch_inputs[0]}"]
+
+        return LLMResponse(
+            text=json.dumps({"translations": translations}),
+            latency_ms=10,
+            token_usage={"input_tokens": 1, "output_tokens": 1},
+        )
+
+    provider = SimpleNamespace(generate=AsyncMock(side_effect=fake_generate))
+    rows = [
+        {"input": "Question 1", "expected_output": "Answer 1"},
+        {"input": "Question 2", "expected_output": "Answer 2"},
+    ]
+
+    translated_rows = await translate_input_column(
+        rows,
+        target_language="English",
+        provider=provider,
+    )
+
+    assert captured_inputs == [["Question 1", "Question 2"], ["Question 1"], ["Question 2"]]
+    assert [row["input"] for row in translated_rows] == [
+        "translated:Question 1",
+        "translated:Question 2",
+    ]

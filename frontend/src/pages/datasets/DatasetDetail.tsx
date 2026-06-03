@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { deleteDataset, exportDataset, getDataset, updateDatasetRows } from '@/api/datasets';
 import { translateInputColumn } from '@/api/dataSources';
 import { InputTranslationActions } from '@/components/dataSources/InputTranslationActions';
+import { ListPagination } from '@/components/ListControls';
 import { PageHeader } from '@/components/PageHeader';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -17,11 +18,15 @@ import type { DatasetDetail as DatasetDetailType, DatasetRow } from '@/types/dat
 import { Download, Plus, Save, Trash2, X } from 'lucide-react';
 
 interface DatasetTranslationState {
+  page: number;
+  pageSize: number;
   originalInputs: string[];
   originalInputRowIndexes: number[];
   targetLanguage: string;
   translatedInputs: string[];
 }
+
+const DEFAULT_PAGE_SIZE = 50;
 
 export function DatasetDetail() {
   const { id } = useParams<{ id: string }>();
@@ -30,6 +35,8 @@ export function DatasetDetail() {
   const [rows, setRows] = useState<DatasetRow[]>([]);
   const [translationState, setTranslationState] = useState<DatasetTranslationState | null>(null);
   const [targetLanguage, setTargetLanguage] = useState('English');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -45,6 +52,7 @@ export function DatasetDetail() {
         setDataset(d);
         setRows(d.rows);
         setTranslationState(null);
+        setPage(1);
       })
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
@@ -57,23 +65,7 @@ export function DatasetDetail() {
       return updated;
     });
     if (col === 'input') {
-      setTranslationState((current) => {
-        if (!current) {
-          return null;
-        }
-        const nextOriginalInputs = [...current.originalInputs];
-        const nextTranslatedInputs = [...current.translatedInputs];
-        if (current.originalInputRowIndexes.includes(rowIdx)) {
-          nextOriginalInputs[rowIdx] = value;
-        } else {
-          nextTranslatedInputs[rowIdx] = value;
-        }
-        return {
-          ...current,
-          originalInputs: nextOriginalInputs,
-          translatedInputs: nextTranslatedInputs,
-        };
-      });
+      setTranslationState(null);
     }
     setDirty(true);
   }, []);
@@ -132,7 +124,7 @@ export function DatasetDetail() {
   }
 
   async function handleTranslatePage() {
-    if (!rows.length) {
+    if (!currentPageRows.length) {
       setError('There are no rows on this page to translate.');
       return;
     }
@@ -144,13 +136,20 @@ export function DatasetDetail() {
     setTranslating(true);
     setError(null);
     try {
-      const currentRows = rows.map((row) => ({ ...row }));
+      const currentRows = currentPageRows.map((row) => ({ ...row }));
       const result = await translateInputColumn({
         target_language: targetLanguage.trim(),
         mapped_rows: currentRows,
       });
-      setRows(result.mapped_rows);
+      setRows((current) => current.map((row, index) => {
+        if (index < currentPageStart || index > currentPageEnd) {
+          return row;
+        }
+        return result.mapped_rows[index - currentPageStart];
+      }));
       setTranslationState({
+        page,
+        pageSize,
         originalInputs: currentRows.map((row) => row.input ?? ''),
         originalInputRowIndexes: [],
         targetLanguage: targetLanguage.trim(),
@@ -165,40 +164,45 @@ export function DatasetDetail() {
   }
 
   function handleResetPageTranslation() {
-    if (!translationState) {
+    if (!currentPageTranslation) {
       return;
     }
 
     setRows((current) => current.map((row, index) => ({
-      ...row,
-      input: translationState.originalInputs[index] ?? row.input ?? '',
+      ...(index < currentPageStart || index > currentPageEnd
+        ? row
+        : {
+            ...row,
+            input: currentPageTranslation.originalInputs[index - currentPageStart] ?? row.input ?? '',
+          }),
     })));
     setTranslationState(null);
     setDirty(true);
   }
 
   function toggleShowOriginalInput(rowIdx: number) {
-    if (!translationState) {
+    if (!currentPageTranslation) {
       return;
     }
 
-    const showingOriginal = translationState.originalInputRowIndexes.includes(rowIdx);
+    const showingOriginal = currentPageTranslation.originalInputRowIndexes.includes(rowIdx);
     const nextOriginalInputRowIndexes = showingOriginal
-      ? translationState.originalInputRowIndexes.filter((index) => index !== rowIdx)
-      : [...translationState.originalInputRowIndexes, rowIdx];
+      ? currentPageTranslation.originalInputRowIndexes.filter((index) => index !== rowIdx)
+      : [...currentPageTranslation.originalInputRowIndexes, rowIdx];
+    const absoluteRowIndex = currentPageStart + rowIdx;
 
     setRows((current) => current.map((row, index) => (
-      index === rowIdx
+      index === absoluteRowIndex
         ? {
             ...row,
             input: showingOriginal
-              ? translationState.translatedInputs[rowIdx] ?? row.input ?? ''
-              : translationState.originalInputs[rowIdx] ?? row.input ?? '',
+              ? currentPageTranslation.translatedInputs[rowIdx] ?? row.input ?? ''
+              : currentPageTranslation.originalInputs[rowIdx] ?? row.input ?? '',
           }
         : row
     )));
     setTranslationState({
-      ...translationState,
+      ...currentPageTranslation,
       originalInputRowIndexes: nextOriginalInputRowIndexes,
     });
     setDirty(true);
@@ -209,7 +213,27 @@ export function DatasetDetail() {
   if (!dataset) return <Alert variant="destructive" className="animate-fade-in"><AlertDescription>Dataset not found</AlertDescription></Alert>;
 
   const columns = dataset.columns as string[];
-  const canTranslateInputColumn = columns.includes('input') && rows.length > 0;
+  const pages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const safePage = Math.min(page, pages);
+  const currentPageStart = (safePage - 1) * pageSize;
+  const currentPageEnd = currentPageStart + pageSize - 1;
+  const currentPageRows = rows.slice(currentPageStart, currentPageStart + pageSize);
+  const currentPageTranslation = translationState?.page === safePage
+    && translationState.pageSize === pageSize
+      ? translationState
+      : null;
+  const canTranslateInputColumn = columns.includes('input') && currentPageRows.length > 0;
+
+  function handlePageChange(nextPage: number) {
+    setEditingCell(null);
+    setPage(nextPage);
+  }
+
+  function handlePageSizeChange(nextPageSize: number) {
+    setEditingCell(null);
+    setPageSize(nextPageSize);
+    setPage(1);
+  }
 
   return (
     <PageTransition>
@@ -274,7 +298,7 @@ export function DatasetDetail() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-10 text-center">#</TableHead>
-                    {translationState ? <TableHead className="w-36">Input View</TableHead> : null}
+                    {currentPageTranslation ? <TableHead className="w-36">Input View</TableHead> : null}
                     {columns.map((col) => (
                       <TableHead key={col}>{col}</TableHead>
                     ))}
@@ -282,17 +306,18 @@ export function DatasetDetail() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rows.map((row, rowIdx) => {
+                  {currentPageRows.map((row, rowIdx) => {
                     const inputChanged = Boolean(
-                      translationState
-                      && translationState.originalInputs[rowIdx] !== translationState.translatedInputs[rowIdx],
+                      currentPageTranslation
+                      && currentPageTranslation.originalInputs[rowIdx] !== currentPageTranslation.translatedInputs[rowIdx],
                     );
-                    const showingOriginalInput = translationState?.originalInputRowIndexes.includes(rowIdx) ?? false;
+                    const showingOriginalInput = currentPageTranslation?.originalInputRowIndexes.includes(rowIdx) ?? false;
+                    const absoluteRowIndex = currentPageStart + rowIdx;
 
                     return (
-                      <TableRow key={rowIdx}>
-                        <TableCell className="text-center text-foreground-secondary text-xs">{rowIdx + 1}</TableCell>
-                        {translationState ? (
+                      <TableRow key={absoluteRowIndex}>
+                        <TableCell className="text-center text-foreground-secondary text-xs">{absoluteRowIndex + 1}</TableCell>
+                        {currentPageTranslation ? (
                           <TableCell>
                             {inputChanged ? (
                               <Button
@@ -309,7 +334,7 @@ export function DatasetDetail() {
                           </TableCell>
                         ) : null}
                         {columns.map((col) => {
-                          const isEditing = editingCell?.row === rowIdx && editingCell?.col === col;
+                          const isEditing = editingCell?.row === absoluteRowIndex && editingCell?.col === col;
                           return (
                             <TableCell
                               key={col}
@@ -321,7 +346,7 @@ export function DatasetDetail() {
                                   className="w-full min-w-[120px] bg-background-input border border-border-focus rounded px-2 py-1.5 text-sm resize-y focus:outline-none"
                                   value={row[col] ?? ''}
                                   rows={Math.max(2, (row[col] ?? '').split('\n').length)}
-                                  onChange={(e) => updateCell(rowIdx, col, e.target.value)}
+                                  onChange={(e) => updateCell(absoluteRowIndex, col, e.target.value)}
                                   onBlur={() => setEditingCell(null)}
                                   onKeyDown={(e) => {
                                     if (e.key === 'Escape') setEditingCell(null);
@@ -330,7 +355,7 @@ export function DatasetDetail() {
                               ) : (
                                 <div
                                   className="px-2 py-1.5 min-h-[32px] cursor-pointer hover:bg-background-secondary whitespace-pre-wrap break-words max-w-[400px] text-sm"
-                                  onClick={() => setEditingCell({ row: rowIdx, col })}
+                                  onClick={() => setEditingCell({ row: absoluteRowIndex, col })}
                                   title="Click to edit"
                                 >
                                   {row[col] || <span className="text-foreground-disabled italic">empty</span>}
@@ -342,7 +367,7 @@ export function DatasetDetail() {
                         <TableCell className="p-1">
                           <button
                             className="text-foreground-disabled hover:text-destructive p-1"
-                            onClick={() => removeRow(rowIdx)}
+                            onClick={() => removeRow(absoluteRowIndex)}
                             title="Remove row"
                           >
                             <X className="h-3.5 w-3.5" />
@@ -355,6 +380,16 @@ export function DatasetDetail() {
               </Table>
             </div>
           )}
+
+          <ListPagination
+            page={safePage}
+            pageSize={pageSize}
+            pages={pages}
+            total={rows.length}
+            itemLabel="rows"
+            onPageChange={handlePageChange}
+            onPageSizeChange={handlePageSizeChange}
+          />
         </CardContent>
       </Card>
     </PageTransition>

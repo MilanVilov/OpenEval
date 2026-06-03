@@ -66,14 +66,37 @@ def _result_to_response(result: object) -> ResultResponse:
     )
 
 
-@router.get("", response_model=list[RunResponse])
+@router.get("", response_model=list[RunResponse] | PaginatedRunResponse)
 async def list_runs(
-    session: AsyncSession = Depends(get_session),
-) -> list[RunResponse]:
+    session: Annotated[AsyncSession, Depends(get_session)],
+    page: Annotated[int | None, Query(ge=1)] = None,
+    page_size: Annotated[int | None, Query(ge=1, le=100)] = None,
+    search: str | None = None,
+) -> list[RunResponse] | PaginatedRunResponse:
     """List all evaluation runs."""
     await fail_stale_runs(session)
-    runs = await RunRepository(session).list_all()
-    return [_run_to_response(r) for r in runs]
+    repo = RunRepository(session)
+    if page is None and page_size is None and search is None:
+        runs = await repo.list_all()
+        return [_run_to_response(r) for r in runs]
+
+    requested_page = page or 1
+    requested_page_size = page_size or 10
+    result = await repo.list_page(
+        page=requested_page,
+        page_size=requested_page_size,
+        search=search,
+    )
+    pages = (result.total + requested_page_size - 1) // requested_page_size or 1
+    runs = [_run_to_response(run) for run in result.items]
+    return PaginatedRunResponse(
+        items=runs,
+        total=result.total,
+        page=requested_page,
+        page_size=requested_page_size,
+        pages=pages,
+        search=search.strip() if search else None,
+    )
 
 
 @router.post("", response_model=RunResponse, status_code=201)
