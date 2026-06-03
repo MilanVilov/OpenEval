@@ -1,6 +1,8 @@
 """EvalConfig CRUD routes — JSON API."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.repositories import ConfigRepository
@@ -8,6 +10,7 @@ from src.db.session import get_session
 from src.routers.schemas.configs import (
     ConfigResponse,
     CreateConfigRequest,
+    PaginatedConfigResponse,
     UpdateConfigRequest,
 )
 
@@ -36,13 +39,38 @@ def _config_to_response(config: object) -> ConfigResponse:
     )
 
 
-@router.get("", response_model=list[ConfigResponse])
+@router.get("", response_model=list[ConfigResponse] | PaginatedConfigResponse)
 async def list_configs(
-    session: AsyncSession = Depends(get_session),
-) -> list[ConfigResponse]:
+    session: Annotated[AsyncSession, Depends(get_session)],
+    page: Annotated[int | None, Query(ge=1)] = None,
+    page_size: Annotated[int | None, Query(ge=1, le=100)] = None,
+    search: str | None = None,
+    tags: Annotated[list[str] | None, Query()] = None,
+) -> list[ConfigResponse] | PaginatedConfigResponse:
     """List all eval configurations."""
-    configs = await ConfigRepository(session).list_all()
-    return [_config_to_response(c) for c in configs]
+    repo = ConfigRepository(session)
+    if page is None and page_size is None and search is None and tags is None:
+        configs = await repo.list_all()
+        return [_config_to_response(c) for c in configs]
+
+    requested_page = page or 1
+    requested_page_size = page_size or 10
+    result = await repo.list_page(
+        page=requested_page,
+        page_size=requested_page_size,
+        search=search,
+        tags=tags,
+    )
+    pages = (result.total + requested_page_size - 1) // requested_page_size or 1
+    configs = [_config_to_response(c) for c in result.items]
+    return PaginatedConfigResponse(
+        items=configs,
+        total=result.total,
+        page=requested_page,
+        page_size=requested_page_size,
+        pages=pages,
+        search=search.strip() if search else None,
+    )
 
 
 @router.post("", response_model=ConfigResponse, status_code=201)

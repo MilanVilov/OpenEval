@@ -4,7 +4,6 @@ from typing import Literal
 
 from pydantic import BaseModel, field_validator, model_validator
 
-
 GraderType = Literal[
     "prompt",
     "string_check",
@@ -146,3 +145,14 @@ class ConfigResponse(BaseModel):
     updated_at: str
 
     model_config = {"from_attributes": True}
+
+
+class PaginatedConfigResponse(BaseModel):
+    """Response model for a paginated config list."""
+
+    items: list[ConfigResponse]
+    total: int
+    page: int
+    page_size: int
+    pages: int
+    search: str | None = None

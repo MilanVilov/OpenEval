@@ -2,8 +2,9 @@
 
 import csv
 from pathlib import Path
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +17,7 @@ from src.routers.schemas.data_sources import (
 from src.routers.schemas.datasets import (
     DatasetDetailResponse,
     DatasetResponse,
+    PaginatedDatasetResponse,
     UpdateRowsRequest,
 )
 from src.services.csv_export import sanitize_export_name
@@ -58,13 +60,36 @@ def _csv_response(csv_content: str, filename: str) -> Response:
     )
 
 
-@router.get("", response_model=list[DatasetResponse])
+@router.get("", response_model=list[DatasetResponse] | PaginatedDatasetResponse)
 async def list_datasets(
-    session: AsyncSession = Depends(get_session),
-) -> list[DatasetResponse]:
+    session: Annotated[AsyncSession, Depends(get_session)],
+    page: Annotated[int | None, Query(ge=1)] = None,
+    page_size: Annotated[int | None, Query(ge=1, le=100)] = None,
+    search: str | None = None,
+) -> list[DatasetResponse] | PaginatedDatasetResponse:
     """List all uploaded datasets."""
-    datasets = await DatasetRepository(session).list_all()
-    return [_dataset_to_response(d) for d in datasets]
+    repo = DatasetRepository(session)
+    if page is None and page_size is None and search is None:
+        datasets = await repo.list_all()
+        return [_dataset_to_response(d) for d in datasets]
+
+    requested_page = page or 1
+    requested_page_size = page_size or 10
+    result = await repo.list_page(
+        page=requested_page,
+        page_size=requested_page_size,
+        search=search,
+    )
+    pages = (result.total + requested_page_size - 1) // requested_page_size or 1
+    datasets = [_dataset_to_response(d) for d in result.items]
+    return PaginatedDatasetResponse(
+        items=datasets,
+        total=result.total,
+        page=requested_page,
+        page_size=requested_page_size,
+        pages=pages,
+        search=search.strip() if search else None,
+    )
 
 
 @router.post("", response_model=DatasetResponse, status_code=201)

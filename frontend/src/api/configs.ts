@@ -1,8 +1,22 @@
 import { apiFetch } from './client';
 import type { EvalConfig, CreateConfigRequest } from '../types/config';
+import { buildPaginationQuery } from './pagination';
+import type { PaginatedResponse, PaginationParams } from '../types/pagination';
+
+export interface ConfigPaginationParams extends PaginationParams {
+  tags?: string[];
+}
 
 export function listConfigs(): Promise<EvalConfig[]> {
   return apiFetch('/configs');
+}
+
+export function listConfigsPage(
+  params: ConfigPaginationParams,
+): Promise<PaginatedResponse<EvalConfig>> {
+  const query = new URLSearchParams(buildPaginationQuery(params).slice(1));
+  params.tags?.forEach((tag) => query.append('tags', tag));
+  return apiFetch(`/configs?${query.toString()}`);
 }
 
 export function getConfig(id: string): Promise<EvalConfig> {

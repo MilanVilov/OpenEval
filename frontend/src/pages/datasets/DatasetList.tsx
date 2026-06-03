@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { exportDataset, listDatasets } from '@/api/datasets';
+import { exportDataset, listDatasetsPage } from '@/api/datasets';
 import type { Dataset } from '@/types/dataset';
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -12,33 +12,39 @@ import { PageTransition } from '@/components/PageTransition';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Download, Plus } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
+import { ListControls } from '@/components/ListControls';
+import { usePaginatedResource } from '@/hooks/usePaginatedResource';
 
 export function DatasetList() {
-  const [datasets, setDatasets] = useState<Dataset[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
-
-  useEffect(() => {
-    listDatasets()
-      .then(setDatasets)
-      .catch((e: Error) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, []);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const {
+    items: datasets,
+    total,
+    page,
+    pageSize,
+    pages,
+    search,
+    loading,
+    error,
+    setPage,
+    setPageSize,
+    setSearch,
+  } = usePaginatedResource<Dataset>(listDatasetsPage);
 
   async function handleExport(datasetId: string): Promise<void> {
     setDownloadingId(datasetId);
-    setError(null);
+    setActionError(null);
     try {
       await exportDataset(datasetId);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to export dataset');
+      setActionError(e instanceof Error ? e.message : 'Failed to export dataset');
     } finally {
       setDownloadingId(null);
     }
   }
 
-  if (loading) return <LoadingSkeleton rows={4} />;
+  if (loading && datasets.length === 0 && total === 0 && !search) return <LoadingSkeleton rows={4} />;
   if (error) return <Alert variant="destructive" className="animate-fade-in"><AlertDescription>{error}</AlertDescription></Alert>;
 
   return (
@@ -53,10 +59,33 @@ export function DatasetList() {
         }
       />
 
+      <ListControls
+        search={search}
+        page={page}
+        pageSize={pageSize}
+        pages={pages}
+        total={total}
+        itemLabel="datasets"
+        onSearchChange={setSearch}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+      />
+      {actionError && (
+        <Alert variant="destructive" className="mb-4 animate-fade-in">
+          <AlertDescription>{actionError}</AlertDescription>
+        </Alert>
+      )}
+
       {datasets.length === 0 ? (
         <Card className="p-12 text-center animate-scale-in">
-          <p className="text-foreground-secondary text-base">No datasets yet.</p>
-          <Link to="/datasets/new"><Button className="mt-4" size="sm">Upload your first dataset</Button></Link>
+          <p className="text-foreground-secondary text-base">
+            {search ? 'No datasets match your search.' : 'No datasets yet.'}
+          </p>
+          {!search && (
+            <Link to="/datasets/new">
+              <Button className="mt-4" size="sm">Upload your first dataset</Button>
+            </Link>
+          )}
         </Card>
       ) : (
         <div className="animate-fade-in">
