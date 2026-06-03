@@ -51,6 +51,7 @@ def test_get_engine_skips_sqlite_pragma_for_mysql(monkeypatch: pytest.MonkeyPatc
         echo=False,
         pool_pre_ping=True,
         pool_size=5,
+        connect_args={"charset": "utf8mb4"},
     )
     listen.assert_not_called()
 
@@ -74,6 +75,7 @@ def test_get_engine_uses_configured_mysql_pool_size(monkeypatch: pytest.MonkeyPa
         echo=False,
         pool_pre_ping=True,
         pool_size=12,
+        connect_args={"charset": "utf8mb4"},
     )
 
 
@@ -181,6 +183,7 @@ async def test_create_mysql_database_uses_client_settings(
         port=3307,
         user="openeval",
         password="secret",
+        charset="utf8mb4",
     )
     assert "CREATE DATABASE IF NOT EXISTS `open``eval`" in connection.cursor_instance.sql
     assert connection.committed is True
@@ -211,5 +214,6 @@ async def test_create_mysql_database_uses_defaults_file(
         read_default_file=str(defaults_file),
         read_default_group="client",
         user="customer_info",
+        charset="utf8mb4",
     )
     assert "CREATE DATABASE IF NOT EXISTS `openeval`" in connection.cursor_instance.sql
