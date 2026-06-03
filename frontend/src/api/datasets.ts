@@ -1,8 +1,14 @@
 import { apiFetch, downloadFile } from './client';
 import type { Dataset, DatasetDetail } from '../types/dataset';
+import { buildPaginationQuery } from './pagination';
+import type { PaginatedResponse, PaginationParams } from '../types/pagination';
 
 export function listDatasets(): Promise<Dataset[]> {
   return apiFetch('/datasets');
+}
+
+export function listDatasetsPage(params: PaginationParams): Promise<PaginatedResponse<Dataset>> {
+  return apiFetch(`/datasets${buildPaginationQuery(params)}`);
 }
 
 export function getDataset(id: string): Promise<DatasetDetail> {

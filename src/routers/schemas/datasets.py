@@ -18,6 +18,17 @@ class DatasetResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class PaginatedDatasetResponse(BaseModel):
+    """Response model for a paginated dataset list."""
+
+    items: list[DatasetResponse]
+    total: int
+    page: int
+    page_size: int
+    pages: int
+    search: str | None = None
+
+
 class DatasetDetailResponse(BaseModel):
     """Response model for dataset detail with all rows."""
 

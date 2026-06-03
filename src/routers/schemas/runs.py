@@ -30,6 +30,17 @@ class RunResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class PaginatedRunResponse(BaseModel):
+    """Response model for a paginated run list."""
+
+    items: list[RunResponse]
+    total: int
+    page: int
+    page_size: int
+    pages: int
+    search: str | None = None
+
+
 class RunProgressResponse(BaseModel):
     """Response model for run progress polling."""
 

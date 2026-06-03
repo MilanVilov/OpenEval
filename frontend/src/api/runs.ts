@@ -1,8 +1,14 @@
 import { apiFetch, downloadFile } from './client';
 import type { EvalRun, EvalResult, RunProgress, CreateRunRequest } from '../types/run';
+import { buildPaginationQuery } from './pagination';
+import type { PaginatedResponse, PaginationParams } from '../types/pagination';
 
 export function listRuns(): Promise<EvalRun[]> {
   return apiFetch('/runs');
+}
+
+export function listRunsPage(params: PaginationParams): Promise<PaginatedResponse<EvalRun>> {
+  return apiFetch(`/runs${buildPaginationQuery(params)}`);
 }
 
 export function getRun(id: string): Promise<EvalRun> {

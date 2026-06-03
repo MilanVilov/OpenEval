@@ -6,7 +6,9 @@ All write operations commit and refresh within the method.
 
 from __future__ import annotations
 
-from sqlalchemy import func, select
+from dataclasses import dataclass
+
+from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, undefer
 
@@ -21,6 +23,25 @@ from src.db.models import (
     Schedule,
     VectorStore,
 )
+
+
+@dataclass(frozen=True)
+class PageResult[ModelT]:
+    """A database page and the filtered total row count."""
+
+    items: list[ModelT]
+    total: int
+
+
+def _search_pattern(search: str | None) -> str | None:
+    """Return a SQL LIKE pattern for a user search string."""
+    if search is None:
+        return None
+    term = search.strip().lower()
+    if not term:
+        return None
+    return f"%{term}%"
+
 
 # ---------------------------------------------------------------------------
 # EvalConfig
@@ -80,6 +101,52 @@ class ConfigRepository:
         stmt = select(EvalConfig).order_by(EvalConfig.created_at.desc())
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
+
+    async def list_page(
+        self,
+        *,
+        page: int,
+        page_size: int,
+        search: str | None = None,
+        tags: list[str] | None = None,
+    ) -> PageResult[EvalConfig]:
+        """Return one filtered page of configs ordered by newest first."""
+        filters = self._list_filters(search=search, tags=tags)
+        total_stmt = select(func.count()).select_from(EvalConfig).where(*filters)
+        total = await self._session.scalar(total_stmt)
+        stmt = (
+            select(EvalConfig)
+            .where(*filters)
+            .order_by(EvalConfig.created_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+        result = await self._session.execute(stmt)
+        return PageResult(items=list(result.scalars().all()), total=total or 0)
+
+    def _list_filters(self, *, search: str | None, tags: list[str] | None) -> list[object]:
+        """Build config list filters from search text and selected tags."""
+        filters: list[object] = []
+        pattern = _search_pattern(search)
+        if pattern is not None:
+            filters.append(
+                or_(
+                    func.lower(EvalConfig.name).like(pattern),
+                    func.lower(EvalConfig.system_prompt).like(pattern),
+                    func.lower(EvalConfig.model).like(pattern),
+                    func.lower(cast(EvalConfig.tags, String)).like(pattern),
+                )
+            )
+        if tags:
+            filters.append(
+                or_(
+                    *[
+                        func.lower(cast(EvalConfig.tags, String)).like(f"%{tag.lower()}%")
+                        for tag in tags
+                    ]
+                )
+            )
+        return filters
 
     async def update(self, config_id: str, **fields: object) -> EvalConfig | None:
         """Update arbitrary fields on a config. Returns ``None`` if not found."""
@@ -307,6 +374,40 @@ class DatasetRepository:
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
+    async def list_page(
+        self,
+        *,
+        page: int,
+        page_size: int,
+        search: str | None = None,
+    ) -> PageResult[Dataset]:
+        """Return one filtered page of datasets ordered by newest first."""
+        filters = self._list_filters(search)
+        total_stmt = select(func.count()).select_from(Dataset).where(*filters)
+        total = await self._session.scalar(total_stmt)
+        stmt = (
+            select(Dataset)
+            .where(*filters)
+            .order_by(Dataset.created_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+        result = await self._session.execute(stmt)
+        return PageResult(items=list(result.scalars().all()), total=total or 0)
+
+    def _list_filters(self, search: str | None) -> list[object]:
+        """Build dataset list filters from search text."""
+        pattern = _search_pattern(search)
+        if pattern is None:
+            return []
+        return [
+            or_(
+                func.lower(Dataset.name).like(pattern),
+                func.lower(Dataset.file_path).like(pattern),
+                func.lower(cast(Dataset.columns, String)).like(pattern),
+            )
+        ]
+
     async def delete(self, dataset_id: str) -> bool:
         """Delete a dataset. Returns ``True`` if it existed."""
         dataset = await self.get_by_id(dataset_id)
@@ -498,6 +599,50 @@ class RunRepository:
         )
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
+
+    async def list_page(
+        self,
+        *,
+        page: int,
+        page_size: int,
+        search: str | None = None,
+    ) -> PageResult[EvalRun]:
+        """Return one filtered page of runs ordered by newest first."""
+        filters = self._list_filters(search)
+        total_stmt = (
+            select(func.count())
+            .select_from(EvalRun)
+            .outerjoin(EvalRun.config)
+            .outerjoin(EvalRun.dataset)
+            .where(*filters)
+        )
+        total = await self._session.scalar(total_stmt)
+        stmt = (
+            select(EvalRun)
+            .outerjoin(EvalRun.config)
+            .outerjoin(EvalRun.dataset)
+            .options(selectinload(EvalRun.config), selectinload(EvalRun.dataset))
+            .where(*filters)
+            .order_by(EvalRun.created_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+        result = await self._session.execute(stmt)
+        return PageResult(items=list(result.scalars().all()), total=total or 0)
+
+    def _list_filters(self, search: str | None) -> list[object]:
+        """Build run list filters from search text."""
+        pattern = _search_pattern(search)
+        if pattern is None:
+            return []
+        return [
+            or_(
+                func.lower(EvalRun.id).like(pattern),
+                func.lower(EvalRun.status).like(pattern),
+                func.lower(EvalConfig.name).like(pattern),
+                func.lower(Dataset.name).like(pattern),
+            )
+        ]
 
     async def list_recent(self, limit: int = 10) -> list[EvalRun]:
         """Return the most recent runs for the dashboard."""

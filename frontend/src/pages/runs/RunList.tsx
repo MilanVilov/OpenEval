@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { exportRun, listRuns } from '@/api/runs';
+import { exportRun, listRunsPage } from '@/api/runs';
 import type { EvalRun } from '@/types/run';
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -12,33 +12,39 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card } from '@/components/ui/card';
 import { Download, Plus } from 'lucide-react';
 import { formatDate, formatPercent, formatLatency, formatTokens } from '@/lib/utils';
+import { ListPagination, ListSearch } from '@/components/ListControls';
+import { usePaginatedResource } from '@/hooks/usePaginatedResource';
 
 export function RunList() {
-  const [runs, setRuns] = useState<EvalRun[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
-
-  useEffect(() => {
-    listRuns()
-      .then(setRuns)
-      .catch((e: Error) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, []);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const {
+    items: runs,
+    total,
+    page,
+    pageSize,
+    pages,
+    search,
+    loading,
+    error,
+    setPage,
+    setPageSize,
+    setSearch,
+  } = usePaginatedResource<EvalRun>(listRunsPage);
 
   async function handleExport(runId: string): Promise<void> {
     setDownloadingId(runId);
-    setError(null);
+    setActionError(null);
     try {
       await exportRun(runId);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to export evaluation');
+      setActionError(e instanceof Error ? e.message : 'Failed to export evaluation');
     } finally {
       setDownloadingId(null);
     }
   }
 
-  if (loading) return <LoadingSkeleton rows={5} />;
+  if (loading && runs.length === 0 && total === 0 && !search) return <LoadingSkeleton rows={5} />;
   if (error) return <Alert variant="destructive" className="animate-fade-in"><AlertDescription>{error}</AlertDescription></Alert>;
 
   return (
@@ -53,10 +59,27 @@ export function RunList() {
         }
       />
 
+      <ListSearch
+        search={search}
+        itemLabel="runs"
+        onSearchChange={setSearch}
+      />
+      {actionError && (
+        <Alert variant="destructive" className="mb-4 animate-fade-in">
+          <AlertDescription>{actionError}</AlertDescription>
+        </Alert>
+      )}
+
       {runs.length === 0 ? (
         <Card className="p-12 text-center animate-scale-in">
-          <p className="text-foreground-secondary text-base">No runs yet.</p>
-          <Link to="/runs/new"><Button className="mt-4" size="sm">Start your first run</Button></Link>
+          <p className="text-foreground-secondary text-base">
+            {search ? 'No runs match your search.' : 'No runs yet.'}
+          </p>
+          {!search && (
+            <Link to="/runs/new">
+              <Button className="mt-4" size="sm">Start your first run</Button>
+            </Link>
+          )}
         </Card>
       ) : (
         <div className="animate-fade-in">
@@ -108,6 +131,16 @@ export function RunList() {
           </Table>
         </div>
       )}
+
+      <ListPagination
+        page={page}
+        pageSize={pageSize}
+        pages={pages}
+        total={total}
+        itemLabel="runs"
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+      />
     </PageTransition>
   );
 }

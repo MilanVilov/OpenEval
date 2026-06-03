@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { listConfigs, duplicateConfig, fetchAllTags } from '@/api/configs';
+import { listConfigsPage, duplicateConfig, fetchAllTags } from '@/api/configs';
 import type { EvalConfig } from '@/types/config';
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -12,31 +12,72 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Copy, Lock, Plus } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 import { TagFilter } from '@/components/TagFilter';
+import { ListPagination, ListSearch } from '@/components/ListControls';
 
 export function ConfigList() {
   const [configs, setConfigs] = useState<EvalConfig[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSizeValue] = useState(10);
+  const [pages, setPages] = useState(1);
+  const [search, setSearchValue] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [allTags, setAllTags] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
+  const loadConfigs = useCallback(async (): Promise<void> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await listConfigsPage({
+        page,
+        page_size: pageSize,
+        search,
+        tags: selectedTags,
+      });
+      setConfigs(result.items);
+      setTotal(result.total);
+      setPages(result.pages);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load configs');
+    } finally {
+      setLoading(false);
+    }
+  }, [page, pageSize, search, selectedTags]);
+
   useEffect(() => {
-    listConfigs()
-      .then(setConfigs)
-      .catch((e: Error) => setError(e.message))
-      .finally(() => setLoading(false));
+    void loadConfigs();
+  }, [loadConfigs]);
+
+  useEffect(() => {
     fetchAllTags()
       .then(setAllTags)
       .catch(() => {/* ignore */});
   }, []);
 
+  function handleSearchChange(value: string): void {
+    setSearchValue(value);
+    setPage(1);
+  }
+
+  function handlePageSizeChange(value: number): void {
+    setPageSizeValue(value);
+    setPage(1);
+  }
+
+  function handleTagsChange(tags: string[]): void {
+    setSelectedTags(tags);
+    setPage(1);
+  }
+
   async function handleDuplicate(e: React.MouseEvent, configId: string) {
     e.preventDefault();
     setDuplicatingId(configId);
     try {
-      const copy = await duplicateConfig(configId);
-      setConfigs((prev) => [copy, ...prev]);
+      await duplicateConfig(configId);
+      await loadConfigs();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to duplicate config');
     } finally {
@@ -44,12 +85,10 @@ export function ConfigList() {
     }
   }
 
-  if (loading) return <LoadingSkeleton rows={4} />;
+  if (loading && configs.length === 0 && total === 0 && !search && selectedTags.length === 0) {
+    return <LoadingSkeleton rows={4} />;
+  }
   if (error) return <Alert variant="destructive" className="animate-fade-in"><AlertDescription>{error}</AlertDescription></Alert>;
-
-  const filteredConfigs = selectedTags.length === 0
-    ? configs
-    : configs.filter((c) => c.tags?.some((t) => selectedTags.includes(t)));
 
   return (
     <PageTransition>
@@ -63,16 +102,28 @@ export function ConfigList() {
         }
       />
 
-      <TagFilter allTags={allTags} selectedTags={selectedTags} onChange={setSelectedTags} />
+      <ListSearch
+        search={search}
+        itemLabel="configs"
+        onSearchChange={handleSearchChange}
+      />
 
-      {filteredConfigs.length === 0 ? (
+      <TagFilter allTags={allTags} selectedTags={selectedTags} onChange={handleTagsChange} />
+
+      {configs.length === 0 ? (
         <Card className="p-12 text-center animate-scale-in">
-          <p className="text-foreground-secondary text-base">No configs yet.</p>
-          <Link to="/configs/new"><Button className="mt-4" size="sm">Create your first config</Button></Link>
+          <p className="text-foreground-secondary text-base">
+            {search || selectedTags.length > 0 ? 'No configs match your filters.' : 'No configs yet.'}
+          </p>
+          {!search && selectedTags.length === 0 && (
+            <Link to="/configs/new">
+              <Button className="mt-4" size="sm">Create your first config</Button>
+            </Link>
+          )}
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredConfigs.map((config, idx) => (
+          {configs.map((config, idx) => (
             <Link key={config.id} to={`/configs/${config.id}`}>
               <Card
                 className="p-4 h-full hover:bg-background-hover hover:border-border-hover hover:shadow-medium transition-all duration-200 ease-[var(--ease-smooth)] animate-fade-in-up"
@@ -114,6 +165,16 @@ export function ConfigList() {
           ))}
         </div>
       )}
+
+      <ListPagination
+        page={page}
+        pageSize={pageSize}
+        pages={pages}
+        total={total}
+        itemLabel="configs"
+        onPageChange={setPage}
+        onPageSizeChange={handlePageSizeChange}
+      />
     </PageTransition>
   );
 }
