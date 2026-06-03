@@ -12,7 +12,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Copy, Lock, Plus } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 import { TagFilter } from '@/components/TagFilter';
-import { ListControls } from '@/components/ListControls';
+import { ListPagination, ListSearch } from '@/components/ListControls';
 
 export function ConfigList() {
   const [configs, setConfigs] = useState<EvalConfig[]>([]);
@@ -102,16 +102,10 @@ export function ConfigList() {
         }
       />
 
-      <ListControls
+      <ListSearch
         search={search}
-        page={page}
-        pageSize={pageSize}
-        pages={pages}
-        total={total}
         itemLabel="configs"
         onSearchChange={handleSearchChange}
-        onPageChange={setPage}
-        onPageSizeChange={handlePageSizeChange}
       />
 
       <TagFilter allTags={allTags} selectedTags={selectedTags} onChange={handleTagsChange} />
@@ -171,6 +165,16 @@ export function ConfigList() {
           ))}
         </div>
       )}
+
+      <ListPagination
+        page={page}
+        pageSize={pageSize}
+        pages={pages}
+        total={total}
+        itemLabel="configs"
+        onPageChange={setPage}
+        onPageSizeChange={handlePageSizeChange}
+      />
     </PageTransition>
   );
 }

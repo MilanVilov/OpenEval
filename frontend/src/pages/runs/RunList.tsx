@@ -12,7 +12,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card } from '@/components/ui/card';
 import { Download, Plus } from 'lucide-react';
 import { formatDate, formatPercent, formatLatency, formatTokens } from '@/lib/utils';
-import { ListControls } from '@/components/ListControls';
+import { ListPagination, ListSearch } from '@/components/ListControls';
 import { usePaginatedResource } from '@/hooks/usePaginatedResource';
 
 export function RunList() {
@@ -59,16 +59,10 @@ export function RunList() {
         }
       />
 
-      <ListControls
+      <ListSearch
         search={search}
-        page={page}
-        pageSize={pageSize}
-        pages={pages}
-        total={total}
         itemLabel="runs"
         onSearchChange={setSearch}
-        onPageChange={setPage}
-        onPageSizeChange={setPageSize}
       />
       {actionError && (
         <Alert variant="destructive" className="mb-4 animate-fade-in">
@@ -137,6 +131,16 @@ export function RunList() {
           </Table>
         </div>
       )}
+
+      <ListPagination
+        page={page}
+        pageSize={pageSize}
+        pages={pages}
+        total={total}
+        itemLabel="runs"
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+      />
     </PageTransition>
   );
 }

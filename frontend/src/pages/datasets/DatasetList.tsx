@@ -12,7 +12,7 @@ import { PageTransition } from '@/components/PageTransition';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Download, Plus } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
-import { ListControls } from '@/components/ListControls';
+import { ListPagination, ListSearch } from '@/components/ListControls';
 import { usePaginatedResource } from '@/hooks/usePaginatedResource';
 
 export function DatasetList() {
@@ -59,16 +59,10 @@ export function DatasetList() {
         }
       />
 
-      <ListControls
+      <ListSearch
         search={search}
-        page={page}
-        pageSize={pageSize}
-        pages={pages}
-        total={total}
         itemLabel="datasets"
         onSearchChange={setSearch}
-        onPageChange={setPage}
-        onPageSizeChange={setPageSize}
       />
       {actionError && (
         <Alert variant="destructive" className="mb-4 animate-fade-in">
@@ -130,6 +124,16 @@ export function DatasetList() {
           </Table>
         </div>
       )}
+
+      <ListPagination
+        page={page}
+        pageSize={pageSize}
+        pages={pages}
+        total={total}
+        itemLabel="datasets"
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+      />
     </PageTransition>
   );
 }
