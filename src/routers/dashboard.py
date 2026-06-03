@@ -7,6 +7,7 @@ from src.db.repositories import RunRepository
 from src.db.session import get_session
 from src.routers.schemas.dashboard import DashboardResponse
 from src.routers.schemas.runs import RunResponse
+from src.services.run_monitor import fail_stale_runs
 
 router = APIRouter(prefix="/api", tags=["dashboard"])
 
@@ -33,6 +34,7 @@ def _run_to_response(run: object) -> RunResponse:
 @router.get("/dashboard", response_model=DashboardResponse)
 async def dashboard(session: AsyncSession = Depends(get_session)) -> DashboardResponse:
     """Return dashboard summary data as JSON."""
+    await fail_stale_runs(session)
     run_repo = RunRepository(session)
     recent_runs = await run_repo.list_recent(limit=10)
     return DashboardResponse(

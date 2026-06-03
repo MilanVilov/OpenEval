@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import httpx
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,12 +19,15 @@ from src.routers.schemas.data_sources import (
     ImportPresetCreateRequest,
     ImportPresetResponse,
     ImportPresetUpdateRequest,
+    TranslateInputColumnRequest,
+    TranslateInputColumnResponse,
 )
 from src.services.data_source_crypto import (
     decrypt_secret_payload,
     encrypt_secret_payload,
 )
 from src.services.data_source_duplicates import duplicate_data_source
+from src.services.mapped_row_translation import translate_input_column
 from src.services.remote_data_sources import explore_data_source
 
 router = APIRouter(prefix="/api/data-sources", tags=["data-sources"])
@@ -428,3 +430,21 @@ async def explore_remote_data_source(
         next_page_state=result.next_page_state,
         previous_page_state=result.previous_page_state,
     )
+
+
+@router.post("/translate-input-column", response_model=TranslateInputColumnResponse)
+async def translate_mapped_input_column(
+    body: TranslateInputColumnRequest,
+) -> TranslateInputColumnResponse:
+    """Translate mapped input values for the current page preview."""
+    try:
+        mapped_rows = await translate_input_column(
+            body.mapped_rows,
+            target_language=body.target_language,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"Translation failed: {exc}") from exc
+
+    return TranslateInputColumnResponse(mapped_rows=mapped_rows)

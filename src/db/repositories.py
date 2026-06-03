@@ -6,6 +6,12 @@ All write operations commit and refresh within the method.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+from uuid import uuid4
+
+from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy.dialects.mysql import insert as mysql_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from dataclasses import dataclass
 
 from sqlalchemy import String, cast, func, or_, select
@@ -569,11 +575,13 @@ class RunRepository:
         scheduled_by_id: str | None = None,
     ) -> EvalRun:
         """Insert a new evaluation run."""
+        heartbeat_at = datetime.now(UTC)
         run = EvalRun(
             eval_config_id=eval_config_id,
             dataset_id=dataset_id,
             total_rows=total_rows,
             scheduled_by_id=scheduled_by_id,
+            heartbeat_at=heartbeat_at,
         )
         self._session.add(run)
         await self._session.commit()
@@ -667,12 +675,20 @@ class RunRepository:
         await self._session.refresh(run)
         return run
 
-    async def update_progress(self, run_id: str, *, progress: int) -> None:
+    async def update_progress(
+        self,
+        run_id: str,
+        *,
+        progress: int,
+        heartbeat_at: datetime | None = None,
+    ) -> None:
         """Bump the progress counter on a run."""
         run = await self._session.get(EvalRun, run_id)
         if run is None:
             return
         run.progress = progress
+        if heartbeat_at is not None:
+            run.heartbeat_at = heartbeat_at
         await self._session.commit()
 
     async def set_summary(self, run_id: str, *, summary: dict) -> None:
@@ -682,6 +698,64 @@ class RunRepository:
             return
         run.summary = summary
         await self._session.commit()
+
+    async def update_heartbeat(self, run_id: str, *, heartbeat_at: datetime) -> None:
+        """Refresh the run heartbeat without changing its progress."""
+        run = await self._session.get(EvalRun, run_id)
+        if run is None:
+            return
+        run.heartbeat_at = heartbeat_at
+        await self._session.commit()
+
+    async def fail_stale_run(
+        self,
+        run_id: str,
+        *,
+        stale_before: datetime,
+        error_message: str,
+        completed_at: datetime,
+    ) -> bool:
+        """Mark one active run failed when its heartbeat is older than ``stale_before``."""
+        run = await self._session.get(EvalRun, run_id)
+        if run is None or run.status not in {"pending", "running", "finalizing"}:
+            return False
+        heartbeat_at = run.heartbeat_at or run.created_at
+        if heartbeat_at is None or heartbeat_at >= stale_before:
+            return False
+        run.status = "failed"
+        run.error_message = error_message
+        run.completed_at = completed_at
+        run.heartbeat_at = completed_at
+        await self._session.commit()
+        return True
+
+    async def fail_stale_active_runs(
+        self,
+        *,
+        stale_before: datetime,
+        error_message: str,
+        completed_at: datetime,
+    ) -> int:
+        """Mark every stale active run failed and return the number of updated rows."""
+        heartbeat_missing = and_(
+            EvalRun.heartbeat_at.is_(None),
+            EvalRun.created_at < stale_before,
+        )
+        heartbeat_stale = EvalRun.heartbeat_at < stale_before
+        stmt = (
+            update(EvalRun)
+            .where(EvalRun.status.in_(("pending", "running", "finalizing")))
+            .where(or_(heartbeat_missing, heartbeat_stale))
+            .values(
+                status="failed",
+                error_message=error_message,
+                completed_at=completed_at,
+                heartbeat_at=completed_at,
+            )
+        )
+        result = await self._session.execute(stmt)
+        await self._session.commit()
+        return int(result.rowcount or 0)
 
     async def delete(self, run_id: str) -> bool:
         """Delete a run. Returns ``True`` if it existed."""
@@ -891,7 +965,24 @@ class ResultRepository:
 
     async def create_batch(self, results: list[EvalResult]) -> None:
         """Bulk-insert a list of pre-built :class:`EvalResult` instances."""
+        if not results:
+            return
         self._session.add_all(results)
+        await self._session.commit()
+
+    async def upsert_batch(self, results: list[EvalResult]) -> None:
+        """Insert or replace results by ``(eval_run_id, row_index)``."""
+        if not results:
+            return
+        values = [_result_insert_values(result) for result in results]
+        dialect_name = self._session.get_bind().dialect.name
+        if dialect_name == "sqlite":
+            stmt = _sqlite_result_upsert(values)
+        elif dialect_name == "mysql":
+            stmt = _mysql_result_upsert(values)
+        else:
+            raise ValueError(f"Unsupported database dialect for result upsert: {dialect_name}")
+        await self._session.execute(stmt)
         await self._session.commit()
 
     async def list_by_run(self, run_id: str, *, failed_only: bool = False) -> list[EvalResult]:
@@ -909,3 +1000,58 @@ class ResultRepository:
     async def get_by_id(self, result_id: str) -> EvalResult | None:
         """Return a single result by primary key, or ``None``."""
         return await self._session.get(EvalResult, result_id)
+
+
+def _result_insert_values(result: EvalResult) -> dict[str, object]:
+    """Return the insert payload for one persisted result row."""
+    return {
+        "id": result.id or uuid4().hex,
+        "eval_run_id": result.eval_run_id,
+        "row_index": result.row_index,
+        "input_data": result.input_data,
+        "expected_output": result.expected_output,
+        "actual_output": result.actual_output,
+        "comparer_score": result.comparer_score,
+        "comparer_details": result.comparer_details,
+        "passed": result.passed,
+        "latency_ms": result.latency_ms,
+        "token_usage": result.token_usage,
+        "error": result.error,
+    }
+
+
+def _mysql_result_upsert(values: list[dict[str, object]]):
+    """Build a MySQL upsert statement for persisted result rows."""
+    stmt = mysql_insert(EvalResult).values(values)
+    inserted = stmt.inserted
+    return stmt.on_duplicate_key_update(
+        input_data=inserted.input_data,
+        expected_output=inserted.expected_output,
+        actual_output=inserted.actual_output,
+        comparer_score=inserted.comparer_score,
+        comparer_details=inserted.comparer_details,
+        passed=inserted.passed,
+        latency_ms=inserted.latency_ms,
+        token_usage=inserted.token_usage,
+        error=inserted.error,
+    )
+
+
+def _sqlite_result_upsert(values: list[dict[str, object]]):
+    """Build a SQLite upsert statement for persisted result rows."""
+    stmt = sqlite_insert(EvalResult).values(values)
+    excluded = stmt.excluded
+    return stmt.on_conflict_do_update(
+        index_elements=["eval_run_id", "row_index"],
+        set_={
+            "input_data": excluded.input_data,
+            "expected_output": excluded.expected_output,
+            "actual_output": excluded.actual_output,
+            "comparer_score": excluded.comparer_score,
+            "comparer_details": excluded.comparer_details,
+            "passed": excluded.passed,
+            "latency_ms": excluded.latency_ms,
+            "token_usage": excluded.token_usage,
+            "error": excluded.error,
+        },
+    )

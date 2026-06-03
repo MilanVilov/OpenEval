@@ -1,5 +1,5 @@
 import { apiFetch, downloadFile } from './client';
-import type { Dataset, DatasetDetail } from '../types/dataset';
+import type { Dataset, DatasetDetail, DatasetRow } from '../types/dataset';
 import { buildPaginationQuery } from './pagination';
 import type { PaginatedResponse, PaginationParams } from '../types/pagination';
 
@@ -28,7 +28,7 @@ export function uploadDataset(name: string, file: File): Promise<Dataset> {
 
 export function updateDatasetRows(
   id: string,
-  rows: Record<string, string>[],
+  rows: DatasetRow[],
 ): Promise<DatasetDetail> {
   return apiFetch(`/datasets/${id}/rows`, {
     method: 'PUT',

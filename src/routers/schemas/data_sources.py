@@ -6,7 +6,6 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-
 AuthType = Literal["none", "bearer", "basic", "header_set"]
 PaginationMode = Literal["none", "page", "offset", "next_token"]
 RequestMethod = Literal["GET", "POST"]
@@ -31,7 +30,7 @@ class DataSourceCreateRequest(BaseModel):
     skip_ssl_verify: bool = False
 
     @model_validator(mode="after")
-    def validate_payload(self) -> "DataSourceCreateRequest":
+    def validate_payload(self) -> DataSourceCreateRequest:
         """Validate method and auth-specific fields."""
         if self.method == "GET" and self.request_body is not None:
             raise ValueError("GET data sources cannot define a request body")
@@ -100,7 +99,7 @@ class ImportPresetCreateRequest(BaseModel):
     field_mapping: dict[str, str]
 
     @model_validator(mode="after")
-    def validate_mapping(self) -> "ImportPresetCreateRequest":
+    def validate_mapping(self) -> ImportPresetCreateRequest:
         """Require the dataset mapping contract for new presets."""
         _validate_field_mapping(self.field_mapping)
         return self
@@ -114,7 +113,7 @@ class ImportPresetUpdateRequest(BaseModel):
     field_mapping: dict[str, str] | None = None
 
     @model_validator(mode="after")
-    def validate_mapping(self) -> "ImportPresetUpdateRequest":
+    def validate_mapping(self) -> ImportPresetUpdateRequest:
         """Validate field mapping when it is provided."""
         if self.field_mapping is not None:
             _validate_field_mapping(self.field_mapping)
@@ -144,7 +143,7 @@ class ExploreDataSourceRequest(BaseModel):
     page_state: dict[str, object] | None = None
 
     @model_validator(mode="after")
-    def validate_mapping(self) -> "ExploreDataSourceRequest":
+    def validate_mapping(self) -> ExploreDataSourceRequest:
         """Validate a draft field mapping when it is present."""
         if self.field_mapping is not None:
             _validate_field_mapping(self.field_mapping)
@@ -165,6 +164,28 @@ class ExploreDataSourceResponse(BaseModel):
     previous_page_state: dict[str, object] | None
 
 
+class TranslateInputColumnRequest(BaseModel):
+    """Request body for translating mapped input values on the current page."""
+
+    target_language: str = Field(min_length=1, max_length=100)
+    mapped_rows: list[dict[str, str]]
+
+    @model_validator(mode="after")
+    def validate_rows(self) -> TranslateInputColumnRequest:
+        """Require page rows and the mapped input column."""
+        if not self.mapped_rows:
+            raise ValueError("Mapped rows must not be empty")
+        if any("input" not in row for row in self.mapped_rows):
+            raise ValueError("Mapped rows must include input")
+        return self
+
+
+class TranslateInputColumnResponse(BaseModel):
+    """Response model for translated mapped rows."""
+
+    mapped_rows: list[dict[str, str]]
+
+
 class ImportDatasetFromSourceRequest(BaseModel):
     """Request body for creating a dataset from selected remote records."""
 
@@ -173,17 +194,19 @@ class ImportDatasetFromSourceRequest(BaseModel):
     data_source_id: str | None = None
     records_path: str | None = None
     field_mapping: dict[str, str] | None = None
-    selected_records: list[object]
+    selected_records: list[object] = Field(default_factory=list)
+    selected_rows: list[dict[str, str]] | None = None
 
     @model_validator(mode="after")
-    def validate_rows(self) -> "ImportDatasetFromSourceRequest":
+    def validate_rows(self) -> ImportDatasetFromSourceRequest:
         """Require at least one selected source row."""
-        if not self.selected_records:
+        if not self.selected_records and not self.selected_rows:
             raise ValueError("Select at least one row to import")
         if self.preset_id is None:
             if not self.data_source_id or not self.records_path or self.field_mapping is None:
                 raise ValueError(
-                    "Import requires either preset_id or data_source_id, records_path, and field_mapping",
+                    "Import requires either preset_id or data_source_id, "
+                    "records_path, and field_mapping",
                 )
             _validate_field_mapping(self.field_mapping)
         return self
@@ -192,12 +215,13 @@ class ImportDatasetFromSourceRequest(BaseModel):
 class AppendDatasetFromSourceRequest(BaseModel):
     """Request body for appending selected remote records into a dataset."""
 
-    selected_records: list[object]
+    selected_records: list[object] = Field(default_factory=list)
+    selected_rows: list[dict[str, str]] | None = None
 
     @model_validator(mode="after")
-    def validate_rows(self) -> "AppendDatasetFromSourceRequest":
+    def validate_rows(self) -> AppendDatasetFromSourceRequest:
         """Require at least one selected source row."""
-        if not self.selected_records:
+        if not self.selected_records and not self.selected_rows:
             raise ValueError("Select at least one row to import")
         return self
 

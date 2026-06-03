@@ -215,6 +215,7 @@ async def import_dataset_from_source(
             records_path=str(records_path),
             field_mapping={str(key): str(value) for key, value in (field_mapping or {}).items()},
             selected_records=body.selected_records,
+            selected_rows=body.selected_rows,
             import_preset_id=import_preset_id,
         )
     except ValueError as exc:
@@ -278,6 +279,7 @@ async def append_dataset_from_source(
             session,
             dataset=dataset,
             selected_records=body.selected_records,
+            selected_rows=body.selected_rows,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

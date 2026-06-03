@@ -8,6 +8,9 @@ import type {
   ImportDatasetFromSourcePayload,
   ImportPreset,
   ImportPresetPayload,
+  MappedDataRow,
+  TranslateInputColumnRequest,
+  TranslateInputColumnResponse,
 } from '@/types/dataSource';
 import type { Dataset, DatasetDetail } from '@/types/dataset';
 
@@ -83,6 +86,15 @@ export function exploreDataSource(
   });
 }
 
+export function translateInputColumn(
+  payload: TranslateInputColumnRequest,
+): Promise<TranslateInputColumnResponse> {
+  return apiFetch('/data-sources/translate-input-column', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
 export function importDatasetFromSource(
   payload: ImportDatasetFromSourcePayload,
 ): Promise<Dataset> {
@@ -95,9 +107,13 @@ export function importDatasetFromSource(
 export function appendDatasetFromSource(
   datasetId: string,
   selectedRecords: unknown[],
+  selectedRows?: MappedDataRow[],
 ): Promise<DatasetDetail> {
   return apiFetch(`/datasets/${datasetId}/append-from-source`, {
     method: 'POST',
-    body: JSON.stringify({ selected_records: selectedRecords }),
+    body: JSON.stringify({
+      selected_records: selectedRecords,
+      selected_rows: selectedRows,
+    }),
   });
 }

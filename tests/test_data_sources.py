@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from cryptography.fernet import Fernet
@@ -13,6 +13,7 @@ from httpx import ASGITransport, AsyncClient
 from src.app import create_app
 from src.db.models import Base
 from src.db.session import get_engine
+from src.providers.base import LLMResponse
 
 
 @pytest.fixture()
@@ -25,6 +26,7 @@ def app(tmp_path: Path):
         upload_dir=str(upload_dir),
         cors_origins="",
         data_source_encryption_key=Fernet.generate_key().decode("utf-8"),
+        openai_api_key="test-key",
     )
 
     with (
@@ -352,6 +354,100 @@ async def test_explore_data_source_returns_mapped_rows_and_page_states(
 
 
 @pytest.mark.asyncio
+async def test_translate_input_column_updates_only_mapped_input_values(
+    client: AsyncClient,
+) -> None:
+    """The translation endpoint should only rewrite the mapped input column."""
+    provider = SimpleNamespace(
+        generate=AsyncMock(
+            return_value=LLMResponse(
+                text='{"translations":["Vraag 1","Vraag 2"]}',
+                latency_ms=12,
+                token_usage={"input_tokens": 10, "output_tokens": 4},
+            ),
+        ),
+    )
+
+    with patch("src.services.mapped_row_translation.OpenAIProvider", return_value=provider):
+        response = await client.post(
+            "/api/data-sources/translate-input-column",
+            json={
+                "target_language": "Dutch",
+                "mapped_rows": [
+                    {"input": "Question 1", "expected_output": "Answer 1", "category": "alpha"},
+                    {"input": "Question 2", "expected_output": "Answer 2", "category": "beta"},
+                ],
+            },
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["mapped_rows"] == [
+        {"input": "Vraag 1", "expected_output": "Answer 1", "category": "alpha"},
+        {"input": "Vraag 2", "expected_output": "Answer 2", "category": "beta"},
+    ]
+    assert provider.generate.await_args.kwargs["model"] == "gpt-5.4-nano"
+    assert provider.generate.await_args.kwargs["reasoning_config"] == {"effort": "none"}
+
+
+@pytest.mark.asyncio
+async def test_import_from_source_and_append_accept_selected_rows(
+    client: AsyncClient,
+) -> None:
+    """Direct mapped rows should be imported without re-mapping raw source records."""
+    source_id = await _create_source(client)
+    preset_id = await _create_preset(client, source_id)
+
+    create_dataset = await client.post(
+        "/api/datasets/import-from-source",
+        json={
+            "name": "Translated Tickets",
+            "preset_id": preset_id,
+            "selected_rows": [
+                {
+                    "input": "Vraag 1",
+                    "expected_output": "a1",
+                    "category": "alpha",
+                }
+            ],
+        },
+    )
+    assert create_dataset.status_code == 201
+
+    dataset_id = create_dataset.json()["id"]
+    first_detail = await client.get(f"/api/datasets/{dataset_id}")
+    assert first_detail.status_code == 200
+    assert first_detail.json()["rows"] == [
+        {
+            "input": "Vraag 1",
+            "expected_output": "a1",
+            "category": "alpha",
+        }
+    ]
+
+    append_rows = await client.post(
+        f"/api/datasets/{dataset_id}/append-from-source",
+        json={
+            "selected_rows": [
+                {
+                    "input": "Vraag 2",
+                    "expected_output": "a2",
+                    "category": "beta",
+                }
+            ]
+        },
+    )
+    assert append_rows.status_code == 200
+    appended = append_rows.json()
+    assert appended["row_count"] == 2
+    assert appended["rows"][-1] == {
+        "input": "Vraag 2",
+        "expected_output": "a2",
+        "category": "beta",
+    }
+
+
+@pytest.mark.asyncio
 async def test_import_from_source_and_append_uses_dataset_snapshot_mapping(
     client: AsyncClient,
 ) -> None:
@@ -447,7 +543,10 @@ async def test_import_from_source_without_preset_supports_template_mapping(
     dataset_id = body["id"]
     detail = await client.get(f"/api/datasets/{dataset_id}")
     assert detail.status_code == 200
-    assert detail.json()["rows"][0]["input"] == 'Recipe: Choco Chip Cookies\nIngredients: ["Flour","Butter"]'
+    assert (
+        detail.json()["rows"][0]["input"]
+        == 'Recipe: Choco Chip Cookies\nIngredients: ["Flour","Butter"]'
+    )
     assert detail.json()["rows"][0]["expected_output"] == "Mix Then Bake"
     assert detail.json()["import_source_snapshot"]["records_path"] == "$.recipes"
 
