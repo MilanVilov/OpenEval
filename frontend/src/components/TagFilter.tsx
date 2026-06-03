@@ -18,7 +18,7 @@ export function TagFilter({ allTags, selectedTags, onChange }: TagFilterProps) {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
+    <div className="mb-4 flex flex-wrap items-center gap-1.5">
       <span className="text-xs text-foreground-secondary uppercase tracking-wide mr-1">Tags</span>
       {allTags.map((tag) => (
         <button key={tag} type="button" onClick={() => toggle(tag)}>

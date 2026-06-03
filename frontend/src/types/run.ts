@@ -6,6 +6,7 @@ export interface EvalRun {
   progress: number;
   total_rows: number;
   summary: RunSummary | null;
+  error_message: string | null;
   started_at: string | null;
   completed_at: string | null;
   created_at: string;
@@ -39,6 +40,7 @@ export interface RunProgress {
   progress: number;
   total_rows: number;
   summary: RunSummary | null;
+  error_message: string | null;
 }
 
 export interface EvalResult {
