@@ -387,6 +387,7 @@ async def test_translate_input_column_updates_only_mapped_input_values(
         {"input": "Vraag 2", "expected_output": "Answer 2", "category": "beta"},
     ]
     assert provider.generate.await_args.kwargs["model"] == "gpt-5.4-nano"
+    assert provider.generate.await_args.kwargs["reasoning_config"] == {"effort": "none"}
 
 
 @pytest.mark.asyncio

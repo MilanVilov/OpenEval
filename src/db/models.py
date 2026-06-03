@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import JSON, ForeignKey, Index, String, Text, func
+from sqlalchemy import JSON, ForeignKey, Index, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects import mysql
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -208,6 +208,7 @@ class EvalRun(Base):
     total_rows: Mapped[int] = mapped_column(default=0)
     summary: Mapped[dict | None] = mapped_column(JSON, default=None)
     error_message: Mapped[str | None] = mapped_column(Text, default=None)
+    heartbeat_at: Mapped[datetime | None] = mapped_column(default=None)
     started_at: Mapped[datetime | None] = mapped_column(default=None)
     completed_at: Mapped[datetime | None] = mapped_column(default=None)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
@@ -260,7 +261,10 @@ class EvalResult(Base):
 
     run: Mapped["EvalRun"] = relationship(back_populates="results")
 
-    __table_args__ = (Index("ix_eval_results_eval_run_id", "eval_run_id"),)
+    __table_args__ = (
+        UniqueConstraint("eval_run_id", "row_index", name="uq_eval_results_run_row"),
+        Index("ix_eval_results_eval_run_id", "eval_run_id"),
+    )
 
     def __repr__(self) -> str:
         return f"<EvalResult id={self.id!r} row_index={self.row_index}>"

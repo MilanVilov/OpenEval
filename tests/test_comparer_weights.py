@@ -71,8 +71,10 @@ def mock_repos():
 
         run_repo.update_status = AsyncMock()
         run_repo.update_progress = AsyncMock()
+        run_repo.update_heartbeat = AsyncMock()
         run_repo.set_summary = AsyncMock()
         result_repo.create_batch = AsyncMock()
+        result_repo.upsert_batch = AsyncMock()
 
         yield {
             "run_repo": run_repo,
@@ -121,7 +123,7 @@ class TestGraderWeights:
             MockGrader1.side_effect = make_grader
             await run_evaluation("run1")
 
-        results = mock_repos["result_repo"].create_batch.call_args[0][0]
+        results = mock_repos["result_repo"].upsert_batch.call_args[0][0]
         assert len(results) == 1
         r = results[0]
         # check1 returns 1.0, check2 returns 0.6
@@ -164,7 +166,7 @@ class TestGraderWeights:
             MockGrader.side_effect = make_grader
             await run_evaluation("run1")
 
-        results = mock_repos["result_repo"].create_batch.call_args[0][0]
+        results = mock_repos["result_repo"].upsert_batch.call_args[0][0]
         r = results[0]
         # Weighted mean: (0.5*1.0 + 1.0*0.8) / (0.5 + 1.0) = 1.3/1.5 ≈ 0.8667
         expected_score = (0.5 * 1.0 + 1.0 * 0.8) / (0.5 + 1.0)
@@ -205,7 +207,7 @@ class TestGraderWeights:
             MockGrader.side_effect = make_grader
             await run_evaluation("run1")
 
-        results = mock_repos["result_repo"].create_batch.call_args[0][0]
+        results = mock_repos["result_repo"].upsert_batch.call_args[0][0]
         r = results[0]
         # check1 weight=0 → excluded from score and pass/fail
         assert r.comparer_score == pytest.approx(0.9, abs=1e-4)
@@ -229,7 +231,7 @@ class TestGraderWeights:
 
         await run_evaluation("run1")
 
-        results = mock_repos["result_repo"].create_batch.call_args[0][0]
+        results = mock_repos["result_repo"].upsert_batch.call_args[0][0]
         r = results[0]
         assert r.comparer_score == 0.0
         assert r.passed is False

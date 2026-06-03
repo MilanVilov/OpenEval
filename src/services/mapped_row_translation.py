@@ -7,6 +7,7 @@ import json
 from src.providers.base import BaseLLMProvider
 from src.providers.openai import OpenAIProvider
 
+MAX_TRANSLATION_BATCH_SIZE = 50
 TRANSLATION_MODEL = "gpt-5.4-nano"
 TRANSLATION_RESPONSE_FORMAT = {
     "type": "json_schema",
@@ -43,7 +44,7 @@ async def translate_input_column(
     if not language:
         raise ValueError("Target language is required")
 
-    translations = await _request_translations(
+    translations = await _request_translation_batches(
         [row["input"] for row in rows],
         target_language=language,
         provider=provider or OpenAIProvider(),
@@ -80,10 +81,37 @@ async def _request_translations(
             ensure_ascii=False,
         ),
         model=TRANSLATION_MODEL,
-        reasoning_config={"effort": "minimal"},
+        reasoning_config={"effort": "none"},
         response_format=TRANSLATION_RESPONSE_FORMAT,
     )
     return _parse_translations(response.text, expected_count=len(inputs))
+
+
+async def _request_translation_batches(
+    inputs: list[str],
+    *,
+    target_language: str,
+    provider: BaseLLMProvider,
+) -> list[str]:
+    """Translate inputs in fixed-size batches to keep prompts bounded."""
+    translations: list[str] = []
+    for batch in _batch_inputs(inputs):
+        translations.extend(
+            await _request_translations(
+                batch,
+                target_language=target_language,
+                provider=provider,
+            ),
+        )
+    return translations
+
+
+def _batch_inputs(inputs: list[str]) -> list[list[str]]:
+    """Split inputs into bounded batches for the translation model."""
+    return [
+        inputs[index : index + MAX_TRANSLATION_BATCH_SIZE]
+        for index in range(0, len(inputs), MAX_TRANSLATION_BATCH_SIZE)
+    ]
 
 
 def _parse_translations(response_text: str, *, expected_count: int) -> list[str]:

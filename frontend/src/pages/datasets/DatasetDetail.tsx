@@ -1,8 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { deleteDataset, exportDataset, getDataset, updateDatasetRows } from '@/api/datasets';
-import type { DatasetDetail as DatasetDetailType } from '@/types/dataset';
+import { translateInputColumn } from '@/api/dataSources';
+import { InputTranslationActions } from '@/components/dataSources/InputTranslationActions';
 import { PageHeader } from '@/components/PageHeader';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
@@ -11,16 +13,27 @@ import { LoadingSkeleton } from '@/components/LoadingSkeleton';
 import { PageTransition } from '@/components/PageTransition';
 import { Spinner } from '@/components/Spinner';
 import { formatDate } from '@/lib/utils';
+import type { DatasetDetail as DatasetDetailType, DatasetRow } from '@/types/dataset';
 import { Download, Plus, Save, Trash2, X } from 'lucide-react';
+
+interface DatasetTranslationState {
+  originalInputs: string[];
+  originalInputRowIndexes: number[];
+  targetLanguage: string;
+  translatedInputs: string[];
+}
 
 export function DatasetDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [dataset, setDataset] = useState<DatasetDetailType | null>(null);
-  const [rows, setRows] = useState<Record<string, string>[]>([]);
+  const [rows, setRows] = useState<DatasetRow[]>([]);
+  const [translationState, setTranslationState] = useState<DatasetTranslationState | null>(null);
+  const [targetLanguage, setTargetLanguage] = useState('English');
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [translating, setTranslating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingCell, setEditingCell] = useState<{ row: number; col: string } | null>(null);
@@ -31,6 +44,7 @@ export function DatasetDetail() {
       .then((d) => {
         setDataset(d);
         setRows(d.rows);
+        setTranslationState(null);
       })
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
@@ -42,21 +56,42 @@ export function DatasetDetail() {
       updated[rowIdx] = { ...updated[rowIdx], [col]: value };
       return updated;
     });
+    if (col === 'input') {
+      setTranslationState((current) => {
+        if (!current) {
+          return null;
+        }
+        const nextOriginalInputs = [...current.originalInputs];
+        const nextTranslatedInputs = [...current.translatedInputs];
+        if (current.originalInputRowIndexes.includes(rowIdx)) {
+          nextOriginalInputs[rowIdx] = value;
+        } else {
+          nextTranslatedInputs[rowIdx] = value;
+        }
+        return {
+          ...current,
+          originalInputs: nextOriginalInputs,
+          translatedInputs: nextTranslatedInputs,
+        };
+      });
+    }
     setDirty(true);
   }, []);
 
   function addRow() {
     if (!dataset) return;
-    const empty: Record<string, string> = {};
+    const empty: DatasetRow = {};
     for (const col of dataset.columns) {
       empty[col] = '';
     }
     setRows((prev) => [...prev, empty]);
+    setTranslationState(null);
     setDirty(true);
   }
 
   function removeRow(idx: number) {
     setRows((prev) => prev.filter((_, i) => i !== idx));
+    setTranslationState(null);
     setDirty(true);
   }
 
@@ -68,6 +103,7 @@ export function DatasetDetail() {
       const updated = await updateDatasetRows(id, rows);
       setDataset(updated);
       setRows(updated.rows);
+      setTranslationState(null);
       setDirty(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save');
@@ -95,11 +131,85 @@ export function DatasetDetail() {
     }
   }
 
+  async function handleTranslatePage() {
+    if (!rows.length) {
+      setError('There are no rows on this page to translate.');
+      return;
+    }
+    if (!targetLanguage.trim()) {
+      setError('Enter a target language before translating this page.');
+      return;
+    }
+
+    setTranslating(true);
+    setError(null);
+    try {
+      const currentRows = rows.map((row) => ({ ...row }));
+      const result = await translateInputColumn({
+        target_language: targetLanguage.trim(),
+        mapped_rows: currentRows,
+      });
+      setRows(result.mapped_rows);
+      setTranslationState({
+        originalInputs: currentRows.map((row) => row.input ?? ''),
+        originalInputRowIndexes: [],
+        targetLanguage: targetLanguage.trim(),
+        translatedInputs: result.mapped_rows.map((row) => row.input ?? ''),
+      });
+      setDirty(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to translate the dataset page');
+    } finally {
+      setTranslating(false);
+    }
+  }
+
+  function handleResetPageTranslation() {
+    if (!translationState) {
+      return;
+    }
+
+    setRows((current) => current.map((row, index) => ({
+      ...row,
+      input: translationState.originalInputs[index] ?? row.input ?? '',
+    })));
+    setTranslationState(null);
+    setDirty(true);
+  }
+
+  function toggleShowOriginalInput(rowIdx: number) {
+    if (!translationState) {
+      return;
+    }
+
+    const showingOriginal = translationState.originalInputRowIndexes.includes(rowIdx);
+    const nextOriginalInputRowIndexes = showingOriginal
+      ? translationState.originalInputRowIndexes.filter((index) => index !== rowIdx)
+      : [...translationState.originalInputRowIndexes, rowIdx];
+
+    setRows((current) => current.map((row, index) => (
+      index === rowIdx
+        ? {
+            ...row,
+            input: showingOriginal
+              ? translationState.translatedInputs[rowIdx] ?? row.input ?? ''
+              : translationState.originalInputs[rowIdx] ?? row.input ?? '',
+          }
+        : row
+    )));
+    setTranslationState({
+      ...translationState,
+      originalInputRowIndexes: nextOriginalInputRowIndexes,
+    });
+    setDirty(true);
+  }
+
   if (loading) return <LoadingSkeleton rows={5} />;
   if (error && !dataset) return <Alert variant="destructive" className="animate-fade-in"><AlertDescription>{error}</AlertDescription></Alert>;
   if (!dataset) return <Alert variant="destructive" className="animate-fade-in"><AlertDescription>Dataset not found</AlertDescription></Alert>;
 
   const columns = dataset.columns as string[];
+  const canTranslateInputColumn = columns.includes('input') && rows.length > 0;
 
   return (
     <PageTransition>
@@ -144,7 +254,18 @@ export function DatasetDetail() {
             <Plus className="mr-2 h-4 w-4" />Add Row
           </Button>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {canTranslateInputColumn ? (
+            <InputTranslationActions
+              currentTranslationLanguage={translationState?.targetLanguage ?? null}
+              loading={translating}
+              targetLanguage={targetLanguage}
+              onTargetLanguageChange={setTargetLanguage}
+              onTranslate={() => void handleTranslatePage()}
+              onReset={handleResetPageTranslation}
+            />
+          ) : null}
+
           {columns.length === 0 ? (
             <p className="text-foreground-secondary text-sm">No columns available</p>
           ) : (
@@ -153,6 +274,7 @@ export function DatasetDetail() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-10 text-center">#</TableHead>
+                    {translationState ? <TableHead className="w-36">Input View</TableHead> : null}
                     {columns.map((col) => (
                       <TableHead key={col}>{col}</TableHead>
                     ))}
@@ -160,51 +282,75 @@ export function DatasetDetail() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rows.map((row, rowIdx) => (
-                    <TableRow key={rowIdx}>
-                      <TableCell className="text-center text-foreground-secondary text-xs">{rowIdx + 1}</TableCell>
-                      {columns.map((col) => {
-                        const isEditing = editingCell?.row === rowIdx && editingCell?.col === col;
-                        return (
-                          <TableCell
-                            key={col}
-                            className="p-0"
-                          >
-                            {isEditing ? (
-                              <textarea
-                                autoFocus
-                                className="w-full min-w-[120px] bg-background-input border border-border-focus rounded px-2 py-1.5 text-sm resize-y focus:outline-none"
-                                value={row[col] ?? ''}
-                                rows={Math.max(2, (row[col] ?? '').split('\n').length)}
-                                onChange={(e) => updateCell(rowIdx, col, e.target.value)}
-                                onBlur={() => setEditingCell(null)}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Escape') setEditingCell(null);
-                                }}
-                              />
-                            ) : (
-                              <div
-                                className="px-2 py-1.5 min-h-[32px] cursor-pointer hover:bg-background-secondary whitespace-pre-wrap break-words max-w-[400px] text-sm"
-                                onClick={() => setEditingCell({ row: rowIdx, col })}
-                                title="Click to edit"
+                  {rows.map((row, rowIdx) => {
+                    const inputChanged = Boolean(
+                      translationState
+                      && translationState.originalInputs[rowIdx] !== translationState.translatedInputs[rowIdx],
+                    );
+                    const showingOriginalInput = translationState?.originalInputRowIndexes.includes(rowIdx) ?? false;
+
+                    return (
+                      <TableRow key={rowIdx}>
+                        <TableCell className="text-center text-foreground-secondary text-xs">{rowIdx + 1}</TableCell>
+                        {translationState ? (
+                          <TableCell>
+                            {inputChanged ? (
+                              <Button
+                                type="button"
+                                variant={showingOriginalInput ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={() => toggleShowOriginalInput(rowIdx)}
                               >
-                                {row[col] || <span className="text-foreground-disabled italic">empty</span>}
-                              </div>
+                                {showingOriginalInput ? 'Original' : 'Translated'}
+                              </Button>
+                            ) : (
+                              <Badge>Same text</Badge>
                             )}
                           </TableCell>
-                        );
-                      })}
-                      <TableCell className="p-1">
-                        <button
-                          className="text-foreground-disabled hover:text-destructive p-1"
-                          onClick={() => removeRow(rowIdx)}
-                          title="Remove row"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                        ) : null}
+                        {columns.map((col) => {
+                          const isEditing = editingCell?.row === rowIdx && editingCell?.col === col;
+                          return (
+                            <TableCell
+                              key={col}
+                              className="p-0"
+                            >
+                              {isEditing ? (
+                                <textarea
+                                  autoFocus
+                                  className="w-full min-w-[120px] bg-background-input border border-border-focus rounded px-2 py-1.5 text-sm resize-y focus:outline-none"
+                                  value={row[col] ?? ''}
+                                  rows={Math.max(2, (row[col] ?? '').split('\n').length)}
+                                  onChange={(e) => updateCell(rowIdx, col, e.target.value)}
+                                  onBlur={() => setEditingCell(null)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Escape') setEditingCell(null);
+                                  }}
+                                />
+                              ) : (
+                                <div
+                                  className="px-2 py-1.5 min-h-[32px] cursor-pointer hover:bg-background-secondary whitespace-pre-wrap break-words max-w-[400px] text-sm"
+                                  onClick={() => setEditingCell({ row: rowIdx, col })}
+                                  title="Click to edit"
+                                >
+                                  {row[col] || <span className="text-foreground-disabled italic">empty</span>}
+                                </div>
+                              )}
+                            </TableCell>
+                          );
+                        })}
+                        <TableCell className="p-1">
+                          <button
+                            className="text-foreground-disabled hover:text-destructive p-1"
+                            onClick={() => removeRow(rowIdx)}
+                            title="Remove row"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>

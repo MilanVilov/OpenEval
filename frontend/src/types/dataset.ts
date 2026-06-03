@@ -1,5 +1,9 @@
 import type { ImportSourceSnapshot } from './dataSource';
 
+export interface DatasetRow {
+  [key: string]: string;
+}
+
 export interface Dataset {
   id: string;
   name: string;
@@ -13,5 +17,5 @@ export interface Dataset {
 
 export interface DatasetDetail extends Dataset {
   import_source_snapshot: ImportSourceSnapshot | null;
-  rows: Record<string, string>[];
+  rows: DatasetRow[];
 }

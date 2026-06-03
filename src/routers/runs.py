@@ -23,6 +23,7 @@ from src.routers.schemas.runs import (
 )
 from src.services.csv_export import build_run_export_csv, sanitize_export_name
 from src.services.eval_runner import run_evaluation
+from src.services.run_monitor import fail_stale_run, fail_stale_runs
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 
@@ -65,36 +66,14 @@ def _result_to_response(result: object) -> ResultResponse:
     )
 
 
-@router.get("", response_model=list[RunResponse] | PaginatedRunResponse)
+@router.get("", response_model=list[RunResponse])
 async def list_runs(
-    session: Annotated[AsyncSession, Depends(get_session)],
-    page: Annotated[int | None, Query(ge=1)] = None,
-    page_size: Annotated[int | None, Query(ge=1, le=100)] = None,
-    search: str | None = None,
-) -> list[RunResponse] | PaginatedRunResponse:
+    session: AsyncSession = Depends(get_session),
+) -> list[RunResponse]:
     """List all evaluation runs."""
-    repo = RunRepository(session)
-    if page is None and page_size is None and search is None:
-        runs = await repo.list_all()
-        return [_run_to_response(r) for r in runs]
-
-    requested_page = page or 1
-    requested_page_size = page_size or 10
-    result = await repo.list_page(
-        page=requested_page,
-        page_size=requested_page_size,
-        search=search,
-    )
-    pages = (result.total + requested_page_size - 1) // requested_page_size or 1
-    runs = [_run_to_response(r) for r in result.items]
-    return PaginatedRunResponse(
-        items=runs,
-        total=result.total,
-        page=requested_page,
-        page_size=requested_page_size,
-        pages=pages,
-        search=search.strip() if search else None,
-    )
+    await fail_stale_runs(session)
+    runs = await RunRepository(session).list_all()
+    return [_run_to_response(r) for r in runs]
 
 
 @router.post("", response_model=RunResponse, status_code=201)
@@ -167,6 +146,7 @@ async def get_run(
     session: AsyncSession = Depends(get_session),
 ) -> RunResponse:
     """Return a single evaluation run."""
+    await fail_stale_run(session, run_id)
     run = await RunRepository(session).get_by_id(run_id)
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
@@ -179,6 +159,7 @@ async def run_progress(
     session: AsyncSession = Depends(get_session),
 ) -> RunProgressResponse:
     """Return current progress for an eval run."""
+    await fail_stale_run(session, run_id)
     run = await RunRepository(session).get_by_id(run_id)
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
