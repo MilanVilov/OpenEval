@@ -10,6 +10,7 @@ MYSQL_DEFAULTS_FILE = "~/.my.cnf"
 MYSQL_DEFAULTS_GROUP = "client"
 MYSQL_DEFAULTS_USER = "customer_info"
 MYSQL_DRIVER = "mysql+aiomysql"
+MYSQL_CHARSET = "utf8mb4"
 
 
 class Settings(BaseSettings):
@@ -66,6 +67,7 @@ def _build_mysql_defaults_url(database: str) -> str:
         {
             "read_default_file": str(mysql_defaults_file()),
             "read_default_group": MYSQL_DEFAULTS_GROUP,
+            "charset": MYSQL_CHARSET,
         }
     )
     return f"{MYSQL_DRIVER}://{MYSQL_DEFAULTS_USER}@/{_quote_url_part(database)}?{query}"
@@ -77,9 +79,10 @@ def _build_mysql_client_url(settings: Settings) -> str:
     password = _quote_url_part(settings.app_mysql_client_pass)
     auth = f"{user}:{password}" if password else user
     database = _quote_url_part(settings.app_mysql_client_db)
+    query = urlencode({"charset": MYSQL_CHARSET})
     return (
         f"{MYSQL_DRIVER}://{auth}@{settings.app_mysql_client_host}:"
-        f"{settings.app_mysql_client_port}/{database}"
+        f"{settings.app_mysql_client_port}/{database}?{query}"
     )
 
 

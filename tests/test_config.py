@@ -58,7 +58,8 @@ def test_settings_build_database_url_from_app_mysql_client_variables(
 
     assert (
         settings.resolved_database_url()
-        == "mysql+aiomysql://open%20eval:p%40ss%20word@mysql.local:3307/open%2Feval"
+        == "mysql+aiomysql://open%20eval:p%40ss%20word@mysql.local:3307/"
+        "open%2Feval?charset=utf8mb4"
     )
 
 
@@ -84,4 +85,5 @@ def test_settings_use_mysql_defaults_file_when_present(
     assert query == {
         "read_default_file": [str(defaults_file)],
         "read_default_group": ["client"],
+        "charset": ["utf8mb4"],
     }

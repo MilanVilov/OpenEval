@@ -8,7 +8,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.ext.asyncio.engine import AsyncEngine
 
-from src.config import Settings, get_settings
+from src.config import MYSQL_CHARSET, Settings, get_settings
 
 _engine: AsyncEngine | None = None
 _session_factory: async_sessionmaker[AsyncSession] | None = None
@@ -26,6 +26,11 @@ def _is_sqlite_url(database_url: str) -> bool:
     return make_url(database_url).get_backend_name() == "sqlite"
 
 
+def _is_mysql_url(database_url: str) -> bool:
+    """Return whether a database URL targets MySQL."""
+    return make_url(database_url).get_backend_name() == "mysql"
+
+
 def _get_database_url(settings: Settings | None = None) -> str:
     """Return the configured database URL or raise a clear configuration error."""
     settings = settings or get_settings()
@@ -40,6 +45,8 @@ def _get_engine_kwargs(database_url: str, settings: Settings) -> dict[str, objec
     kwargs: dict[str, object] = {"echo": False, "pool_pre_ping": True}
     if not _is_sqlite_url(database_url):
         kwargs["pool_size"] = settings.app_db_connection_pool
+    if _is_mysql_url(database_url):
+        kwargs["connect_args"] = {"charset": MYSQL_CHARSET}
     return kwargs
 
 

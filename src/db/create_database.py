@@ -8,6 +8,7 @@ from typing import Any
 import aiomysql
 
 from src.config import (
+    MYSQL_CHARSET,
     MYSQL_DEFAULTS_GROUP,
     MYSQL_DEFAULTS_USER,
     Settings,
@@ -48,6 +49,7 @@ def _connection_kwargs(settings: Settings) -> dict[str, Any]:
             "read_default_file": str(defaults_file),
             "read_default_group": MYSQL_DEFAULTS_GROUP,
             "user": MYSQL_DEFAULTS_USER,
+            "charset": MYSQL_CHARSET,
         }
 
     return {
@@ -55,6 +57,7 @@ def _connection_kwargs(settings: Settings) -> dict[str, Any]:
         "port": settings.app_mysql_client_port,
         "user": settings.app_mysql_client_user,
         "password": settings.app_mysql_client_pass,
+        "charset": MYSQL_CHARSET,
     }
 
 
