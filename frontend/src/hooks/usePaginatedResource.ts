@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PaginatedResponse, PaginationParams } from '@/types/pagination';
 
 interface UsePaginatedResourceResult<T> {
@@ -27,19 +27,30 @@ export function usePaginatedResource<T>(
   const [searchValue, setSearchValue] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const requestSequence = useRef(0);
 
   const refresh = useCallback(async (): Promise<void> => {
+    const requestId = requestSequence.current + 1;
+    requestSequence.current = requestId;
     setLoading(true);
     setError(null);
     try {
       const result = await loadPage({ page, page_size: pageSizeValue, search: searchValue });
+      if (requestId !== requestSequence.current) {
+        return;
+      }
       setItems(result.items);
       setTotal(result.total);
       setPages(result.pages);
     } catch (e) {
+      if (requestId !== requestSequence.current) {
+        return;
+      }
       setError(e instanceof Error ? e.message : 'Failed to load list');
     } finally {
-      setLoading(false);
+      if (requestId === requestSequence.current) {
+        setLoading(false);
+      }
     }
   }, [loadPage, page, pageSizeValue, searchValue]);
 

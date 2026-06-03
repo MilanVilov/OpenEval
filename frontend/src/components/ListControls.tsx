@@ -24,9 +24,11 @@ const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 export function ListSearch({ search, itemLabel, onSearchChange }: ListSearchProps) {
   return (
     <Input
+      type="search"
       value={search}
       onChange={(event) => onSearchChange(event.target.value)}
       placeholder={`Search ${itemLabel}`}
+      aria-label={`Search ${itemLabel}`}
       className="mb-4 max-w-sm"
     />
   );

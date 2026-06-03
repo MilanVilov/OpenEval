@@ -55,11 +55,12 @@ async def list_configs(
 
     requested_page = page or 1
     requested_page_size = page_size or 10
+    selected_tags = [tag.strip() for tag in tags or [] if tag.strip()]
     result = await repo.list_page(
         page=requested_page,
         page_size=requested_page_size,
         search=search,
-        tags=tags,
+        tags=selected_tags or None,
     )
     pages = (result.total + requested_page_size - 1) // requested_page_size or 1
     configs = [_config_to_response(c) for c in result.items]

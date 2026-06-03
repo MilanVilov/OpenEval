@@ -101,6 +101,14 @@ async def test_list_configs_paginates_and_searches_with_tags(client: AsyncClient
     assert filtered["total"] == 1
     assert filtered["items"][0]["name"] == "Alpha Production"
 
+    empty_tag_response = await client.get(
+        "/api/configs?page=1&page_size=10&search=alpha&tags=&tags=prod"
+    )
+    assert empty_tag_response.status_code == 200
+    empty_tag_page = empty_tag_response.json()
+    assert empty_tag_page["total"] == 1
+    assert empty_tag_page["items"][0]["name"] == "Alpha Production"
+
 
 @pytest.mark.asyncio
 async def test_list_datasets_paginates_and_searches(client: AsyncClient, tmp_path: Path):
