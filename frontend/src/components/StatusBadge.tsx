@@ -9,6 +9,7 @@ const statusVariant: Record<string, 'success' | 'error' | 'warning' | 'info' | '
   passed: 'success',
   failed: 'error',
   running: 'warning',
+  finalizing: 'warning',
   pending: 'info',
   creating: 'info',
   ready: 'success',

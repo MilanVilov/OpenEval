@@ -7,6 +7,10 @@ export interface JsonObject {
 
 export type JsonArray = JsonValue[];
 
+export interface MappedDataRow {
+  [key: string]: string;
+}
+
 export interface DataSource {
   id: string;
   name: string;
@@ -74,15 +78,25 @@ export interface ExploreDataSourceResponse {
   candidate_array_paths: string[];
   field_candidates: string[];
   records: JsonValue[];
-  mapped_rows: Record<string, string>[];
+  mapped_rows: MappedDataRow[];
   current_page_state: Record<string, JsonValue> | null;
   next_page_state: Record<string, JsonValue> | null;
   previous_page_state: Record<string, JsonValue> | null;
 }
 
+export interface TranslateInputColumnRequest {
+  target_language: string;
+  mapped_rows: MappedDataRow[];
+}
+
+export interface TranslateInputColumnResponse {
+  mapped_rows: MappedDataRow[];
+}
+
 export interface ImportDatasetFromSourcePayload {
   name: string;
-  selected_records: unknown[];
+  selected_records?: unknown[];
+  selected_rows?: MappedDataRow[];
   preset_id?: string;
   data_source_id?: string;
   records_path?: string;

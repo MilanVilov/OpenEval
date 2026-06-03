@@ -2,10 +2,14 @@
 
 import asyncio
 import logging
+<<<<<<< Updated upstream
+=======
+from dataclasses import dataclass
+>>>>>>> Stashed changes
 from datetime import UTC, datetime
 
 from src.comparers.base import BaseComparer
-from src.db.models import EvalResult
+from src.db.models import Dataset, EvalConfig, EvalResult, EvalRun
 from src.db.repositories import (
     ConfigRepository,
     DatasetRepository,
@@ -22,9 +26,34 @@ logger = logging.getLogger(__name__)
 MAX_ERROR_MESSAGE_LENGTH = 2000
 
 
-async def run_evaluation(run_id: str) -> None:
-    """Execute an evaluation run.
+@dataclass
+class RunExecutionContext:
+    """Dependencies and ORM objects needed to execute one run."""
 
+    run_repo: RunRepository
+    result_repo: ResultRepository
+    run: EvalRun
+    config: EvalConfig
+    dataset: Dataset
+
+
+@dataclass(frozen=True)
+class GraderBundle:
+    """Prepared grader instances and weight metadata."""
+
+    comparers: list[tuple[str, BaseComparer]]
+    weights: dict[str, float]
+
+
+async def run_evaluation(run_id: str) -> None:
+    """Execute an evaluation run in a background task."""
+    try:
+        await _run_evaluation(run_id)
+    except Exception:
+        logger.exception("Run %s crashed during execution", run_id)
+        await _mark_run_failed(run_id)
+
+<<<<<<< Updated upstream
     This function is designed to be called as a FastAPI BackgroundTask.
     It manages its own DB session.
     """
@@ -315,15 +344,365 @@ async def run_evaluation(run_id: str) -> None:
         logger.exception("Run %s failed during evaluation", run_id)
         await _mark_run_failed(run_id, exc)
         return
+=======
 
-    # Send to Slack outside the DB session so network latency does not
-    # tie up a connection from the pool.
-    if slack_payload is not None:
-        webhook_url, blocks = slack_payload
+async def _run_evaluation(run_id: str) -> None:
+    """Execute one run from row loading through summary generation."""
+    async with get_session_context() as session:
+        context = await _load_run_context(session, run_id)
+        if context is None:
+            return
+
+        await _mark_run_started(context.run_repo, run_id)
+        rows = await _read_rows(context.run_repo, run_id, context.dataset)
+        if rows is None:
+            return
+
+        await context.run_repo.update_status(run_id, status="running", total_rows=len(rows))
+        grader_bundle = _build_grader_bundle(context.config)
+        results = await _process_rows(context, rows, grader_bundle)
+
+        await context.run_repo.update_status(run_id, status="finalizing")
+        if results:
+            await context.result_repo.create_batch(results)
+
+        summary = _build_summary(results)
+        await context.run_repo.set_summary(run_id, summary=summary)
+        await context.run_repo.update_status(
+            run_id,
+            status="completed",
+            completed_at=datetime.now(UTC),
+        )
+        logger.info("Run %s completed: %s", run_id, summary)
+        slack_payload = await _gather_slack_payload(session, run_id)
+>>>>>>> Stashed changes
+
+    await _send_slack_notification(run_id, slack_payload)
+
+
+async def _load_run_context(session, run_id: str) -> RunExecutionContext | None:
+    """Load the run and its required related objects."""
+    run_repo = RunRepository(session)
+    config_repo = ConfigRepository(session)
+    dataset_repo = DatasetRepository(session)
+    result_repo = ResultRepository(session)
+
+    run = await run_repo.get_by_id(run_id)
+    if run is None:
+        logger.error("Run %s not found", run_id)
+        return None
+
+    config = await config_repo.get_by_id(run.eval_config_id)
+    dataset = await dataset_repo.get_by_id_with_content(run.dataset_id)
+    if config is None or dataset is None:
+        await run_repo.update_status(run_id, status="failed")
+        return None
+
+    return RunExecutionContext(
+        run_repo=run_repo,
+        result_repo=result_repo,
+        run=run,
+        config=config,
+        dataset=dataset,
+    )
+
+
+async def _mark_run_started(run_repo: RunRepository, run_id: str) -> None:
+    """Mark the run as running and record its start time."""
+    await run_repo.update_status(
+        run_id,
+        status="running",
+        started_at=datetime.now(UTC),
+    )
+
+
+async def _read_rows(
+    run_repo: RunRepository,
+    run_id: str,
+    dataset: Dataset,
+) -> list[dict] | None:
+    """Load CSV rows for a run or mark the run failed."""
+    try:
+        return await read_dataset_rows(dataset)
+    except Exception as exc:
+        logger.error("Failed to read dataset for run %s: %s", run_id, exc)
+        await run_repo.update_status(run_id, status="failed")
+        return None
+
+
+def _build_grader_bundle(config: EvalConfig) -> GraderBundle:
+    """Instantiate graders and collect their configured weights."""
+    comparers: list[tuple[str, BaseComparer]] = []
+    weights: dict[str, float] = {}
+    for grader_def in config.graders or []:
+        grader = _build_grader(grader_def, config.model)
+        comparers.append((grader.grader_name, grader))
+        weights[grader.grader_name] = grader_def.get("weight", 1.0)
+    return GraderBundle(comparers=comparers, weights=weights)
+
+
+def _build_grader(grader_def: dict, default_model: str) -> BaseComparer:
+    """Create one grader instance from a grader definition."""
+    from src.comparers.custom_grader import CustomGraderComparer
+    from src.comparers.json_field_match import JsonFieldMatchComparer
+    from src.comparers.json_schema_match import JsonSchemaMatchComparer
+    from src.comparers.python_grader import PythonGraderComparer
+    from src.comparers.semantic_similarity import SemanticSimilarityComparer
+    from src.comparers.string_check_grader import StringCheckGraderComparer
+
+    grader_type = grader_def.get("type", "prompt")
+    grader_cfg = {**grader_def}
+    if grader_type == "string_check":
+        return StringCheckGraderComparer(grader_cfg)
+    if grader_type == "python":
+        return PythonGraderComparer(grader_cfg)
+    if grader_type == "semantic_similarity":
+        return SemanticSimilarityComparer(grader_cfg)
+    if grader_type == "json_schema":
+        return JsonSchemaMatchComparer(grader_cfg)
+    if grader_type == "json_field":
+        return JsonFieldMatchComparer(grader_cfg)
+    grader_cfg["model"] = grader_def.get("model") or default_model
+    return CustomGraderComparer(grader_cfg)
+
+
+async def _process_rows(
+    context: RunExecutionContext,
+    rows: list[dict],
+    grader_bundle: GraderBundle,
+) -> list[EvalResult]:
+    """Process all rows with bounded concurrency and accurate progress updates."""
+    semaphore = asyncio.Semaphore(context.config.concurrency)
+    progress_lock = asyncio.Lock()
+    completed_count = 0
+
+    async def record_progress() -> None:
+        nonlocal completed_count
+        async with progress_lock:
+            completed_count += 1
+            try:
+                await context.run_repo.update_progress(context.run.id, progress=completed_count)
+            except Exception as exc:
+                logger.warning("Progress update failed for run %s: %s", context.run.id, exc)
+
+    async def process_row(index: int, row: dict) -> EvalResult:
+        result = _build_result(context.run.id, index, row)
+        async with semaphore:
+            await _populate_row_result(result, row, context, grader_bundle)
+        await record_progress()
+        return result
+
+    tasks = [process_row(index, row) for index, row in enumerate(rows)]
+    return await asyncio.gather(*tasks)
+
+
+def _build_result(run_id: str, index: int, row: dict) -> EvalResult:
+    """Create the initial result object for one dataset row."""
+    return EvalResult(
+        eval_run_id=run_id,
+        row_index=index,
+        input_data=row.get("input", ""),
+        expected_output=row.get("expected_output", ""),
+    )
+
+
+async def _populate_row_result(
+    result: EvalResult,
+    row: dict,
+    context: RunExecutionContext,
+    grader_bundle: GraderBundle,
+) -> None:
+    """Fill a result with model output and grader details."""
+    try:
+        llm_response = await call_llm(
+            system_prompt=context.config.system_prompt,
+            user_input=result.input_data,
+            model=context.config.model,
+            temperature=context.config.temperature,
+            max_tokens=context.config.max_tokens,
+            tools=context.config.tools,
+            tool_options=context.config.tool_options,
+            reasoning_config=context.config.reasoning_config,
+            response_format=context.config.response_format,
+        )
+        result.actual_output = llm_response.text
+        result.latency_ms = llm_response.latency_ms
+        result.token_usage = llm_response.token_usage
+        (
+            result.comparer_score,
+            result.passed,
+            result.comparer_details,
+        ) = await _apply_graders(
+            grader_bundle,
+            expected=result.expected_output,
+            actual=llm_response.text,
+            row_data=row,
+        )
+    except Exception as exc:
+        result.error = str(exc)
+
+
+async def _apply_graders(
+    grader_bundle: GraderBundle,
+    *,
+    expected: str,
+    actual: str,
+    row_data: dict,
+) -> tuple[float, bool, dict]:
+    """Run all configured graders for one row and combine their outputs."""
+    details: dict[str, dict] = {}
+    weighted_scores: list[tuple[float, float]] = []
+    weighted_passed: list[tuple[float, bool]] = []
+
+    for name, comparer in grader_bundle.comparers:
+        weight = grader_bundle.weights.get(name, 1.0)
         try:
+<<<<<<< Updated upstream
             await slack_notifier.send(webhook_url, blocks)
         except Exception as exc:
             logger.warning("Slack notification failed for run %s: %s", run_id, exc)
+=======
+            score, passed, grader_details = await comparer.compare(
+                expected=expected,
+                actual=actual,
+                row_data=row_data,
+            )
+            details[name] = {
+                "score": score,
+                "passed": passed,
+                "weight": weight,
+                **grader_details,
+            }
+            weighted_scores.append((weight, score))
+            weighted_passed.append((weight, passed))
+        except Exception as exc:
+            details[name] = {"error": str(exc), "passed": False, "weight": weight}
+            weighted_scores.append((weight, 0.0))
+            weighted_passed.append((weight, False))
+
+    return _combine_grader_results(details, weighted_scores, weighted_passed)
+
+
+def _combine_grader_results(
+    details: dict[str, dict],
+    weighted_scores: list[tuple[float, float]],
+    weighted_passed: list[tuple[float, bool]],
+) -> tuple[float, bool, dict]:
+    """Reduce individual grader outcomes to one score and pass/fail value."""
+    total_weight = sum(weight for weight, _ in weighted_scores if weight > 0)
+    if total_weight > 0:
+        score = (
+            sum(weight * value for weight, value in weighted_scores if weight > 0)
+            / total_weight
+        )
+    else:
+        score = 0.0
+
+    active_passed = [passed for weight, passed in weighted_passed if weight > 0]
+    return score, all(active_passed) if active_passed else False, details
+
+
+def _build_summary(results: list[EvalResult]) -> dict:
+    """Build the run summary JSON from all row results."""
+    total = len(results)
+    passed = sum(1 for result in results if result.passed)
+    failed = sum(1 for result in results if result.passed is False)
+    errors = sum(1 for result in results if result.error)
+    scored = [result.comparer_score for result in results if result.comparer_score is not None]
+    avg_score = sum(scored) / max(len(scored), 1)
+    avg_input_tokens, avg_output_tokens = _average_token_usage(results)
+    return {
+        "total": total,
+        "passed": passed,
+        "failed": failed,
+        "errors": errors,
+        "accuracy": passed / max(total, 1),
+        "avg_latency_ms": _average_latency(results),
+        "avg_score": round(avg_score, 4),
+        "avg_input_tokens": avg_input_tokens,
+        "avg_output_tokens": avg_output_tokens,
+        "grader_stats": _build_grader_stats(results),
+    }
+
+
+def _average_latency(results: list[EvalResult]) -> int:
+    """Return the mean latency across all result rows."""
+    total_latency = sum(result.latency_ms for result in results if result.latency_ms)
+    return round(total_latency / max(len(results), 1))
+
+
+def _average_token_usage(results: list[EvalResult]) -> tuple[int, int]:
+    """Return average input and output tokens across rows with usage data."""
+    input_tokens = [
+        result.token_usage["input_tokens"]
+        for result in results
+        if result.token_usage and "input_tokens" in result.token_usage
+    ]
+    output_tokens = [
+        result.token_usage["output_tokens"]
+        for result in results
+        if result.token_usage and "output_tokens" in result.token_usage
+    ]
+    avg_input = round(sum(input_tokens) / len(input_tokens)) if input_tokens else 0
+    avg_output = round(sum(output_tokens) / len(output_tokens)) if output_tokens else 0
+    return avg_input, avg_output
+
+
+def _build_grader_stats(results: list[EvalResult]) -> dict[str, dict]:
+    """Aggregate pass/fail counts and average scores per grader."""
+    grader_stats: dict[str, dict] = {}
+    for result in results:
+        for name, detail in (result.comparer_details or {}).items():
+            if not isinstance(detail, dict):
+                continue
+            stats = grader_stats.setdefault(name, _new_grader_stats())
+            stats["total"] += 1
+            if detail.get("passed"):
+                stats["passed"] += 1
+            else:
+                stats["failed"] += 1
+            if isinstance(detail.get("score"), (int, float)):
+                stats["scores"].append(detail["score"])
+
+    for stats in grader_stats.values():
+        scores = stats.pop("scores")
+        stats["accuracy"] = stats["passed"] / max(stats["total"], 1)
+        stats["avg_score"] = round(sum(scores) / len(scores), 4) if scores else 0.0
+    return grader_stats
+
+
+def _new_grader_stats() -> dict:
+    """Return the initial accumulator structure for one grader."""
+    return {"total": 0, "passed": 0, "failed": 0, "scores": []}
+
+
+async def _mark_run_failed(run_id: str) -> None:
+    """Mark a run failed after an unexpected top-level error."""
+    try:
+        async with get_session_context() as session:
+            await RunRepository(session).update_status(
+                run_id,
+                status="failed",
+                completed_at=datetime.now(UTC),
+            )
+    except Exception:
+        logger.exception("Unable to mark run %s as failed", run_id)
+
+
+async def _send_slack_notification(
+    run_id: str,
+    slack_payload: tuple[str, list[dict]] | None,
+) -> None:
+    """Send a Slack notification after the run commits its final state."""
+    if slack_payload is None:
+        return
+
+    webhook_url, blocks = slack_payload
+    try:
+        await slack_notifier.send(webhook_url, blocks)
+    except Exception as exc:
+        logger.warning("Slack notification failed for run %s: %s", run_id, exc)
+>>>>>>> Stashed changes
 
 
 async def _mark_run_failed(run_id: str, exc: Exception) -> None:

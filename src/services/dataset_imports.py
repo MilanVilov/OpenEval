@@ -40,14 +40,17 @@ async def create_imported_dataset(
     records_path: str,
     field_mapping: dict[str, str],
     selected_records: list[object],
+    selected_rows: list[dict[str, str]] | None = None,
     import_preset_id: str | None = None,
 ) -> Dataset:
     """Create a new dataset snapshot from selected remote records."""
-    rows = _map_selected_records(
-        selected_records,
-        field_mapping=field_mapping,
-    )
     columns = list(field_mapping.keys())
+    rows = _build_dataset_rows(
+        selected_records=selected_records,
+        selected_rows=selected_rows,
+        field_mapping=field_mapping,
+        columns=columns,
+    )
     file_path = _build_dataset_file_path()
     csv_content = serialize_dataset_rows(columns, rows)
     write_dataset_file_copy(str(file_path), csv_content)
@@ -73,6 +76,7 @@ async def append_imported_dataset_rows(
     *,
     dataset: Dataset,
     selected_records: list[object],
+    selected_rows: list[dict[str, str]] | None = None,
 ) -> Dataset:
     """Append selected remote records into an existing imported dataset."""
     snapshot = dataset.import_source_snapshot
@@ -83,8 +87,9 @@ async def append_imported_dataset_rows(
     if not isinstance(field_mapping, dict):
         raise ValueError("Dataset import mapping is invalid")
 
-    rows = _map_selected_records(
-        selected_records,
+    rows = _build_dataset_rows(
+        selected_records=selected_records,
+        selected_rows=selected_rows,
         field_mapping={str(key): str(value) for key, value in field_mapping.items()},
         columns=list(dataset.columns),
     )
@@ -114,6 +119,49 @@ def _map_selected_records(
     if "input" not in field_mapping or "expected_output" not in field_mapping:
         raise ValueError("Field mapping must include input and expected_output")
     return map_records(selected_records, field_mapping, columns=columns)
+
+
+def _build_dataset_rows(
+    *,
+    selected_records: list[object],
+    selected_rows: list[dict[str, str]] | None,
+    field_mapping: dict[str, str],
+    columns: list[str],
+) -> list[dict[str, str]]:
+    """Return direct mapped rows when present, otherwise map raw source records."""
+    if selected_rows is not None:
+        return _normalize_selected_rows(selected_rows, columns=columns)
+    return _map_selected_records(
+        selected_records,
+        field_mapping=field_mapping,
+        columns=columns,
+    )
+
+
+def _normalize_selected_rows(
+    selected_rows: list[dict[str, str]],
+    *,
+    columns: list[str],
+) -> list[dict[str, str]]:
+    """Validate and normalize direct dataset rows selected in the UI."""
+    if not selected_rows:
+        raise ValueError("Select at least one row to import")
+
+    normalized_rows: list[dict[str, str]] = []
+    missing_columns = [column for column in columns if not column]
+    if missing_columns:
+        raise ValueError("Dataset columns are invalid")
+
+    for row in selected_rows:
+        if any(column not in row for column in columns):
+            raise ValueError("Selected rows must include every dataset column")
+        normalized_rows.append(
+            {
+                column: "" if row[column] is None else str(row[column])
+                for column in columns
+            },
+        )
+    return normalized_rows
 
 
 def _build_dataset_file_path() -> Path:

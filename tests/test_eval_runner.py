@@ -19,7 +19,13 @@ def _make_config(concurrency: int = 3) -> MagicMock:
     config.max_tokens = None
     config.tools = []
     config.tool_options = {}
-    config.graders = [{"type": "string_check", "name": "exact", "input_value": "{{ sample.output_text }}", "operation": "equals", "reference_value": "{{ item.expected_output }}"}]
+    config.graders = [{
+        "type": "string_check",
+        "name": "exact",
+        "input_value": "{{ sample.output_text }}",
+        "operation": "equals",
+        "reference_value": "{{ item.expected_output }}",
+    }]
     config.concurrency = concurrency
     config.reasoning_config = None
     config.response_format = None
@@ -197,8 +203,6 @@ class TestConcurrency:
         current_concurrent = 0
         lock = asyncio.Lock()
 
-        original_side_effects = []
-
         async def tracked_llm(**kwargs):
             nonlocal max_concurrent, current_concurrent
             async with lock:
@@ -352,6 +356,7 @@ class TestRunCompletion:
         # Should not have called any further repo methods
         mock_repos["config_repo"].get_by_id.assert_not_called()
 
+<<<<<<< Updated upstream
     async def test_missing_config_or_dataset_marks_failed_with_completed_at(self, mock_repos):
         """Missing dependencies should produce a finished failed run."""
         mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
@@ -381,6 +386,10 @@ class TestRunCompletion:
 
     async def test_finalization_error_marks_run_failed(self, mock_repos):
         """Unhandled finalization errors should not leave a run marked running."""
+=======
+    async def test_unexpected_finalization_error_marks_run_failed(self, mock_repos):
+        """An unexpected top-level error should not leave the run stuck."""
+>>>>>>> Stashed changes
         config = _make_config(concurrency=5)
         mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
         mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
@@ -389,6 +398,7 @@ class TestRunCompletion:
             {"input": "q1", "expected_output": "a1"},
         ]
         mock_repos["call_llm"].return_value = _make_llm_response("a1", latency_ms=50)
+<<<<<<< Updated upstream
         mock_repos["result_repo"].create_batch.side_effect = RuntimeError("insert failed")
 
         await run_evaluation("run1")
@@ -402,11 +412,29 @@ class TestRunCompletion:
     async def test_progress_error_does_not_block_completion(self, mock_repos):
         """Progress write failures should not prevent final status completion."""
         config = _make_config(concurrency=5)
+=======
+        mock_repos["result_repo"].create_batch.side_effect = RuntimeError("DB write failed")
+
+        await run_evaluation("run1")
+
+        status_calls = mock_repos["run_repo"].update_status.call_args_list
+        assert status_calls[-1][1]["status"] == "failed"
+
+
+class TestProgressTracking:
+    """Verify progress reflects fully processed rows."""
+
+    async def test_progress_waits_for_grading_completion(self, mock_repos):
+        """Rows should not count as complete until grading has finished."""
+        config = _make_config(concurrency=2)
+        config.graders = [{"type": "prompt", "name": "judge", "prompt": "grade this"}]
+>>>>>>> Stashed changes
         mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
         mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
         mock_repos["dataset_repo"].get_by_id_with_content = AsyncMock(return_value=_make_dataset())
         mock_repos["read_csv"].return_value = [
             {"input": "q1", "expected_output": "a1"},
+<<<<<<< Updated upstream
         ]
         mock_repos["call_llm"].return_value = _make_llm_response("a1", latency_ms=50)
         mock_repos["run_repo"].update_progress.side_effect = RuntimeError("progress failed")
@@ -415,6 +443,34 @@ class TestRunCompletion:
 
         final_call = mock_repos["run_repo"].update_status.call_args_list[-1]
         assert final_call[1]["status"] == "completed"
+=======
+            {"input": "q2", "expected_output": "a2"},
+        ]
+        mock_repos["call_llm"].side_effect = [
+            _make_llm_response("a1", latency_ms=50),
+            _make_llm_response("a2", latency_ms=50),
+        ]
+
+        grader_gate = asyncio.Event()
+
+        async def blocked_compare(self, *, expected, actual, row_data=None):
+            await grader_gate.wait()
+            return 1.0, True, {"reasoning": "ok"}
+
+        with patch(
+            "src.comparers.custom_grader.CustomGraderComparer.compare",
+            new=blocked_compare,
+        ):
+            task = asyncio.create_task(run_evaluation("run1"))
+            await asyncio.sleep(0.05)
+            assert mock_repos["run_repo"].update_progress.await_count == 0
+
+            grader_gate.set()
+            await task
+
+        progress_calls = mock_repos["run_repo"].update_progress.call_args_list
+        assert [call.kwargs["progress"] for call in progress_calls] == [1, 2]
+>>>>>>> Stashed changes
 
 
 class TestGraderStats:
@@ -424,8 +480,20 @@ class TestGraderStats:
         """Summary should include per-grader pass counts and avg_score."""
         config = _make_config(concurrency=5)
         config.graders = [
-            {"type": "string_check", "name": "check1", "input_value": "{{ sample.output_text }}", "operation": "equals", "reference_value": "{{ item.expected_output }}"},
-            {"type": "string_check", "name": "check2", "input_value": "{{ sample.output_text }}", "operation": "contains", "reference_value": "{{ item.expected_output }}"},
+            {
+                "type": "string_check",
+                "name": "check1",
+                "input_value": "{{ sample.output_text }}",
+                "operation": "equals",
+                "reference_value": "{{ item.expected_output }}",
+            },
+            {
+                "type": "string_check",
+                "name": "check2",
+                "input_value": "{{ sample.output_text }}",
+                "operation": "contains",
+                "reference_value": "{{ item.expected_output }}",
+            },
         ]
 
         mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
@@ -454,7 +522,7 @@ class TestGraderStats:
         assert "check2" in grader_stats
 
         # Each grader stat should have the expected fields
-        for name, stats in grader_stats.items():
+        for _name, stats in grader_stats.items():
             assert "total" in stats
             assert "passed" in stats
             assert "failed" in stats
@@ -466,7 +534,13 @@ class TestGraderStats:
     async def test_grader_stats_single_comparer(self, mock_repos):
         """With a single comparer, grader_stats should still be populated."""
         config = _make_config(concurrency=5)
-        config.graders = [{"type": "string_check", "name": "exact", "input_value": "{{ sample.output_text }}", "operation": "equals", "reference_value": "{{ item.expected_output }}"}]
+        config.graders = [{
+            "type": "string_check",
+            "name": "exact",
+            "input_value": "{{ sample.output_text }}",
+            "operation": "equals",
+            "reference_value": "{{ item.expected_output }}",
+        }]
 
         mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
         mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)

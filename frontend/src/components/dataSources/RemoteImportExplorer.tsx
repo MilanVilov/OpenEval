@@ -11,6 +11,7 @@ import {
   appendDatasetFromSource,
   exploreDataSource,
   importDatasetFromSource,
+  translateInputColumn,
 } from '@/api/dataSources';
 import { JsonTreeView } from '@/components/JsonTreeView';
 import { Spinner } from '@/components/Spinner';
@@ -18,8 +19,9 @@ import type {
   ExploreDataSourceRequest,
   ExploreDataSourceResponse,
   JsonValue,
+  MappedDataRow,
 } from '@/types/dataSource';
-import { ArrowLeft, ArrowRight, Download, Trash2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Download, Languages, RotateCcw, Trash2 } from 'lucide-react';
 import {
   buildDisabledReason,
   buildDraftFieldMapping,
@@ -48,7 +50,17 @@ interface RemoteImportExplorerProps {
 interface BasketItem {
   selectionId: string;
   record: JsonValue;
-  mappedRow: Record<string, string>;
+  mappedRow: MappedDataRow;
+}
+
+interface TranslatedPageState {
+  mappedRows: MappedDataRow[];
+  originalInputRowIndexes: number[];
+  targetLanguage: string;
+}
+
+interface TranslatedPagesState {
+  [selectionScope: string]: TranslatedPageState;
 }
 
 interface PaginationActionsProps {
@@ -96,6 +108,83 @@ function PaginationActions({
   );
 }
 
+interface InputTranslationActionsProps {
+  currentTranslationLanguage: string | null;
+  loading: boolean;
+  targetLanguage: string;
+  onTargetLanguageChange: (value: string) => void;
+  onTranslate: () => void;
+  onReset: () => void;
+}
+
+function InputTranslationActions({
+  currentTranslationLanguage,
+  loading,
+  targetLanguage,
+  onTargetLanguageChange,
+  onTranslate,
+  onReset,
+}: InputTranslationActionsProps) {
+  return (
+    <div className="space-y-3 rounded-md border border-border bg-background-secondary/60 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium text-foreground">Translate Input Column</p>
+          <p className="mt-1 text-xs text-foreground-secondary">
+            Uses GPT-5.4 Nano and only changes mapped <code>input</code> values for this page.
+          </p>
+        </div>
+        {currentTranslationLanguage ? (
+          <Badge variant="info">Translated to {currentTranslationLanguage}</Badge>
+        ) : null}
+      </div>
+
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Input
+          value={targetLanguage}
+          onChange={(event) => onTargetLanguageChange(event.target.value)}
+          placeholder="English"
+        />
+        <Button type="button" variant="outline" onClick={onTranslate} disabled={loading}>
+          {loading ? <Spinner className="mr-2" /> : <Languages className="mr-2 h-4 w-4" />}
+          {loading ? 'Translating...' : 'Translate'}
+        </Button>
+        {currentTranslationLanguage ? (
+          <Button type="button" variant="ghost" onClick={onReset} disabled={loading}>
+            <RotateCcw className="mr-2 h-4 w-4" />
+            Reset Page
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function buildSelectionId(selectionScope: string, rowIndex: number): string {
+  return `${selectionScope}:${rowIndex}`;
+}
+
+function buildDisplayMappedRows(
+  originalRows: MappedDataRow[],
+  translatedPage: TranslatedPageState | null,
+): MappedDataRow[] {
+  if (!translatedPage) {
+    return originalRows;
+  }
+
+  const originalInputRows = new Set(translatedPage.originalInputRowIndexes);
+  return translatedPage.mappedRows.map((row, index) => {
+    if (!originalInputRows.has(index)) {
+      return row;
+    }
+
+    return {
+      ...row,
+      input: originalRows[index]?.input ?? row.input,
+    };
+  });
+}
+
 export function RemoteImportExplorer({
   sourceId,
   mode,
@@ -118,7 +207,10 @@ export function RemoteImportExplorer({
   const [expectedOutputTemplate, setExpectedOutputTemplate] = useState(initialMapping.expectedOutput);
   const [basket, setBasket] = useState<BasketItem[]>([]);
   const [exploreResult, setExploreResult] = useState<ExploreDataSourceResponse | null>(null);
+  const [translatedPages, setTranslatedPages] = useState<TranslatedPagesState>({});
+  const [targetLanguage, setTargetLanguage] = useState('English');
   const [loading, setLoading] = useState(false);
+  const [translating, setTranslating] = useState(false);
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -131,19 +223,31 @@ export function RemoteImportExplorer({
     expectedOutputTemplate,
     lockedFieldMapping: fieldMapping,
   });
-  const currentRecords = exploreResult?.records ?? [];
-  const currentMappedRows = exploreResult?.mapped_rows ?? [];
   const selectionScope = JSON.stringify({
     pageState: exploreResult?.current_page_state ?? { page: 'root' },
     recordsPath: activeRecordsPath || '$',
     mapping: mappingResult.fieldMapping ?? null,
   });
+  const currentRecords = exploreResult?.records ?? [];
+  const currentPageTranslation = translatedPages[selectionScope] ?? null;
+  const baseMappedRows = exploreResult?.mapped_rows ?? [];
+  const currentMappedRows = buildDisplayMappedRows(baseMappedRows, currentPageTranslation);
   const canCreateDataset = mode === 'append'
     ? basket.length > 0
     : basket.length > 0
         && Boolean(datasetName.trim())
         && Boolean(activeRecordsPath)
         && mappingResult.fieldMapping !== null;
+
+  function syncBasketRowsForScope(scope: string, mappedRows: MappedDataRow[]) {
+    const rowsBySelectionId = new Map(
+      mappedRows.map((row, index) => [buildSelectionId(scope, index), row]),
+    );
+    setBasket((current) => current.map((item) => {
+      const mappedRow = rowsBySelectionId.get(item.selectionId);
+      return mappedRow ? { ...item, mappedRow } : item;
+    }));
+  }
 
   async function handleExplore(
     pageState?: Record<string, JsonValue> | null,
@@ -225,7 +329,7 @@ export function RemoteImportExplorer({
       return;
     }
 
-    const selectionId = `${selectionScope}:${rowIndex}`;
+    const selectionId = buildSelectionId(selectionScope, rowIndex);
     const alreadySelected = basket.some((item) => item.selectionId === selectionId);
     if (alreadySelected) {
       setBasket((current) => current.filter((item) => item.selectionId !== selectionId));
@@ -240,6 +344,69 @@ export function RemoteImportExplorer({
         mappedRow: currentMappedRows[rowIndex],
       },
     ]);
+  }
+
+  async function handleTranslateInputColumn() {
+    if (!targetLanguage.trim()) {
+      setError('Enter a target language before translating the current page.');
+      return;
+    }
+    if (baseMappedRows.length === 0) {
+      setError('Load mapped rows for the current page before translating the input column.');
+      return;
+    }
+
+    setTranslating(true);
+    setError(null);
+    try {
+      const result = await translateInputColumn({
+        target_language: targetLanguage.trim(),
+        mapped_rows: baseMappedRows,
+      });
+      setTranslatedPages((current) => ({
+        ...current,
+        [selectionScope]: {
+          mappedRows: result.mapped_rows,
+          originalInputRowIndexes: [],
+          targetLanguage: targetLanguage.trim(),
+        },
+      }));
+      syncBasketRowsForScope(selectionScope, result.mapped_rows);
+    } catch (translationError) {
+      setError(translationError instanceof Error ? translationError.message : 'Translation failed');
+    } finally {
+      setTranslating(false);
+    }
+  }
+
+  function handleResetPageTranslation() {
+    setTranslatedPages((current) => {
+      const next = { ...current };
+      delete next[selectionScope];
+      return next;
+    });
+    syncBasketRowsForScope(selectionScope, baseMappedRows);
+  }
+
+  function toggleShowOriginalInput(rowIndex: number) {
+    if (!currentPageTranslation) {
+      return;
+    }
+
+    const nextOriginalRowIndexes = currentPageTranslation.originalInputRowIndexes.includes(rowIndex)
+      ? currentPageTranslation.originalInputRowIndexes.filter((index) => index !== rowIndex)
+      : [...currentPageTranslation.originalInputRowIndexes, rowIndex];
+    const nextPageTranslation: TranslatedPageState = {
+      ...currentPageTranslation,
+      originalInputRowIndexes: nextOriginalRowIndexes,
+    };
+    const nextMappedRows = buildDisplayMappedRows(baseMappedRows, nextPageTranslation);
+
+    setTranslatedPages((current) => ({
+      ...current,
+      [selectionScope]: nextPageTranslation,
+    }));
+    syncBasketRowsForScope(selectionScope, nextMappedRows);
   }
 
   async function handleImport() {
@@ -265,6 +432,7 @@ export function RemoteImportExplorer({
         const dataset = await importDatasetFromSource({
           name: datasetName.trim(),
           selected_records: basket.map((item) => item.record),
+          selected_rows: basket.map((item) => item.mappedRow),
           data_source_id: sourceId,
           records_path: activeRecordsPath,
           field_mapping: mappingResult.fieldMapping,
@@ -279,6 +447,7 @@ export function RemoteImportExplorer({
       const dataset = await appendDatasetFromSource(
         datasetId,
         basket.map((item) => item.record),
+        basket.map((item) => item.mappedRow),
       );
       onComplete(dataset.id);
     } catch (importError) {
@@ -552,12 +721,24 @@ export function RemoteImportExplorer({
           />
         </CardHeader>
         <CardContent className="space-y-4">
+          {baseMappedRows.length > 0 ? (
+            <InputTranslationActions
+              currentTranslationLanguage={currentPageTranslation?.targetLanguage ?? null}
+              loading={translating}
+              targetLanguage={targetLanguage}
+              onTargetLanguageChange={setTargetLanguage}
+              onTranslate={() => void handleTranslateInputColumn()}
+              onReset={handleResetPageTranslation}
+            />
+          ) : null}
+
           {currentMappedRows.length > 0 ? (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-28">Basket</TableHead>
+                    {currentPageTranslation ? <TableHead className="w-36">Input View</TableHead> : null}
                     {Object.keys(currentMappedRows[0]).map((column) => (
                       <TableHead key={column}>{column}</TableHead>
                     ))}
@@ -566,8 +747,12 @@ export function RemoteImportExplorer({
                 </TableHeader>
                 <TableBody>
                   {currentMappedRows.map((row, index) => {
-                    const selectionId = `${selectionScope}:${index}`;
+                    const selectionId = buildSelectionId(selectionScope, index);
                     const checked = basket.some((item) => item.selectionId === selectionId);
+                    const showingOriginalInput = currentPageTranslation?.originalInputRowIndexes.includes(index) ?? false;
+                    const inputChanged = Boolean(
+                      currentPageTranslation && baseMappedRows[index]?.input !== currentPageTranslation.mappedRows[index]?.input,
+                    );
 
                     return (
                       <TableRow key={selectionId}>
@@ -581,6 +766,22 @@ export function RemoteImportExplorer({
                             {checked ? 'Remove' : 'Add'}
                           </Button>
                         </TableCell>
+                        {currentPageTranslation ? (
+                          <TableCell>
+                            {inputChanged ? (
+                              <Button
+                                type="button"
+                                variant={showingOriginalInput ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={() => toggleShowOriginalInput(index)}
+                              >
+                                {showingOriginalInput ? 'Original' : 'Translated'}
+                              </Button>
+                            ) : (
+                              <span className="text-xs text-foreground-secondary">Same text</span>
+                            )}
+                          </TableCell>
+                        ) : null}
                         {Object.entries(row).map(([column, value]) => (
                           <TableCell
                             key={column}

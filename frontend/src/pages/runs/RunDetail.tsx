@@ -19,6 +19,20 @@ import { Popover } from '@/components/ui/popover';
 import type { GraderStat } from '@/types/run';
 import { Download, Trash2, Info } from 'lucide-react';
 
+function isActiveRun(status: string | undefined): boolean {
+  return status === 'pending' || status === 'running' || status === 'finalizing';
+}
+
+function getEmptyResultsMessage(run: EvalRun, results: EvalResult[]): string {
+  if (results.length > 0) {
+    return 'No failures found';
+  }
+  if (run.status === 'finalizing') {
+    return 'Finalizing results...';
+  }
+  return 'No results yet';
+}
+
 export function RunDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -27,33 +41,62 @@ export function RunDetail() {
   const [results, setResults] = useState<EvalResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [resultsError, setResultsError] = useState<string | null>(null);
   const [showFailuresOnly, setShowFailuresOnly] = useState(false);
   const [exporting, setExporting] = useState(false);
 
+  const loadResults = useCallback(async (runId: string) => {
+    try {
+      setResultsError(null);
+      setResults(await getRunResults(runId));
+    } catch (e) {
+      setResultsError(e instanceof Error ? e.message : 'Failed to load evaluation results');
+    }
+  }, []);
+
   useEffect(() => {
     if (!id) return;
-    Promise.all([getRun(id), getRunResults(id)])
-      .then(([r, res]) => {
-        setRun(r);
-        setResults(res);
-      })
-      .catch((e: Error) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, [id]);
+    const runId = id;
 
-  const isRunning = run?.status === 'running' || run?.status === 'pending';
+    let cancelled = false;
+
+    async function loadRunDetail(): Promise<void> {
+      try {
+        setError(null);
+        const [nextRun, nextProgress] = await Promise.all([getRun(runId), getRunProgress(runId)]);
+        if (cancelled) return;
+        setRun(nextRun);
+        setProgress(nextProgress);
+        setLoading(false);
+        void loadResults(runId);
+      } catch (e) {
+        if (cancelled) return;
+        setError(e instanceof Error ? e.message : 'Failed to load evaluation');
+        setLoading(false);
+      }
+    }
+
+    void loadRunDetail();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, loadResults]);
+
+  const isRunning = isActiveRun(run?.status);
 
   const pollCallback = useCallback(async () => {
     if (!id) return;
-    const [updatedRun, prog, res] = await Promise.all([
-      getRun(id),
-      getRunProgress(id),
-      getRunResults(id),
-    ]);
-    setRun(updatedRun);
-    setProgress(prog);
-    setResults(res);
-  }, [id]);
+    try {
+      const [updatedRun, nextProgress] = await Promise.all([getRun(id), getRunProgress(id)]);
+      setRun(updatedRun);
+      setProgress(nextProgress);
+      if (!isActiveRun(updatedRun.status)) {
+        void loadResults(id);
+      }
+    } catch (e) {
+      setResultsError(e instanceof Error ? e.message : 'Failed to refresh evaluation status');
+    }
+  }, [id, loadResults]);
 
   usePolling(pollCallback, 2000, isRunning);
 
@@ -211,9 +254,14 @@ export function RunDetail() {
           </div>
         </CardHeader>
         <CardContent>
+          {resultsError && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertDescription>{resultsError}</AlertDescription>
+            </Alert>
+          )}
           {filteredResults.length === 0 ? (
             <p className="text-foreground-secondary text-sm py-4">
-              {results.length === 0 ? 'No results yet' : 'No failures found'}
+              {getEmptyResultsMessage(run, results)}
             </p>
           ) : (
             <div className="overflow-x-auto">
