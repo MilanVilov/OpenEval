@@ -109,6 +109,23 @@ async def test_duplicate_config_creates_copy_with_new_id(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_create_config_accepts_large_system_prompt(client: AsyncClient):
+    """Creating a config accepts prompts larger than MySQL TEXT."""
+    large_prompt = "# ROLE\n" + ("Use the verified support content.\n" * 2_500)
+    payload = SAMPLE_CONFIG_PAYLOAD | {
+        "name": "Large Prompt Config",
+        "system_prompt": large_prompt,
+    }
+
+    assert len(large_prompt) > 65_535
+
+    resp = await client.post("/api/configs", json=payload)
+
+    assert resp.status_code == 201
+    assert resp.json()["system_prompt"] == large_prompt
+
+
+@pytest.mark.asyncio
 async def test_duplicate_config_not_found(client: AsyncClient):
     """Attempting to duplicate a nonexistent config returns 404."""
     resp = await client.post("/api/configs/nonexistent_id/duplicate")
