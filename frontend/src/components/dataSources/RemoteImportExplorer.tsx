@@ -16,6 +16,10 @@ import {
 import { JsonTreeView } from '@/components/JsonTreeView';
 import { Spinner } from '@/components/Spinner';
 import { InputTranslationActions } from '@/components/dataSources/InputTranslationActions';
+import {
+  translateRowsSequentially,
+  type RowTranslationProgress,
+} from '@/lib/translateRowsSequentially';
 import type {
   ExploreDataSourceRequest,
   ExploreDataSourceResponse,
@@ -134,6 +138,18 @@ function buildDisplayMappedRows(
   });
 }
 
+function buildTranslationErrorMessage(
+  error: unknown,
+  progress: RowTranslationProgress | null,
+  fallbackMessage: string,
+): string {
+  const baseMessage = error instanceof Error ? error.message : fallbackMessage;
+  if (!progress || progress.completed === 0) {
+    return baseMessage;
+  }
+  return `${baseMessage} Translation stopped after ${progress.completed} of ${progress.total} rows.`;
+}
+
 export function RemoteImportExplorer({
   sourceId,
   mode,
@@ -160,6 +176,7 @@ export function RemoteImportExplorer({
   const [targetLanguage, setTargetLanguage] = useState('English');
   const [loading, setLoading] = useState(false);
   const [translating, setTranslating] = useState(false);
+  const [translationProgress, setTranslationProgress] = useState<RowTranslationProgress | null>(null);
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -198,10 +215,20 @@ export function RemoteImportExplorer({
     }));
   }
 
+  function syncBasketRowForScope(scope: string, rowIndex: number, mappedRow: MappedDataRow) {
+    const selectionId = buildSelectionId(scope, rowIndex);
+    setBasket((current) => current.map((item) => (
+      item.selectionId === selectionId ? { ...item, mappedRow } : item
+    )));
+  }
+
   async function handleExplore(
     pageState?: Record<string, JsonValue> | null,
     overrideRecordsPath?: string,
   ) {
+    if (translating) {
+      return;
+    }
     if (mappingResult.error) {
       setError(mappingResult.error);
       return;
@@ -228,6 +255,9 @@ export function RemoteImportExplorer({
   }
 
   async function handleShowMappedData() {
+    if (translating) {
+      return;
+    }
     if (!exploreResult) {
       setError('Explore the response first so you can choose the records path for the current page.');
       return;
@@ -244,6 +274,9 @@ export function RemoteImportExplorer({
   }
 
   async function handleSelectRecordsPath(path: string) {
+    if (translating) {
+      return;
+    }
     setDraftRecordsPath(path);
     await handleExplore(exploreResult?.current_page_state, path);
   }
@@ -307,24 +340,59 @@ export function RemoteImportExplorer({
 
     setTranslating(true);
     setError(null);
+    let latestProgress: RowTranslationProgress | null = null;
     try {
-      const result = await translateInputColumn({
-        target_language: targetLanguage.trim(),
-        mapped_rows: baseMappedRows,
-      });
+      const sourceRows = baseMappedRows.map((row) => ({ ...row }));
       setTranslatedPages((current) => ({
         ...current,
         [selectionScope]: {
-          mappedRows: result.mapped_rows,
+          mappedRows: sourceRows,
           originalInputRowIndexes: [],
           targetLanguage: targetLanguage.trim(),
         },
       }));
-      syncBasketRowsForScope(selectionScope, result.mapped_rows);
+      syncBasketRowsForScope(selectionScope, sourceRows);
+      await translateRowsSequentially({
+        rows: sourceRows,
+        targetLanguage: targetLanguage.trim(),
+        translateRow: async (row, language) => {
+          const result = await translateInputColumn({
+            target_language: language,
+            mapped_rows: [row],
+          });
+          const translatedRow = result.mapped_rows[0];
+          if (!translatedRow) {
+            throw new Error('Translation response was empty for one of the rows.');
+          }
+          return translatedRow;
+        },
+        onProgress: (progress) => {
+          latestProgress = progress;
+          setTranslationProgress(progress);
+        },
+        onRowTranslated: (rowIndex, translatedRow) => {
+          setTranslatedPages((current) => {
+            const existingPage = current[selectionScope];
+            const nextMappedRows = (existingPage?.mappedRows ?? sourceRows).map((row, index) => (
+              index === rowIndex ? translatedRow : row
+            ));
+            return {
+              ...current,
+              [selectionScope]: {
+                mappedRows: nextMappedRows,
+                originalInputRowIndexes: existingPage?.originalInputRowIndexes ?? [],
+                targetLanguage: targetLanguage.trim(),
+              },
+            };
+          });
+          syncBasketRowForScope(selectionScope, rowIndex, translatedRow);
+        },
+      });
     } catch (translationError) {
-      setError(translationError instanceof Error ? translationError.message : 'Translation failed');
+      setError(buildTranslationErrorMessage(translationError, latestProgress, 'Translation failed'));
     } finally {
       setTranslating(false);
+      setTranslationProgress(null);
     }
   }
 
@@ -338,7 +406,7 @@ export function RemoteImportExplorer({
   }
 
   function toggleShowOriginalInput(rowIndex: number) {
-    if (!currentPageTranslation) {
+    if (!currentPageTranslation || translating) {
       return;
     }
 
@@ -423,7 +491,7 @@ export function RemoteImportExplorer({
             </p>
           </div>
           <PaginationActions
-            loading={loading}
+            loading={loading || translating}
             hasPrevious={Boolean(exploreResult?.previous_page_state)}
             hasNext={Boolean(exploreResult?.next_page_state)}
             onPrevious={() => void handleExplore(exploreResult?.previous_page_state)}
@@ -459,6 +527,7 @@ export function RemoteImportExplorer({
                         variant={path === activeRecordsPath ? 'default' : 'outline'}
                         size="sm"
                         onClick={() => void handleSelectRecordsPath(path)}
+                        disabled={translating}
                       >
                         {path}
                       </Button>
@@ -476,12 +545,13 @@ export function RemoteImportExplorer({
                       onChange={(event) => setDraftRecordsPath(event.target.value)}
                       list={`${sourceId}-records-path-options`}
                       placeholder="Select a detected array path or type one manually"
+                      disabled={translating}
                     />
                     <Button
                       type="button"
                       variant="outline"
                       onClick={() => void handleExplore(exploreResult.current_page_state)}
-                      disabled={loading || !draftRecordsPath.trim()}
+                      disabled={loading || translating || !draftRecordsPath.trim()}
                     >
                       Load Records
                     </Button>
@@ -586,6 +656,7 @@ export function RemoteImportExplorer({
                 rows={4}
                 className="font-mono text-xs"
                 placeholder={'Recipe: {name}\nLabel: {difficulty == "Easy" ? "Quick" : "Complex"}'}
+                disabled={translating}
               />
             </div>
 
@@ -597,6 +668,7 @@ export function RemoteImportExplorer({
                 rows={4}
                 className="font-mono text-xs"
                 placeholder={'parse_json(find(metadata, key == "context").value).customer_type'}
+                disabled={translating}
               />
             </div>
 
@@ -619,12 +691,13 @@ export function RemoteImportExplorer({
                   value={mappingName}
                   onChange={(event) => setMappingName(event.target.value)}
                   placeholder="Recipe Import Mapping"
+                  disabled={translating}
                 />
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => void handleSaveMapping()}
-                  disabled={savingMapping || !onSaveMapping}
+                  disabled={savingMapping || translating || !onSaveMapping}
                 >
                   {savingMapping ? <Spinner className="mr-2" /> : null}
                   {savingMapping
@@ -643,7 +716,7 @@ export function RemoteImportExplorer({
               <Button
                 type="button"
                 onClick={() => void handleShowMappedData()}
-                disabled={loading}
+                disabled={loading || translating}
               >
                 {loading ? <Spinner className="mr-2" /> : null}
                 {loading ? 'Loading...' : 'Show Mapped Data'}
@@ -662,7 +735,7 @@ export function RemoteImportExplorer({
             </p>
           </div>
           <PaginationActions
-            loading={loading}
+            loading={loading || translating}
             hasPrevious={Boolean(exploreResult?.previous_page_state)}
             hasNext={Boolean(exploreResult?.next_page_state)}
             onPrevious={() => void handleExplore(exploreResult?.previous_page_state)}
@@ -674,6 +747,7 @@ export function RemoteImportExplorer({
             <InputTranslationActions
               currentTranslationLanguage={currentPageTranslation?.targetLanguage ?? null}
               loading={translating}
+              progress={translationProgress}
               targetLanguage={targetLanguage}
               onTargetLanguageChange={setTargetLanguage}
               onTranslate={() => void handleTranslateInputColumn()}
@@ -699,6 +773,11 @@ export function RemoteImportExplorer({
                     const selectionId = buildSelectionId(selectionScope, index);
                     const checked = basket.some((item) => item.selectionId === selectionId);
                     const showingOriginalInput = currentPageTranslation?.originalInputRowIndexes.includes(index) ?? false;
+                    const activeTranslationRowIndex = translationProgress?.activeRowIndex ?? null;
+                    const activeTranslationRow = translating && activeTranslationRowIndex === index;
+                    const pendingTranslationRow = translating
+                      && activeTranslationRowIndex !== null
+                      && index > activeTranslationRowIndex;
                     const inputChanged = Boolean(
                       currentPageTranslation && baseMappedRows[index]?.input !== currentPageTranslation.mappedRows[index]?.input,
                     );
@@ -711,18 +790,27 @@ export function RemoteImportExplorer({
                             variant={checked ? 'default' : 'outline'}
                             size="sm"
                             onClick={() => toggleSelection(index)}
+                            disabled={translating}
                           >
                             {checked ? 'Remove' : 'Add'}
                           </Button>
                         </TableCell>
                         {currentPageTranslation ? (
                           <TableCell>
-                            {inputChanged ? (
+                            {activeTranslationRow ? (
+                              <Badge variant="info" className="gap-1">
+                                <Spinner className="h-3 w-3" />
+                                Translating
+                              </Badge>
+                            ) : pendingTranslationRow ? (
+                              <Badge>Pending</Badge>
+                            ) : inputChanged ? (
                               <Button
                                 type="button"
                                 variant={showingOriginalInput ? 'default' : 'outline'}
                                 size="sm"
                                 onClick={() => toggleShowOriginalInput(index)}
+                                disabled={translating}
                               >
                                 {showingOriginalInput ? 'Original' : 'Translated'}
                               </Button>
@@ -781,6 +869,7 @@ export function RemoteImportExplorer({
                 value={datasetName}
                 onChange={(event) => setDatasetName(event.target.value)}
                 placeholder="Imported dataset name"
+                disabled={translating}
               />
             </div>
           ) : null}
@@ -816,7 +905,7 @@ export function RemoteImportExplorer({
             </div>
           )}
 
-          <Button onClick={() => void handleImport()} disabled={!canCreateDataset || importing}>
+          <Button onClick={() => void handleImport()} disabled={!canCreateDataset || importing || translating}>
             {importing ? <Spinner className="mr-2" /> : null}
             {importing
               ? 'Importing...'

@@ -19,46 +19,12 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { PageTransition } from '@/components/PageTransition';
 import { Spinner } from '@/components/Spinner';
 import { TagInput } from '@/components/TagInput';
+import {
+  getReasoningEffortOptions,
+  OPENAI_CONFIG_MODEL_OPTIONS,
+  supportsReasoning,
+} from '@/lib/openaiModels';
 import { Lock } from 'lucide-react';
-
-const MODEL_OPTIONS = [
-  { group: 'Frontier', models: [
-    { value: 'gpt-5.4', label: 'GPT-5.4' },
-    { value: 'gpt-5.4-mini', label: 'GPT-5.4 Mini' },
-    { value: 'gpt-5.4-nano', label: 'GPT-5.4 Nano' },
-    { value: 'gpt-5.2', label: 'GPT-5.2' },
-    { value: 'gpt-5.2-pro', label: 'GPT-5.2 Pro' },
-    { value: 'gpt-5.1', label: 'GPT-5.1' },
-    { value: 'gpt-5', label: 'GPT-5' },
-    { value: 'gpt-5-mini', label: 'GPT-5 Mini' },
-    { value: 'gpt-5-nano', label: 'GPT-5 Nano' },
-  ]},
-  { group: 'Non-reasoning', models: [
-    { value: 'gpt-4.1', label: 'GPT-4.1' },
-    { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
-    { value: 'gpt-4.1-nano', label: 'GPT-4.1 Nano' },
-    { value: 'gpt-4o', label: 'GPT-4o' },
-    { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
-  ]},
-  { group: 'Reasoning (o-series)', models: [
-    { value: 'o3', label: 'o3' },
-    { value: 'o3-pro', label: 'o3 Pro' },
-    { value: 'o3-mini', label: 'o3 Mini' },
-    { value: 'o4-mini', label: 'o4 Mini' },
-  ]},
-] as const;
-
-const REASONING_MODELS = new Set([
-  'gpt-5.4', 'gpt-5.4-mini', 'gpt-5.4-nano',
-  'gpt-5.2', 'gpt-5.2-pro', 'gpt-5.1', 'gpt-5', 'gpt-5-mini', 'gpt-5-nano',
-  'o3', 'o3-pro', 'o3-mini', 'o4-mini',
-]);
-
-// Models that support xhigh reasoning effort
-const XHIGH_REASONING_MODELS = new Set([
-  'o3', 'o3-pro',
-  'gpt-5.4', 'gpt-5.4-mini', 'gpt-5.4-nano',
-]);
 
 export function ConfigNew() {
   const navigate = useNavigate();
@@ -89,8 +55,8 @@ export function ConfigNew() {
   const [error, setError] = useState<string | null>(null);
   const [isReadonly, setIsReadonly] = useState(false);
 
-  const isReasoningModel = REASONING_MODELS.has(model);
-  const supportsXhigh = XHIGH_REASONING_MODELS.has(model);
+  const reasoningEffortOptions = getReasoningEffortOptions(model);
+  const isReasoningModel = supportsReasoning(model);
 
   useEffect(() => {
     listVectorStores()
@@ -103,6 +69,16 @@ export function ConfigNew() {
       .then(setTagSuggestions)
       .catch(() => {/* ignore */});
   }, []);
+
+  useEffect(() => {
+    if (reasoningEffortOptions.length === 0) {
+      return;
+    }
+    const currentOptionStillValid = reasoningEffortOptions.some((option) => option.value === reasoningEffort);
+    if (!currentOptionStillValid) {
+      setReasoningEffort(reasoningEffortOptions[0].value);
+    }
+  }, [reasoningEffort, reasoningEffortOptions]);
 
   function buildResponseFormat(): Record<string, unknown> | null {
     if (responseFormatType === 'text') return null;
@@ -211,7 +187,7 @@ export function ConfigNew() {
           <div className="space-y-2">
             <Label>Model</Label>
             <Select value={model} onChange={(e) => setModel(e.target.value)}>
-              {MODEL_OPTIONS.map((group) => (
+              {OPENAI_CONFIG_MODEL_OPTIONS.map((group) => (
                 <optgroup key={group.group} label={group.group}>
                   {group.models.map((m) => (
                     <option key={m.value} value={m.value}>{m.label}</option>
@@ -231,10 +207,9 @@ export function ConfigNew() {
           <div className="space-y-2">
             <Label>Reasoning Effort</Label>
             <Select value={reasoningEffort} onChange={(e) => setReasoningEffort(e.target.value)}>
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-              {supportsXhigh && <option value="xhigh">Extra High</option>}
+              {reasoningEffortOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
             </Select>
             <p className="text-xs text-foreground-secondary">Controls how much reasoning compute the model uses</p>
           </div>

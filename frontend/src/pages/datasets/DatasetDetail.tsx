@@ -13,6 +13,10 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { LoadingSkeleton } from '@/components/LoadingSkeleton';
 import { PageTransition } from '@/components/PageTransition';
 import { Spinner } from '@/components/Spinner';
+import {
+  translateRowsSequentially,
+  type RowTranslationProgress,
+} from '@/lib/translateRowsSequentially';
 import { formatDate } from '@/lib/utils';
 import type { DatasetDetail as DatasetDetailType, DatasetRow } from '@/types/dataset';
 import { Download, Plus, Save, Trash2, X } from 'lucide-react';
@@ -28,6 +32,38 @@ interface DatasetTranslationState {
 
 const DEFAULT_PAGE_SIZE = 50;
 
+function buildCurrentPageSourceRows(
+  currentPageRows: DatasetRow[],
+  currentPageTranslation: DatasetTranslationState | null,
+): DatasetRow[] {
+  return currentPageRows.map((row, index) => ({
+    ...row,
+    input: currentPageTranslation?.originalInputs[index] ?? row.input ?? '',
+  }));
+}
+
+function replacePageRows(
+  currentRows: DatasetRow[],
+  pageStart: number,
+  nextPageRows: DatasetRow[],
+): DatasetRow[] {
+  const updatedRows = [...currentRows];
+  updatedRows.splice(pageStart, nextPageRows.length, ...nextPageRows);
+  return updatedRows;
+}
+
+function buildTranslationErrorMessage(
+  error: unknown,
+  progress: RowTranslationProgress | null,
+  fallbackMessage: string,
+): string {
+  const baseMessage = error instanceof Error ? error.message : fallbackMessage;
+  if (!progress || progress.completed === 0) {
+    return baseMessage;
+  }
+  return `${baseMessage} Translation stopped after ${progress.completed} of ${progress.total} rows.`;
+}
+
 export function DatasetDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -41,6 +77,7 @@ export function DatasetDetail() {
   const [saving, setSaving] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [translating, setTranslating] = useState(false);
+  const [translationProgress, setTranslationProgress] = useState<RowTranslationProgress | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingCell, setEditingCell] = useState<{ row: number; col: string } | null>(null);
@@ -52,6 +89,7 @@ export function DatasetDetail() {
         setDataset(d);
         setRows(d.rows);
         setTranslationState(null);
+        setTranslationProgress(null);
         setPage(1);
       })
       .catch((e: Error) => setError(e.message))
@@ -134,32 +172,62 @@ export function DatasetDetail() {
     }
 
     setTranslating(true);
+    setEditingCell(null);
     setError(null);
+    let latestProgress: RowTranslationProgress | null = null;
     try {
-      const currentRows = currentPageRows.map((row) => ({ ...row }));
-      const result = await translateInputColumn({
-        target_language: targetLanguage.trim(),
-        mapped_rows: currentRows,
-      });
-      setRows((current) => current.map((row, index) => {
-        if (index < currentPageStart || index > currentPageEnd) {
-          return row;
-        }
-        return result.mapped_rows[index - currentPageStart];
-      }));
+      const currentRows = buildCurrentPageSourceRows(currentPageRows, currentPageTranslation);
+
+      setRows((current) => replacePageRows(current, currentPageStart, currentRows));
       setTranslationState({
-        page,
+        page: safePage,
         pageSize,
         originalInputs: currentRows.map((row) => row.input ?? ''),
         originalInputRowIndexes: [],
         targetLanguage: targetLanguage.trim(),
-        translatedInputs: result.mapped_rows.map((row) => row.input ?? ''),
+        translatedInputs: currentRows.map((row) => row.input ?? ''),
       });
-      setDirty(true);
+      await translateRowsSequentially({
+        rows: currentRows,
+        targetLanguage: targetLanguage.trim(),
+        translateRow: async (row, language) => {
+          const result = await translateInputColumn({
+            target_language: language,
+            mapped_rows: [row],
+          });
+          const translatedRow = result.mapped_rows[0];
+          if (!translatedRow) {
+            throw new Error('Translation response was empty for one of the rows.');
+          }
+          return translatedRow;
+        },
+        onProgress: (progress) => {
+          latestProgress = progress;
+          setTranslationProgress(progress);
+        },
+        onRowTranslated: (rowIndex, translatedRow) => {
+          setRows((current) => current.map((row, index) => (
+            index === currentPageStart + rowIndex ? translatedRow : row
+          )));
+          setTranslationState((current) => {
+            if (!current || current.page !== safePage || current.pageSize !== pageSize) {
+              return current;
+            }
+            const nextTranslatedInputs = [...current.translatedInputs];
+            nextTranslatedInputs[rowIndex] = translatedRow.input ?? '';
+            return {
+              ...current,
+              translatedInputs: nextTranslatedInputs,
+            };
+          });
+          setDirty(true);
+        },
+      });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to translate the dataset page');
+      setError(buildTranslationErrorMessage(e, latestProgress, 'Failed to translate the dataset page'));
     } finally {
       setTranslating(false);
+      setTranslationProgress(null);
     }
   }
 
@@ -181,7 +249,7 @@ export function DatasetDetail() {
   }
 
   function toggleShowOriginalInput(rowIdx: number) {
-    if (!currentPageTranslation) {
+    if (!currentPageTranslation || translating) {
       return;
     }
 
@@ -225,11 +293,17 @@ export function DatasetDetail() {
   const canTranslateInputColumn = columns.includes('input') && currentPageRows.length > 0;
 
   function handlePageChange(nextPage: number) {
+    if (translating) {
+      return;
+    }
     setEditingCell(null);
     setPage(nextPage);
   }
 
   function handlePageSizeChange(nextPageSize: number) {
+    if (translating) {
+      return;
+    }
     setEditingCell(null);
     setPageSize(nextPageSize);
     setPage(1);
@@ -242,22 +316,27 @@ export function DatasetDetail() {
         description={`${rows.length} rows · Created ${formatDate(dataset.created_at)}`}
         action={
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => void handleExport()} disabled={downloading}>
+            <Button variant="outline" size="sm" onClick={() => void handleExport()} disabled={downloading || translating}>
               <Download className="mr-2 h-4 w-4" />
               {downloading ? 'Exporting...' : 'Export CSV'}
             </Button>
             {dataset.has_import_source ? (
-              <Button variant="outline" size="sm" onClick={() => navigate(`/datasets/${dataset.id}/import`)}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate(`/datasets/${dataset.id}/import`)}
+                disabled={translating}
+              >
                 Continue Import
               </Button>
             ) : null}
             {dirty && (
-              <Button size="sm" onClick={handleSave} disabled={saving}>
+              <Button size="sm" onClick={handleSave} disabled={saving || translating}>
                 {saving ? <Spinner className="mr-2" /> : <Save className="mr-2 h-4 w-4" />}
                 {saving ? 'Saving...' : 'Save Changes'}
               </Button>
             )}
-            <Button variant="destructive" size="sm" onClick={handleDelete}>
+            <Button variant="destructive" size="sm" onClick={handleDelete} disabled={translating}>
               <Trash2 className="mr-2 h-4 w-4" />Delete
             </Button>
           </div>
@@ -274,15 +353,16 @@ export function DatasetDetail() {
               Export downloads the latest saved CSV exactly as this dataset will be evaluated.
             </p>
           </div>
-          <Button size="sm" variant="outline" onClick={addRow}>
+          <Button size="sm" variant="outline" onClick={addRow} disabled={translating}>
             <Plus className="mr-2 h-4 w-4" />Add Row
           </Button>
         </CardHeader>
         <CardContent className="space-y-4">
           {canTranslateInputColumn ? (
             <InputTranslationActions
-              currentTranslationLanguage={translationState?.targetLanguage ?? null}
+              currentTranslationLanguage={currentPageTranslation?.targetLanguage ?? null}
               loading={translating}
+              progress={translationProgress}
               targetLanguage={targetLanguage}
               onTargetLanguageChange={setTargetLanguage}
               onTranslate={() => void handleTranslatePage()}
@@ -312,6 +392,11 @@ export function DatasetDetail() {
                       && currentPageTranslation.originalInputs[rowIdx] !== currentPageTranslation.translatedInputs[rowIdx],
                     );
                     const showingOriginalInput = currentPageTranslation?.originalInputRowIndexes.includes(rowIdx) ?? false;
+                    const activeTranslationRowIndex = translationProgress?.activeRowIndex ?? null;
+                    const activeTranslationRow = translating && activeTranslationRowIndex === rowIdx;
+                    const pendingTranslationRow = translating
+                      && activeTranslationRowIndex !== null
+                      && rowIdx > activeTranslationRowIndex;
                     const absoluteRowIndex = currentPageStart + rowIdx;
 
                     return (
@@ -319,12 +404,20 @@ export function DatasetDetail() {
                         <TableCell className="text-center text-foreground-secondary text-xs">{absoluteRowIndex + 1}</TableCell>
                         {currentPageTranslation ? (
                           <TableCell>
-                            {inputChanged ? (
+                            {activeTranslationRow ? (
+                              <Badge variant="info" className="gap-1">
+                                <Spinner className="h-3 w-3" />
+                                Translating
+                              </Badge>
+                            ) : pendingTranslationRow ? (
+                              <Badge>Pending</Badge>
+                            ) : inputChanged ? (
                               <Button
                                 type="button"
                                 variant={showingOriginalInput ? 'default' : 'outline'}
                                 size="sm"
                                 onClick={() => toggleShowOriginalInput(rowIdx)}
+                                disabled={translating}
                               >
                                 {showingOriginalInput ? 'Original' : 'Translated'}
                               </Button>
@@ -354,8 +447,16 @@ export function DatasetDetail() {
                                 />
                               ) : (
                                 <div
-                                  className="px-2 py-1.5 min-h-[32px] cursor-pointer hover:bg-background-secondary whitespace-pre-wrap break-words max-w-[400px] text-sm"
-                                  onClick={() => setEditingCell({ row: absoluteRowIndex, col })}
+                                  className={`px-2 py-1.5 min-h-[32px] whitespace-pre-wrap break-words max-w-[400px] text-sm ${
+                                    translating
+                                      ? 'cursor-default'
+                                      : 'cursor-pointer hover:bg-background-secondary'
+                                  }`}
+                                  onClick={() => {
+                                    if (!translating) {
+                                      setEditingCell({ row: absoluteRowIndex, col });
+                                    }
+                                  }}
                                   title="Click to edit"
                                 >
                                   {row[col] || <span className="text-foreground-disabled italic">empty</span>}
@@ -366,9 +467,10 @@ export function DatasetDetail() {
                         })}
                         <TableCell className="p-1">
                           <button
-                            className="text-foreground-disabled hover:text-destructive p-1"
+                            className="text-foreground-disabled hover:text-destructive p-1 disabled:opacity-50"
                             onClick={() => removeRow(absoluteRowIndex)}
                             title="Remove row"
+                            disabled={translating}
                           >
                             <X className="h-3.5 w-3.5" />
                           </button>

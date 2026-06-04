@@ -1,12 +1,15 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Progress } from '@/components/ui/progress';
 import { Spinner } from '@/components/Spinner';
+import type { RowTranslationProgress } from '@/lib/translateRowsSequentially';
 import { Languages, RotateCcw } from 'lucide-react';
 
 interface InputTranslationActionsProps {
   currentTranslationLanguage: string | null;
   loading: boolean;
+  progress: RowTranslationProgress | null;
   targetLanguage: string;
   onTargetLanguageChange: (value: string) => void;
   onTranslate: () => void;
@@ -16,18 +19,23 @@ interface InputTranslationActionsProps {
 export function InputTranslationActions({
   currentTranslationLanguage,
   loading,
+  progress,
   targetLanguage,
   onTargetLanguageChange,
   onTranslate,
   onReset,
 }: InputTranslationActionsProps) {
+  const progressValue = progress
+    ? Math.round((progress.completed / Math.max(progress.total, 1)) * 100)
+    : 0;
+
   return (
     <div className="space-y-3 rounded-md border border-border bg-background-secondary/60 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-sm font-medium text-foreground">Translate Input Column</p>
           <p className="mt-1 text-xs text-foreground-secondary">
-            Uses GPT-5.4 Nano and only changes mapped <code>input</code> values for this page.
+            Uses GPT-5.4 nano and only changes <code>input</code> values for this page, one row at a time.
           </p>
         </div>
         {currentTranslationLanguage ? (
@@ -52,6 +60,20 @@ export function InputTranslationActions({
           </Button>
         ) : null}
       </div>
+
+      {progress ? (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-xs text-foreground-secondary">
+            <span>
+              {loading && progress.activeRowIndex !== null
+                ? `Translating row ${progress.activeRowIndex + 1} of ${progress.total}`
+                : `Translated ${progress.completed} of ${progress.total} rows`}
+            </span>
+            <span>{progress.completed}/{progress.total}</span>
+          </div>
+          <Progress value={progressValue} />
+        </div>
+      ) : null}
     </div>
   );
 }

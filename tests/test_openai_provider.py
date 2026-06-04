@@ -97,7 +97,11 @@ class TestLatencyMeasurement:
         assert result.latency_ms >= 80, f"Latency {result.latency_ms}ms too low"
         assert result.latency_ms < 500, f"Latency {result.latency_ms}ms too high"
 
-    async def test_reasoning_model_skips_temperature(self):
+    @pytest.mark.parametrize(
+        "model",
+        ["o3", "gpt-5.5", "gpt-5.5-pro", "gpt-5.4-pro", "gpt-5.3-codex", "gpt-5-pro"],
+    )
+    async def test_reasoning_model_skips_temperature(self, model: str):
         """Reasoning models should not include temperature in the request."""
         mock_client = AsyncMock()
         captured_kwargs = {}
@@ -108,7 +112,7 @@ class TestLatencyMeasurement:
             resp.output = []
             resp.usage = MagicMock(input_tokens=5, output_tokens=10)
             resp.id = "resp_test"
-            resp.model = "o3"
+            resp.model = model
             return resp
 
         mock_client.responses.create = capture_create
@@ -120,7 +124,7 @@ class TestLatencyMeasurement:
         await provider.generate(
             system_prompt="test",
             user_input="hello",
-            model="o3",
+            model=model,
             temperature=0.7,
         )
 

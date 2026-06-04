@@ -17,7 +17,9 @@ import { PageTransition } from '@/components/PageTransition';
 import { formatDate, formatPercent, formatTokens } from '@/lib/utils';
 import { Popover } from '@/components/ui/popover';
 import type { GraderStat } from '@/types/run';
-import { Download, Trash2, Info } from 'lucide-react';
+import { getNextGraderSort, sortResultsByGrader } from './runDetailSorting';
+import type { GraderSort } from './runDetailSorting';
+import { ArrowDown, ArrowUp, ArrowUpDown, Download, Info, Trash2 } from 'lucide-react';
 
 function isActiveRun(status: string | undefined): boolean {
   return status === 'pending' || status === 'running' || status === 'finalizing';
@@ -44,6 +46,7 @@ export function RunDetail() {
   const [resultsError, setResultsError] = useState<string | null>(null);
   const [showFailuresOnly, setShowFailuresOnly] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [graderSort, setGraderSort] = useState<GraderSort | null>(null);
 
   const loadResults = useCallback(async (runId: string) => {
     try {
@@ -124,6 +127,7 @@ export function RunDetail() {
   if (!run) return <Alert variant="destructive" className="animate-fade-in"><AlertDescription>Run not found</AlertDescription></Alert>;
 
   const filteredResults = showFailuresOnly ? results.filter((r) => !r.passed) : results;
+  const displayedResults = sortResultsByGrader(filteredResults, graderSort);
   const progressPct = progress ? Math.round((progress.progress / Math.max(progress.total_rows, 1)) * 100) : 0;
 
   // Extract unique comparer names from results for dynamic columns
@@ -275,22 +279,53 @@ export function RunDetail() {
                     {comparerNames.length > 0 ? (
                       comparerNames.map((name) => {
                         const weight = weightByComparer[name] ?? 1;
+                        const isSorted = graderSort?.graderName === name;
+                        const sortDirection = isSorted ? graderSort.direction : null;
                         return (
-                        <TableHead key={name} className="w-28 text-center">
-                          <div className="flex items-center justify-center gap-1.5">
-                            <span className={weight === 0 ? 'opacity-50' : ''}>{name}</span>
-                            {weight !== 1 && (
-                              <Badge variant="default" className="text-[10px] px-1 py-0">
-                                w:{weight}
-                              </Badge>
-                            )}
-                            {hasMultipleGraders && graderStats?.[name] && (
-                              <Badge variant="default" className="text-[10px] px-1.5 py-0">
-                                {formatPercent(graderStats[name].accuracy)}
-                              </Badge>
-                            )}
-                          </div>
-                        </TableHead>
+                          <TableHead
+                            key={name}
+                            className="w-28 text-center"
+                            aria-sort={
+                              sortDirection === 'fail-first'
+                                ? 'ascending'
+                                : sortDirection === 'pass-first'
+                                  ? 'descending'
+                                  : 'none'
+                            }
+                          >
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-auto w-full justify-center gap-1.5 px-2 py-1"
+                              onClick={() => setGraderSort((currentSort) => getNextGraderSort(currentSort, name))}
+                              title={
+                                !isSorted
+                                  ? `Sort ${name}: failed rows first`
+                                  : sortDirection === 'fail-first'
+                                    ? `Sort ${name}: passed rows first`
+                                    : `Clear ${name} sorting`
+                              }
+                            >
+                              <span className={weight === 0 ? 'opacity-50' : ''}>{name}</span>
+                              {weight !== 1 && (
+                                <Badge variant="default" className="text-[10px] px-1 py-0">
+                                  w:{weight}
+                                </Badge>
+                              )}
+                              {hasMultipleGraders && graderStats?.[name] && (
+                                <Badge variant="default" className="text-[10px] px-1.5 py-0">
+                                  {formatPercent(graderStats[name].accuracy)}
+                                </Badge>
+                              )}
+                              {sortDirection === 'fail-first' ? (
+                                <ArrowUp className="h-3.5 w-3.5 shrink-0" />
+                              ) : sortDirection === 'pass-first' ? (
+                                <ArrowDown className="h-3.5 w-3.5 shrink-0" />
+                              ) : (
+                                <ArrowUpDown className="h-3.5 w-3.5 shrink-0 text-foreground-secondary" />
+                              )}
+                            </Button>
+                          </TableHead>
                         );
                       })
                     ) : (
@@ -302,7 +337,7 @@ export function RunDetail() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredResults.map((result) => (
+                  {displayedResults.map((result) => (
                     <TableRow key={result.id}>
                       <TableCell>{result.row_index}</TableCell>
                       <TableCell className="min-w-[200px] max-w-[400px] whitespace-pre-wrap break-words">{result.input_data}</TableCell>
