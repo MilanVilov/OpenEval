@@ -91,3 +91,67 @@ async def test_translate_input_column_falls_back_to_single_rows_on_count_mismatc
         "translated:Question 1",
         "translated:Question 2",
     ]
+
+
+@pytest.mark.asyncio
+async def test_translate_input_column_reuses_cached_translations() -> None:
+    """Cached translations should bypass the model call."""
+    provider = SimpleNamespace(generate=AsyncMock())
+    translation_repo = SimpleNamespace(
+        list_by_inputs=AsyncMock(
+            return_value={"Question 1": "Vraag 1"},
+        ),
+        upsert_many=AsyncMock(),
+    )
+
+    translated_rows = await translate_input_column(
+        [{"input": "Question 1", "expected_output": "Answer 1"}],
+        target_language="Dutch",
+        provider=provider,
+        translation_repo=translation_repo,
+    )
+
+    assert translated_rows == [{"input": "Vraag 1", "expected_output": "Answer 1"}]
+    provider.generate.assert_not_awaited()
+    translation_repo.list_by_inputs.assert_awaited_once_with(
+        target_language="dutch",
+        source_inputs=["Question 1"],
+    )
+    translation_repo.upsert_many.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_translate_input_column_persists_new_translations() -> None:
+    """Fresh translations should be cached after the model returns them."""
+    provider = SimpleNamespace(
+        generate=AsyncMock(
+            return_value=LLMResponse(
+                text='{"translations":["Vraag 1","Vraag 2"]}',
+                latency_ms=10,
+                token_usage={"input_tokens": 1, "output_tokens": 1},
+            ),
+        ),
+    )
+    translation_repo = SimpleNamespace(
+        list_by_inputs=AsyncMock(return_value={}),
+        upsert_many=AsyncMock(),
+    )
+
+    translated_rows = await translate_input_column(
+        [
+            {"input": "Question 1", "expected_output": "Answer 1"},
+            {"input": "Question 2", "expected_output": "Answer 2"},
+        ],
+        target_language="Dutch",
+        provider=provider,
+        translation_repo=translation_repo,
+    )
+
+    assert [row["input"] for row in translated_rows] == ["Vraag 1", "Vraag 2"]
+    translation_repo.upsert_many.assert_awaited_once_with(
+        target_language="dutch",
+        translations_by_input={
+            "Question 1": "Vraag 1",
+            "Question 2": "Vraag 2",
+        },
+    )

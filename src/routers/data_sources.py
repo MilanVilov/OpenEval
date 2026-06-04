@@ -7,7 +7,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.db.repositories import DataSourceRepository, ImportPresetRepository
+from src.db.repositories import (
+    DataSourceRepository,
+    ImportPresetRepository,
+    MappedInputTranslationRepository,
+)
 from src.db.session import get_session
 from src.routers.schemas.data_sources import (
     DataSourceCreateRequest,
@@ -435,12 +439,14 @@ async def explore_remote_data_source(
 @router.post("/translate-input-column", response_model=TranslateInputColumnResponse)
 async def translate_mapped_input_column(
     body: TranslateInputColumnRequest,
+    session: AsyncSession = Depends(get_session),
 ) -> TranslateInputColumnResponse:
     """Translate mapped input values for the current page preview."""
     try:
         mapped_rows = await translate_input_column(
             body.mapped_rows,
             target_language=body.target_language,
+            translation_repo=MappedInputTranslationRepository(session),
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

@@ -121,6 +121,31 @@ class ImportPreset(Base):
         return f"<ImportPreset id={self.id!r} name={self.name!r}>"
 
 
+class MappedInputTranslation(Base):
+    """Cached translation of one mapped ``input`` value for a target language."""
+
+    __tablename__ = "mapped_input_translations"
+
+    id: Mapped[str] = mapped_column(String(ID_LENGTH), primary_key=True, default=_new_id)
+    cache_key: Mapped[str] = mapped_column(String(64))
+    target_language: Mapped[str] = mapped_column(String(100))
+    source_text: Mapped[str] = mapped_column(
+        Text().with_variant(mysql.LONGTEXT(), "mysql"),
+    )
+    translated_text: Mapped[str] = mapped_column(
+        Text().with_variant(mysql.LONGTEXT(), "mysql"),
+    )
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("cache_key", name="uq_mapped_input_translations_cache_key"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<MappedInputTranslation id={self.id!r} target_language={self.target_language!r}>"
+
+
 class Dataset(Base):
     """An uploaded evaluation dataset."""
 

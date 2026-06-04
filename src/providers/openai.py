@@ -10,6 +10,27 @@ from src.providers.base import BaseLLMProvider, LLMResponse
 
 logger = logging.getLogger(__name__)
 
+REASONING_MODELS = {
+    "o3",
+    "o3-pro",
+    "o3-mini",
+    "o4-mini",
+    "gpt-5.5",
+    "gpt-5.5-pro",
+    "gpt-5.4",
+    "gpt-5.4-pro",
+    "gpt-5.4-mini",
+    "gpt-5.4-nano",
+    "gpt-5.3-codex",
+    "gpt-5.2",
+    "gpt-5.2-pro",
+    "gpt-5.1",
+    "gpt-5",
+    "gpt-5-pro",
+    "gpt-5-mini",
+    "gpt-5-nano",
+}
+
 
 class OpenAIProvider(BaseLLMProvider):
     """LLM provider using OpenAI's Responses API."""
@@ -42,14 +63,7 @@ class OpenAIProvider(BaseLLMProvider):
         # Build tools list for the Responses API
         api_tools = self._build_tools(tools or [], tool_options)
 
-        # Models that use reasoning and don't support temperature
-        _reasoning_models = {
-            "o3", "o3-pro", "o3-mini", "o4-mini",
-            "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano",
-            "gpt-5.2", "gpt-5.2-pro", "gpt-5.1",
-            "gpt-5", "gpt-5-mini", "gpt-5-nano",
-        }
-        is_reasoning = model in _reasoning_models or reasoning_config is not None
+        is_reasoning = model in REASONING_MODELS or reasoning_config is not None
 
         # Build request kwargs
         kwargs: dict = {
