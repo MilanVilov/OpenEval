@@ -357,7 +357,7 @@ async def test_explore_data_source_returns_mapped_rows_and_page_states(
 async def test_translate_input_column_updates_only_mapped_input_values(
     client: AsyncClient,
 ) -> None:
-    """The translation endpoint should only rewrite the mapped input column."""
+    """The translation endpoint should rewrite inputs once and reuse the cached result."""
     provider = SimpleNamespace(
         generate=AsyncMock(
             return_value=LLMResponse(
@@ -388,6 +388,22 @@ async def test_translate_input_column_updates_only_mapped_input_values(
     ]
     assert provider.generate.await_args.kwargs["model"] == "gpt-5.4-nano"
     assert provider.generate.await_args.kwargs["reasoning_config"] == {"effort": "none"}
+
+    with patch("src.services.mapped_row_translation.OpenAIProvider", return_value=provider):
+        cached_response = await client.post(
+            "/api/data-sources/translate-input-column",
+            json={
+                "target_language": "dutch",
+                "mapped_rows": [
+                    {"input": "Question 1", "expected_output": "Answer 1", "category": "alpha"},
+                    {"input": "Question 2", "expected_output": "Answer 2", "category": "beta"},
+                ],
+            },
+        )
+
+    assert cached_response.status_code == 200
+    assert cached_response.json()["mapped_rows"] == body["mapped_rows"]
+    assert provider.generate.await_count == 1
 
 
 @pytest.mark.asyncio

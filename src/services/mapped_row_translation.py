@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 
+from src.db.repositories import MappedInputTranslationRepository
 from src.providers.base import BaseLLMProvider
 from src.providers.openai import OpenAIProvider
 
@@ -37,6 +38,7 @@ async def translate_input_column(
     *,
     target_language: str,
     provider: BaseLLMProvider | None = None,
+    translation_repo: MappedInputTranslationRepository | None = None,
 ) -> list[dict[str, str]]:
     """Translate only the mapped ``input`` column for a page of rows."""
     rows = _normalize_rows(mapped_rows)
@@ -44,10 +46,11 @@ async def translate_input_column(
     if not language:
         raise ValueError("Target language is required")
 
-    translations = await _request_translation_batches(
+    translations = await _resolve_translations(
         [row["input"] for row in rows],
         target_language=language,
         provider=provider or OpenAIProvider(),
+        translation_repo=translation_repo,
     )
     return _apply_translations(rows, translations)
 
@@ -87,6 +90,49 @@ async def _request_translations(
     return _parse_translations(response.text, expected_count=len(inputs))
 
 
+async def _resolve_translations(
+    inputs: list[str],
+    *,
+    target_language: str,
+    provider: BaseLLMProvider,
+    translation_repo: MappedInputTranslationRepository | None,
+) -> list[str]:
+    """Resolve translations from cache first, then translate and persist misses."""
+    if not inputs:
+        return []
+
+    cached_translations: dict[str, str] = {}
+    if translation_repo is not None:
+        cached_translations = await translation_repo.list_by_inputs(
+            target_language=_normalize_target_language(target_language),
+            source_inputs=inputs,
+        )
+
+    translated_by_input: dict[str, str] = dict(cached_translations)
+    for input_text in inputs:
+        if input_text == "":
+            translated_by_input[input_text] = ""
+
+    missing_inputs = _unique_missing_inputs(inputs, translated_by_input)
+    if missing_inputs:
+        requested_translations = await _request_translation_batches(
+            missing_inputs,
+            target_language=target_language,
+            provider=provider,
+        )
+        fresh_translations = dict(
+            zip(missing_inputs, requested_translations, strict=True),
+        )
+        translated_by_input.update(fresh_translations)
+        if translation_repo is not None:
+            await translation_repo.upsert_many(
+                target_language=_normalize_target_language(target_language),
+                translations_by_input=fresh_translations,
+            )
+
+    return [translated_by_input[input_text] for input_text in inputs]
+
+
 async def _request_translation_batches(
     inputs: list[str],
     *,
@@ -104,6 +150,21 @@ async def _request_translation_batches(
             ),
         )
     return translations
+
+
+def _unique_missing_inputs(
+    inputs: list[str],
+    translated_by_input: dict[str, str],
+) -> list[str]:
+    """Return unique inputs that still need translation in original order."""
+    missing_inputs: list[str] = []
+    seen_inputs: set[str] = set()
+    for input_text in inputs:
+        if input_text in translated_by_input or input_text in seen_inputs:
+            continue
+        missing_inputs.append(input_text)
+        seen_inputs.add(input_text)
+    return missing_inputs
 
 
 def _batch_inputs(inputs: list[str]) -> list[list[str]]:
@@ -171,6 +232,11 @@ def _parse_translations(response_text: str, *, expected_count: int) -> list[str]
     if any(not isinstance(item, str) for item in translations):
         raise ValueError("Translation response must contain strings only")
     return translations
+
+
+def _normalize_target_language(target_language: str) -> str:
+    """Return the canonical cache key value for a target language."""
+    return target_language.strip().casefold()
 
 
 def _apply_translations(

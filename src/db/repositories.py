@@ -6,15 +6,14 @@ All write operations commit and refresh within the method.
 
 from __future__ import annotations
 
+import hashlib
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy import String, and_, cast, func, or_, select, update
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
-from dataclasses import dataclass
-
-from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, undefer
 
@@ -26,6 +25,7 @@ from src.db.models import (
     EvalResult,
     EvalRun,
     ImportPreset,
+    MappedInputTranslation,
     Schedule,
     VectorStore,
 )
@@ -433,6 +433,81 @@ class DatasetRepository:
         await self._session.commit()
         await self._session.refresh(dataset)
         return dataset
+
+
+# ---------------------------------------------------------------------------
+# MappedInputTranslation
+# ---------------------------------------------------------------------------
+
+
+class MappedInputTranslationRepository:
+    """Data-access helpers for cached mapped input translations."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def list_by_inputs(
+        self,
+        *,
+        target_language: str,
+        source_inputs: list[str],
+    ) -> dict[str, str]:
+        """Return cached translations keyed by the original input text."""
+        if not source_inputs:
+            return {}
+
+        cache_keys_by_input = {
+            source_input: _build_translation_cache_key(target_language, source_input)
+            for source_input in source_inputs
+        }
+        stmt = select(MappedInputTranslation).where(
+            MappedInputTranslation.cache_key.in_(cache_keys_by_input.values()),
+        )
+        result = await self._session.execute(stmt)
+
+        translations: dict[str, str] = {}
+        expected_inputs_by_key = {
+            cache_key: source_input
+            for source_input, cache_key in cache_keys_by_input.items()
+        }
+        for cached_translation in result.scalars().all():
+            source_input = expected_inputs_by_key.get(cached_translation.cache_key)
+            if source_input is None or cached_translation.source_text != source_input:
+                continue
+            translations[source_input] = cached_translation.translated_text
+        return translations
+
+    async def upsert_many(
+        self,
+        *,
+        target_language: str,
+        translations_by_input: dict[str, str],
+    ) -> None:
+        """Insert or update cached translations for a target language."""
+        if not translations_by_input:
+            return
+
+        values = [
+            {
+                "id": uuid4().hex,
+                "cache_key": _build_translation_cache_key(target_language, source_input),
+                "target_language": target_language,
+                "source_text": source_input,
+                "translated_text": translated_text,
+            }
+            for source_input, translated_text in translations_by_input.items()
+        ]
+        dialect_name = self._session.bind.dialect.name if self._session.bind else None
+        if dialect_name == "sqlite":
+            stmt = _sqlite_input_translation_upsert(values)
+        elif dialect_name == "mysql":
+            stmt = _mysql_input_translation_upsert(values)
+        else:
+            raise ValueError(
+                f"Unsupported database dialect for translation cache upsert: {dialect_name}",
+            )
+        await self._session.execute(stmt)
+        await self._session.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -1053,5 +1128,38 @@ def _sqlite_result_upsert(values: list[dict[str, object]]):
             "latency_ms": excluded.latency_ms,
             "token_usage": excluded.token_usage,
             "error": excluded.error,
+        },
+    )
+
+
+def _build_translation_cache_key(target_language: str, source_text: str) -> str:
+    """Return a stable cache key for one translated input value."""
+    payload = f"{target_language}\0{source_text}"
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _mysql_input_translation_upsert(values: list[dict[str, object]]):
+    """Build a MySQL upsert statement for cached input translations."""
+    stmt = mysql_insert(MappedInputTranslation).values(values)
+    inserted = stmt.inserted
+    return stmt.on_duplicate_key_update(
+        target_language=inserted.target_language,
+        source_text=inserted.source_text,
+        translated_text=inserted.translated_text,
+        updated_at=func.now(),
+    )
+
+
+def _sqlite_input_translation_upsert(values: list[dict[str, object]]):
+    """Build a SQLite upsert statement for cached input translations."""
+    stmt = sqlite_insert(MappedInputTranslation).values(values)
+    excluded = stmt.excluded
+    return stmt.on_conflict_do_update(
+        index_elements=["cache_key"],
+        set_={
+            "target_language": excluded.target_language,
+            "source_text": excluded.source_text,
+            "translated_text": excluded.translated_text,
+            "updated_at": func.now(),
         },
     )
