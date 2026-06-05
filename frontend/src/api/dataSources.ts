@@ -9,8 +9,8 @@ import type {
   ImportPreset,
   ImportPresetPayload,
   MappedDataRow,
-  TranslateInputColumnRequest,
-  TranslateInputColumnResponse,
+  TranslateMappedRowsRequest,
+  TranslateMappedRowsResponse,
 } from '@/types/dataSource';
 import type { Dataset, DatasetDetail } from '@/types/dataset';
 
@@ -86,9 +86,9 @@ export function exploreDataSource(
   });
 }
 
-export function translateInputColumn(
-  payload: TranslateInputColumnRequest,
-): Promise<TranslateInputColumnResponse> {
+export function translateMappedRows(
+  payload: TranslateMappedRowsRequest,
+): Promise<TranslateMappedRowsResponse> {
   return apiFetch('/data-sources/translate-input-column', {
     method: 'POST',
     body: JSON.stringify(payload),

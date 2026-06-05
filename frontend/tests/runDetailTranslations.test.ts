@@ -5,7 +5,7 @@ import type { EvalResult } from '../src/types/run.ts';
 import {
   buildRunSourceRows,
   buildRunTranslationScope,
-  getRunInputForDisplay,
+  getRunRowForDisplay,
   type RunResultTranslationState,
 } from '../src/pages/runs/runDetailTranslations.ts';
 
@@ -49,28 +49,52 @@ test('buildRunTranslationScope keys state by ordered result ids', () => {
 test('buildRunSourceRows keeps original inputs when a page was already translated', () => {
   const translationState: RunResultTranslationState = {
     resultIds: ['r1', 'r2'],
-    originalInputs: ['Question 1', 'Question 2'],
-    originalInputRowIndexes: [],
+    originalRowIndexes: [],
+    originalRows: [
+      { input: 'Question 1', expected_output: 'Answer 1', actual_output: 'Actual 1' },
+      { input: 'Question 2', expected_output: 'Answer 2', actual_output: 'Actual 2' },
+    ],
     targetLanguage: 'Dutch',
-    translatedInputs: ['Vraag 1', 'Vraag 2'],
+    translatedRows: [
+      { input: 'Vraag 1', expected_output: 'Antwoord 1', actual_output: 'Werkelijk 1' },
+      { input: 'Vraag 2', expected_output: 'Antwoord 2', actual_output: 'Werkelijk 2' },
+    ],
   };
 
   assert.deepEqual(buildRunSourceRows(results, translationState), [
-    { input: 'Question 1' },
-    { input: 'Question 2' },
+    { input: 'Question 1', expected_output: 'Answer 1', actual_output: 'Actual 1' },
+    { input: 'Question 2', expected_output: 'Answer 2', actual_output: 'Actual 2' },
   ]);
 });
 
-test('getRunInputForDisplay switches between original and translated inputs per row', () => {
+test('getRunRowForDisplay switches between original and translated rows per row', () => {
   const translationState: RunResultTranslationState = {
     resultIds: ['r1', 'r2'],
-    originalInputs: ['Question 1', 'Question 2'],
-    originalInputRowIndexes: [1],
+    originalRowIndexes: [1],
+    originalRows: [
+      { input: 'Question 1', expected_output: 'Answer 1', actual_output: 'Actual 1' },
+      { input: 'Question 2', expected_output: 'Answer 2', actual_output: 'Actual 2' },
+    ],
     targetLanguage: 'Dutch',
-    translatedInputs: ['Vraag 1', 'Vraag 2'],
+    translatedRows: [
+      { input: 'Vraag 1', expected_output: 'Antwoord 1', actual_output: 'Werkelijk 1' },
+      { input: 'Vraag 2', expected_output: 'Antwoord 2', actual_output: 'Werkelijk 2' },
+    ],
   };
 
-  assert.equal(getRunInputForDisplay(results[0], 0, translationState), 'Vraag 1');
-  assert.equal(getRunInputForDisplay(results[1], 1, translationState), 'Question 2');
-  assert.equal(getRunInputForDisplay(results[0], 0, null), 'Question 1');
+  assert.deepEqual(getRunRowForDisplay(results[0], 0, translationState), {
+    input: 'Vraag 1',
+    expected_output: 'Antwoord 1',
+    actual_output: 'Werkelijk 1',
+  });
+  assert.deepEqual(getRunRowForDisplay(results[1], 1, translationState), {
+    input: 'Question 2',
+    expected_output: 'Answer 2',
+    actual_output: 'Actual 2',
+  });
+  assert.deepEqual(getRunRowForDisplay(results[0], 0, null), {
+    input: 'Question 1',
+    expected_output: 'Answer 1',
+    actual_output: 'Actual 1',
+  });
 });

@@ -8,6 +8,7 @@ import { Languages, RotateCcw } from 'lucide-react';
 
 interface InputTranslationActionsProps {
   currentTranslationLanguage: string | null;
+  translatedFields: string[];
   loading: boolean;
   progress: RowTranslationProgress | null;
   targetLanguage: string;
@@ -18,6 +19,7 @@ interface InputTranslationActionsProps {
 
 export function InputTranslationActions({
   currentTranslationLanguage,
+  translatedFields,
   loading,
   progress,
   targetLanguage,
@@ -29,13 +31,22 @@ export function InputTranslationActions({
     ? Math.round((progress.completed / Math.max(progress.total, 1)) * 100)
     : 0;
 
+  function renderTranslatedFields() {
+    return translatedFields.map((field, index) => (
+      <span key={field}>
+        {index > 0 ? (index === translatedFields.length - 1 ? ' and ' : ', ') : null}
+        <code>{field}</code>
+      </span>
+    ));
+  }
+
   return (
     <div className="space-y-3 rounded-md border border-border bg-background-secondary/60 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-medium text-foreground">Translate Input Column</p>
+          <p className="text-sm font-medium text-foreground">Translate Page Text</p>
           <p className="mt-1 text-xs text-foreground-secondary">
-            Uses GPT-5.4 nano and only changes <code>input</code> values for this page, one row at a time.
+            Uses GPT-5.4 nano and only changes {renderTranslatedFields()} values for this page, one row at a time.
           </p>
         </div>
         {currentTranslationLanguage ? (

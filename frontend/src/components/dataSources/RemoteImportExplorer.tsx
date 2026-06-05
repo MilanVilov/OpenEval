@@ -11,11 +11,17 @@ import {
   appendDatasetFromSource,
   exploreDataSource,
   importDatasetFromSource,
-  translateInputColumn,
+  translateMappedRows,
 } from '@/api/dataSources';
 import { JsonTreeView } from '@/components/JsonTreeView';
 import { Spinner } from '@/components/Spinner';
 import { InputTranslationActions } from '@/components/dataSources/InputTranslationActions';
+import {
+  buildDisplayRows,
+  rowHasTranslatedChanges,
+  toggleOriginalRowIndexes,
+  type TranslatedPageState,
+} from '@/lib/translatedPageRows';
 import {
   translateRowsSequentially,
   type RowTranslationProgress,
@@ -58,14 +64,8 @@ interface BasketItem {
   mappedRow: MappedDataRow;
 }
 
-interface TranslatedPageState {
-  mappedRows: MappedDataRow[];
-  originalInputRowIndexes: number[];
-  targetLanguage: string;
-}
-
 interface TranslatedPagesState {
-  [selectionScope: string]: TranslatedPageState;
+  [selectionScope: string]: TranslatedPageState<MappedDataRow>;
 }
 
 interface PaginationActionsProps {
@@ -117,26 +117,7 @@ function buildSelectionId(selectionScope: string, rowIndex: number): string {
   return `${selectionScope}:${rowIndex}`;
 }
 
-function buildDisplayMappedRows(
-  originalRows: MappedDataRow[],
-  translatedPage: TranslatedPageState | null,
-): MappedDataRow[] {
-  if (!translatedPage) {
-    return originalRows;
-  }
-
-  const originalInputRows = new Set(translatedPage.originalInputRowIndexes);
-  return translatedPage.mappedRows.map((row, index) => {
-    if (!originalInputRows.has(index)) {
-      return row;
-    }
-
-    return {
-      ...row,
-      input: originalRows[index]?.input ?? row.input,
-    };
-  });
-}
+const TRANSLATED_FIELDS = ['input', 'expected_output'];
 
 function buildTranslationErrorMessage(
   error: unknown,
@@ -197,7 +178,7 @@ export function RemoteImportExplorer({
   const currentRecords = exploreResult?.records ?? [];
   const currentPageTranslation = translatedPages[selectionScope] ?? null;
   const baseMappedRows = exploreResult?.mapped_rows ?? [];
-  const currentMappedRows = buildDisplayMappedRows(baseMappedRows, currentPageTranslation);
+  const currentMappedRows = buildDisplayRows(baseMappedRows, currentPageTranslation);
   const canCreateDataset = mode === 'append'
     ? basket.length > 0
     : basket.length > 0
@@ -328,13 +309,13 @@ export function RemoteImportExplorer({
     ]);
   }
 
-  async function handleTranslateInputColumn() {
+  async function handleTranslatePageText() {
     if (!targetLanguage.trim()) {
       setError('Enter a target language before translating the current page.');
       return;
     }
     if (baseMappedRows.length === 0) {
-      setError('Load mapped rows for the current page before translating the input column.');
+      setError('Load mapped rows for the current page before translating text.');
       return;
     }
 
@@ -346,9 +327,10 @@ export function RemoteImportExplorer({
       setTranslatedPages((current) => ({
         ...current,
         [selectionScope]: {
-          mappedRows: sourceRows,
-          originalInputRowIndexes: [],
+          originalRowIndexes: [],
+          originalRows: sourceRows,
           targetLanguage: targetLanguage.trim(),
+          translatedRows: sourceRows,
         },
       }));
       syncBasketRowsForScope(selectionScope, sourceRows);
@@ -356,8 +338,9 @@ export function RemoteImportExplorer({
         rows: sourceRows,
         targetLanguage: targetLanguage.trim(),
         translateRow: async (row, language) => {
-          const result = await translateInputColumn({
+          const result = await translateMappedRows({
             target_language: language,
+            fields: TRANSLATED_FIELDS,
             mapped_rows: [row],
           });
           const translatedRow = result.mapped_rows[0];
@@ -373,15 +356,16 @@ export function RemoteImportExplorer({
         onRowTranslated: (rowIndex, translatedRow) => {
           setTranslatedPages((current) => {
             const existingPage = current[selectionScope];
-            const nextMappedRows = (existingPage?.mappedRows ?? sourceRows).map((row, index) => (
+            const nextTranslatedRows = (existingPage?.translatedRows ?? sourceRows).map((row, index) => (
               index === rowIndex ? translatedRow : row
             ));
             return {
               ...current,
               [selectionScope]: {
-                mappedRows: nextMappedRows,
-                originalInputRowIndexes: existingPage?.originalInputRowIndexes ?? [],
+                originalRowIndexes: existingPage?.originalRowIndexes ?? [],
+                originalRows: existingPage?.originalRows ?? sourceRows,
                 targetLanguage: targetLanguage.trim(),
+                translatedRows: nextTranslatedRows,
               },
             };
           });
@@ -405,19 +389,16 @@ export function RemoteImportExplorer({
     syncBasketRowsForScope(selectionScope, baseMappedRows);
   }
 
-  function toggleShowOriginalInput(rowIndex: number) {
+  function toggleShowOriginalRow(rowIndex: number) {
     if (!currentPageTranslation || translating) {
       return;
     }
 
-    const nextOriginalRowIndexes = currentPageTranslation.originalInputRowIndexes.includes(rowIndex)
-      ? currentPageTranslation.originalInputRowIndexes.filter((index) => index !== rowIndex)
-      : [...currentPageTranslation.originalInputRowIndexes, rowIndex];
-    const nextPageTranslation: TranslatedPageState = {
+    const nextPageTranslation: TranslatedPageState<MappedDataRow> = {
       ...currentPageTranslation,
-      originalInputRowIndexes: nextOriginalRowIndexes,
+      originalRowIndexes: toggleOriginalRowIndexes(currentPageTranslation.originalRowIndexes, rowIndex),
     };
-    const nextMappedRows = buildDisplayMappedRows(baseMappedRows, nextPageTranslation);
+    const nextMappedRows = buildDisplayRows(baseMappedRows, nextPageTranslation);
 
     setTranslatedPages((current) => ({
       ...current,
@@ -746,11 +727,12 @@ export function RemoteImportExplorer({
           {baseMappedRows.length > 0 ? (
             <InputTranslationActions
               currentTranslationLanguage={currentPageTranslation?.targetLanguage ?? null}
+              translatedFields={TRANSLATED_FIELDS}
               loading={translating}
               progress={translationProgress}
               targetLanguage={targetLanguage}
               onTargetLanguageChange={setTargetLanguage}
-              onTranslate={() => void handleTranslateInputColumn()}
+              onTranslate={() => void handleTranslatePageText()}
               onReset={handleResetPageTranslation}
             />
           ) : null}
@@ -761,7 +743,7 @@ export function RemoteImportExplorer({
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-28">Basket</TableHead>
-                    {currentPageTranslation ? <TableHead className="w-36">Input View</TableHead> : null}
+                    {currentPageTranslation ? <TableHead className="w-36">Text View</TableHead> : null}
                     {Object.keys(currentMappedRows[0]).map((column) => (
                       <TableHead key={column}>{column}</TableHead>
                     ))}
@@ -772,15 +754,13 @@ export function RemoteImportExplorer({
                   {currentMappedRows.map((row, index) => {
                     const selectionId = buildSelectionId(selectionScope, index);
                     const checked = basket.some((item) => item.selectionId === selectionId);
-                    const showingOriginalInput = currentPageTranslation?.originalInputRowIndexes.includes(index) ?? false;
+                    const showingOriginalRow = currentPageTranslation?.originalRowIndexes.includes(index) ?? false;
                     const activeTranslationRowIndex = translationProgress?.activeRowIndex ?? null;
                     const activeTranslationRow = translating && activeTranslationRowIndex === index;
                     const pendingTranslationRow = translating
                       && activeTranslationRowIndex !== null
                       && index > activeTranslationRowIndex;
-                    const inputChanged = Boolean(
-                      currentPageTranslation && baseMappedRows[index]?.input !== currentPageTranslation.mappedRows[index]?.input,
-                    );
+                    const rowChanged = rowHasTranslatedChanges(currentPageTranslation, index, TRANSLATED_FIELDS);
 
                     return (
                       <TableRow key={selectionId}>
@@ -804,15 +784,15 @@ export function RemoteImportExplorer({
                               </Badge>
                             ) : pendingTranslationRow ? (
                               <Badge>Pending</Badge>
-                            ) : inputChanged ? (
+                            ) : rowChanged ? (
                               <Button
                                 type="button"
-                                variant={showingOriginalInput ? 'default' : 'outline'}
+                                variant={showingOriginalRow ? 'default' : 'outline'}
                                 size="sm"
-                                onClick={() => toggleShowOriginalInput(index)}
+                                onClick={() => toggleShowOriginalRow(index)}
                                 disabled={translating}
                               >
-                                {showingOriginalInput ? 'Original' : 'Translated'}
+                                {showingOriginalRow ? 'Original' : 'Translated'}
                               </Button>
                             ) : (
                               <span className="text-xs text-foreground-secondary">Same text</span>

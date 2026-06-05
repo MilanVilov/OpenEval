@@ -1,16 +1,23 @@
 import type { EvalResult } from '@/types/run';
+import type { TranslatedPageState } from '@/lib/translatedPageRows';
 
-export interface RunResultTranslationState {
-  originalInputs: string[];
-  originalInputRowIndexes: number[];
-  resultIds: string[];
-  targetLanguage: string;
-  translatedInputs: string[];
+export interface RunTranslationRow {
+  [key: string]: string;
+  actual_output: string;
+  expected_output: string;
+  input: string;
 }
 
-interface RunSourceRow {
-  [key: string]: string;
-  input: string;
+export interface RunResultTranslationState extends TranslatedPageState<RunTranslationRow> {
+  resultIds: string[];
+}
+
+function resultToTranslationRow(result: EvalResult): RunTranslationRow {
+  return {
+    actual_output: result.actual_output ?? '',
+    expected_output: result.expected_output,
+    input: result.input_data,
+  };
 }
 
 export function buildRunTranslationScope(results: EvalResult[]): string {
@@ -20,22 +27,22 @@ export function buildRunTranslationScope(results: EvalResult[]): string {
 export function buildRunSourceRows(
   results: EvalResult[],
   translationState: RunResultTranslationState | null,
-): RunSourceRow[] {
+): RunTranslationRow[] {
   return results.map((result, index) => ({
-    input: translationState?.originalInputs[index] ?? result.input_data,
+    ...(translationState?.originalRows[index] ?? resultToTranslationRow(result)),
   }));
 }
 
-export function getRunInputForDisplay(
+export function getRunRowForDisplay(
   result: EvalResult,
   rowIndex: number,
   translationState: RunResultTranslationState | null,
-): string {
+): RunTranslationRow {
   if (!translationState) {
-    return result.input_data;
+    return resultToTranslationRow(result);
   }
-  if (translationState.originalInputRowIndexes.includes(rowIndex)) {
-    return translationState.originalInputs[rowIndex] ?? result.input_data;
+  if (translationState.originalRowIndexes.includes(rowIndex)) {
+    return translationState.originalRows[rowIndex] ?? resultToTranslationRow(result);
   }
-  return translationState.translatedInputs[rowIndex] ?? result.input_data;
+  return translationState.translatedRows[rowIndex] ?? resultToTranslationRow(result);
 }

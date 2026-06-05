@@ -84,12 +84,13 @@ export interface ExploreDataSourceResponse {
   previous_page_state: Record<string, JsonValue> | null;
 }
 
-export interface TranslateInputColumnRequest {
+export interface TranslateMappedRowsRequest {
   target_language: string;
+  fields: string[];
   mapped_rows: MappedDataRow[];
 }
 
-export interface TranslateInputColumnResponse {
+export interface TranslateMappedRowsResponse {
   mapped_rows: MappedDataRow[];
 }
 

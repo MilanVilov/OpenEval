@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { translateInputColumn } from '@/api/dataSources';
+import { translateMappedRows } from '@/api/dataSources';
 import { deleteRun, exportRun, getRun, getRunProgress, getRunResults } from '@/api/runs';
 import { InputTranslationActions } from '@/components/dataSources/InputTranslationActions';
 import { ListPagination } from '@/components/ListControls';
@@ -18,6 +18,7 @@ import { Popover } from '@/components/ui/popover';
 import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { usePolling } from '@/hooks/usePolling';
+import { rowHasTranslatedChanges, toggleOriginalRowIndexes } from '@/lib/translatedPageRows';
 import {
   translateRowsSequentially,
   type RowTranslationProgress,
@@ -30,11 +31,12 @@ import type { GraderSort } from './runDetailSorting';
 import {
   buildRunSourceRows,
   buildRunTranslationScope,
-  getRunInputForDisplay,
+  getRunRowForDisplay,
   type RunResultTranslationState,
 } from './runDetailTranslations';
 
 const DEFAULT_PAGE_SIZE = 50;
+const TRANSLATED_FIELDS = ['input', 'expected_output', 'actual_output'];
 
 function isActiveRun(status: string | undefined): boolean {
   return status === 'pending' || status === 'running' || status === 'finalizing';
@@ -184,7 +186,7 @@ export function RunDetail() {
   const currentPageResults = displayedResults.slice(currentPageStart, currentPageStart + pageSize);
   const currentPageScope = buildRunTranslationScope(currentPageResults);
   const currentPageTranslation = translatedPages[currentPageScope] ?? null;
-  const canTranslateInputColumn = currentPageResults.length > 0;
+  const canTranslatePageText = currentPageResults.length > 0;
   const progressPct = progress ? Math.round((progress.progress / Math.max(progress.total_rows, 1)) * 100) : 0;
 
   const comparerNames = Array.from(
@@ -233,18 +235,19 @@ export function RunDetail() {
         ...current,
         [currentPageScope]: {
           resultIds: currentPageResults.map((result) => result.id),
-          originalInputs: sourceRows.map((row) => row.input),
-          originalInputRowIndexes: [],
+          originalRowIndexes: [],
+          originalRows: sourceRows,
           targetLanguage: targetLanguage.trim(),
-          translatedInputs: sourceRows.map((row) => row.input),
+          translatedRows: sourceRows,
         },
       }));
       await translateRowsSequentially({
         rows: sourceRows,
         targetLanguage: targetLanguage.trim(),
         translateRow: async (row, language) => {
-          const result = await translateInputColumn({
+          const result = await translateMappedRows({
             target_language: language,
+            fields: TRANSLATED_FIELDS,
             mapped_rows: [row],
           });
           const translatedRow = result.mapped_rows[0];
@@ -252,6 +255,8 @@ export function RunDetail() {
             throw new Error('Translation response was empty for one of the run rows.');
           }
           return {
+            actual_output: translatedRow.actual_output ?? '',
+            expected_output: translatedRow.expected_output ?? '',
             input: translatedRow.input ?? '',
           };
         },
@@ -265,13 +270,14 @@ export function RunDetail() {
             if (!existingPage) {
               return current;
             }
-            const nextTranslatedInputs = [...existingPage.translatedInputs];
-            nextTranslatedInputs[rowIndex] = translatedRow.input ?? '';
+            const nextTranslatedRows = existingPage.translatedRows.map((row, index) => (
+              index === rowIndex ? translatedRow : row
+            ));
             return {
               ...current,
               [currentPageScope]: {
                 ...existingPage,
-                translatedInputs: nextTranslatedInputs,
+                translatedRows: nextTranslatedRows,
               },
             };
           });
@@ -293,19 +299,20 @@ export function RunDetail() {
     });
   }
 
-  function toggleShowOriginalInput(rowIndex: number) {
+  function toggleShowOriginalRow(rowIndex: number) {
     if (!currentPageTranslation || translating) {
       return;
     }
 
-    const nextOriginalRowIndexes = currentPageTranslation.originalInputRowIndexes.includes(rowIndex)
-      ? currentPageTranslation.originalInputRowIndexes.filter((index) => index !== rowIndex)
-      : [...currentPageTranslation.originalInputRowIndexes, rowIndex];
+    const nextOriginalRowIndexes = toggleOriginalRowIndexes(
+      currentPageTranslation.originalRowIndexes,
+      rowIndex,
+    );
     setTranslatedPages((current) => ({
       ...current,
       [currentPageScope]: {
         ...currentPageTranslation,
-        originalInputRowIndexes: nextOriginalRowIndexes,
+        originalRowIndexes: nextOriginalRowIndexes,
       },
     }));
   }
@@ -433,9 +440,10 @@ export function RunDetail() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {canTranslateInputColumn ? (
+          {canTranslatePageText ? (
             <InputTranslationActions
               currentTranslationLanguage={currentPageTranslation?.targetLanguage ?? null}
+              translatedFields={TRANSLATED_FIELDS}
               loading={translating}
               progress={translationProgress}
               targetLanguage={targetLanguage}
@@ -462,7 +470,7 @@ export function RunDetail() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-12">#</TableHead>
-                      {currentPageTranslation ? <TableHead className="w-36">Input View</TableHead> : null}
+                      {currentPageTranslation ? <TableHead className="w-36">Text View</TableHead> : null}
                       <TableHead>Input</TableHead>
                       <TableHead>Expected</TableHead>
                       <TableHead>Actual</TableHead>
@@ -535,16 +543,14 @@ export function RunDetail() {
                   </TableHeader>
                   <TableBody>
                     {currentPageResults.map((result, rowIndex) => {
-                      const inputChanged = Boolean(
-                        currentPageTranslation
-                        && currentPageTranslation.originalInputs[rowIndex] !== currentPageTranslation.translatedInputs[rowIndex],
-                      );
-                      const showingOriginalInput = currentPageTranslation?.originalInputRowIndexes.includes(rowIndex) ?? false;
+                      const rowChanged = rowHasTranslatedChanges(currentPageTranslation, rowIndex, TRANSLATED_FIELDS);
+                      const showingOriginalInput = currentPageTranslation?.originalRowIndexes.includes(rowIndex) ?? false;
                       const activeTranslationRowIndex = translationProgress?.activeRowIndex ?? null;
                       const activeTranslationRow = translating && activeTranslationRowIndex === rowIndex;
                       const pendingTranslationRow = translating
                         && activeTranslationRowIndex !== null
                         && rowIndex > activeTranslationRowIndex;
+                      const displayRow = getRunRowForDisplay(result, rowIndex, currentPageTranslation);
 
                       return (
                         <TableRow key={result.id}>
@@ -558,12 +564,12 @@ export function RunDetail() {
                                 </Badge>
                               ) : pendingTranslationRow ? (
                                 <Badge>Pending</Badge>
-                              ) : inputChanged ? (
+                              ) : rowChanged ? (
                                 <Button
                                   type="button"
                                   variant={showingOriginalInput ? 'default' : 'outline'}
                                   size="sm"
-                                  onClick={() => toggleShowOriginalInput(rowIndex)}
+                                  onClick={() => toggleShowOriginalRow(rowIndex)}
                                   disabled={translating}
                                 >
                                   {showingOriginalInput ? 'Original' : 'Translated'}
@@ -574,17 +580,19 @@ export function RunDetail() {
                             </TableCell>
                           ) : null}
                           <TableCell className="min-w-[200px] max-w-[400px] whitespace-pre-wrap break-words">
-                            {getRunInputForDisplay(result, rowIndex, currentPageTranslation)}
+                            {displayRow.input}
                           </TableCell>
                           <TableCell className="min-w-[200px] max-w-[400px] whitespace-pre-wrap break-words">
-                            {result.expected_output}
+                            {displayRow.expected_output}
                           </TableCell>
                           <TableCell className="min-w-[200px] max-w-[400px] whitespace-pre-wrap break-words">
-                            {result.actual_output ?? (
-                              result.error ? (
-                                <span className="text-xs text-red-400">{result.error}</span>
-                              ) : '—'
-                            )}
+                            {displayRow.actual_output || result.actual_output
+                              ? displayRow.actual_output
+                              : (
+                                  result.error ? (
+                                    <span className="text-xs text-red-400">{result.error}</span>
+                                  ) : '—'
+                                )}
                           </TableCell>
                           {comparerNames.length > 0 ? (
                             comparerNames.map((name) => {
