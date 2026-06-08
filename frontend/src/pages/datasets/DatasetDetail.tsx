@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { deleteDataset, exportDataset, getDataset, updateDatasetRows } from '@/api/datasets';
-import { translateInputColumn } from '@/api/dataSources';
+import { translateMappedRows } from '@/api/dataSources';
 import { InputTranslationActions } from '@/components/dataSources/InputTranslationActions';
 import { ListPagination } from '@/components/ListControls';
 import { PageHeader } from '@/components/PageHeader';
@@ -14,6 +14,11 @@ import { LoadingSkeleton } from '@/components/LoadingSkeleton';
 import { PageTransition } from '@/components/PageTransition';
 import { Spinner } from '@/components/Spinner';
 import {
+  rowHasTranslatedChanges,
+  toggleOriginalRowIndexes,
+  type TranslatedPageState,
+} from '@/lib/translatedPageRows';
+import {
   translateRowsSequentially,
   type RowTranslationProgress,
 } from '@/lib/translateRowsSequentially';
@@ -21,16 +26,13 @@ import { formatDate } from '@/lib/utils';
 import type { DatasetDetail as DatasetDetailType, DatasetRow } from '@/types/dataset';
 import { Download, Plus, Save, Trash2, X } from 'lucide-react';
 
-interface DatasetTranslationState {
+interface DatasetTranslationState extends TranslatedPageState<DatasetRow> {
   page: number;
   pageSize: number;
-  originalInputs: string[];
-  originalInputRowIndexes: number[];
-  targetLanguage: string;
-  translatedInputs: string[];
 }
 
 const DEFAULT_PAGE_SIZE = 50;
+const TRANSLATED_FIELDS = ['input', 'expected_output'];
 
 function buildCurrentPageSourceRows(
   currentPageRows: DatasetRow[],
@@ -38,7 +40,7 @@ function buildCurrentPageSourceRows(
 ): DatasetRow[] {
   return currentPageRows.map((row, index) => ({
     ...row,
-    input: currentPageTranslation?.originalInputs[index] ?? row.input ?? '',
+    ...(currentPageTranslation?.originalRows[index] ?? row),
   }));
 }
 
@@ -102,7 +104,7 @@ export function DatasetDetail() {
       updated[rowIdx] = { ...updated[rowIdx], [col]: value };
       return updated;
     });
-    if (col === 'input') {
+    if (TRANSLATED_FIELDS.includes(col)) {
       setTranslationState(null);
     }
     setDirty(true);
@@ -182,17 +184,18 @@ export function DatasetDetail() {
       setTranslationState({
         page: safePage,
         pageSize,
-        originalInputs: currentRows.map((row) => row.input ?? ''),
-        originalInputRowIndexes: [],
+        originalRowIndexes: [],
+        originalRows: currentRows,
         targetLanguage: targetLanguage.trim(),
-        translatedInputs: currentRows.map((row) => row.input ?? ''),
+        translatedRows: currentRows,
       });
       await translateRowsSequentially({
         rows: currentRows,
         targetLanguage: targetLanguage.trim(),
         translateRow: async (row, language) => {
-          const result = await translateInputColumn({
+          const result = await translateMappedRows({
             target_language: language,
+            fields: TRANSLATED_FIELDS,
             mapped_rows: [row],
           });
           const translatedRow = result.mapped_rows[0];
@@ -213,11 +216,12 @@ export function DatasetDetail() {
             if (!current || current.page !== safePage || current.pageSize !== pageSize) {
               return current;
             }
-            const nextTranslatedInputs = [...current.translatedInputs];
-            nextTranslatedInputs[rowIndex] = translatedRow.input ?? '';
+            const nextTranslatedRows = current.translatedRows.map((row, index) => (
+              index === rowIndex ? translatedRow : row
+            ));
             return {
               ...current,
-              translatedInputs: nextTranslatedInputs,
+              translatedRows: nextTranslatedRows,
             };
           });
           setDirty(true);
@@ -239,39 +243,36 @@ export function DatasetDetail() {
     setRows((current) => current.map((row, index) => ({
       ...(index < currentPageStart || index > currentPageEnd
         ? row
-        : {
-            ...row,
-            input: currentPageTranslation.originalInputs[index - currentPageStart] ?? row.input ?? '',
-          }),
+        : currentPageTranslation.originalRows[index - currentPageStart] ?? row),
     })));
     setTranslationState(null);
     setDirty(true);
   }
 
-  function toggleShowOriginalInput(rowIdx: number) {
+  function toggleShowOriginalRow(rowIdx: number) {
     if (!currentPageTranslation || translating) {
       return;
     }
 
-    const showingOriginal = currentPageTranslation.originalInputRowIndexes.includes(rowIdx);
-    const nextOriginalInputRowIndexes = showingOriginal
-      ? currentPageTranslation.originalInputRowIndexes.filter((index) => index !== rowIdx)
-      : [...currentPageTranslation.originalInputRowIndexes, rowIdx];
+    const showingOriginal = currentPageTranslation.originalRowIndexes.includes(rowIdx);
     const absoluteRowIndex = currentPageStart + rowIdx;
+    const nextOriginalRowIndexes = toggleOriginalRowIndexes(
+      currentPageTranslation.originalRowIndexes,
+      rowIdx,
+    );
 
     setRows((current) => current.map((row, index) => (
       index === absoluteRowIndex
-        ? {
-            ...row,
-            input: showingOriginal
-              ? currentPageTranslation.translatedInputs[rowIdx] ?? row.input ?? ''
-              : currentPageTranslation.originalInputs[rowIdx] ?? row.input ?? '',
-          }
+        ? (
+            showingOriginal
+              ? currentPageTranslation.translatedRows[rowIdx] ?? row
+              : currentPageTranslation.originalRows[rowIdx] ?? row
+          )
         : row
     )));
     setTranslationState({
       ...currentPageTranslation,
-      originalInputRowIndexes: nextOriginalInputRowIndexes,
+      originalRowIndexes: nextOriginalRowIndexes,
     });
     setDirty(true);
   }
@@ -290,7 +291,7 @@ export function DatasetDetail() {
     && translationState.pageSize === pageSize
       ? translationState
       : null;
-  const canTranslateInputColumn = columns.includes('input') && currentPageRows.length > 0;
+  const canTranslatePageText = columns.includes('input') && currentPageRows.length > 0;
 
   function handlePageChange(nextPage: number) {
     if (translating) {
@@ -358,9 +359,10 @@ export function DatasetDetail() {
           </Button>
         </CardHeader>
         <CardContent className="space-y-4">
-          {canTranslateInputColumn ? (
+          {canTranslatePageText ? (
             <InputTranslationActions
               currentTranslationLanguage={currentPageTranslation?.targetLanguage ?? null}
+              translatedFields={TRANSLATED_FIELDS}
               loading={translating}
               progress={translationProgress}
               targetLanguage={targetLanguage}
@@ -378,7 +380,7 @@ export function DatasetDetail() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-10 text-center">#</TableHead>
-                    {currentPageTranslation ? <TableHead className="w-36">Input View</TableHead> : null}
+                    {currentPageTranslation ? <TableHead className="w-36">Text View</TableHead> : null}
                     {columns.map((col) => (
                       <TableHead key={col}>{col}</TableHead>
                     ))}
@@ -387,11 +389,8 @@ export function DatasetDetail() {
                 </TableHeader>
                 <TableBody>
                   {currentPageRows.map((row, rowIdx) => {
-                    const inputChanged = Boolean(
-                      currentPageTranslation
-                      && currentPageTranslation.originalInputs[rowIdx] !== currentPageTranslation.translatedInputs[rowIdx],
-                    );
-                    const showingOriginalInput = currentPageTranslation?.originalInputRowIndexes.includes(rowIdx) ?? false;
+                    const rowChanged = rowHasTranslatedChanges(currentPageTranslation, rowIdx, TRANSLATED_FIELDS);
+                    const showingOriginalRow = currentPageTranslation?.originalRowIndexes.includes(rowIdx) ?? false;
                     const activeTranslationRowIndex = translationProgress?.activeRowIndex ?? null;
                     const activeTranslationRow = translating && activeTranslationRowIndex === rowIdx;
                     const pendingTranslationRow = translating
@@ -411,15 +410,15 @@ export function DatasetDetail() {
                               </Badge>
                             ) : pendingTranslationRow ? (
                               <Badge>Pending</Badge>
-                            ) : inputChanged ? (
+                            ) : rowChanged ? (
                               <Button
                                 type="button"
-                                variant={showingOriginalInput ? 'default' : 'outline'}
+                                variant={showingOriginalRow ? 'default' : 'outline'}
                                 size="sm"
-                                onClick={() => toggleShowOriginalInput(rowIdx)}
+                                onClick={() => toggleShowOriginalRow(rowIdx)}
                                 disabled={translating}
                               >
-                                {showingOriginalInput ? 'Original' : 'Translated'}
+                                {showingOriginalRow ? 'Original' : 'Translated'}
                               </Button>
                             ) : (
                               <Badge>Same text</Badge>

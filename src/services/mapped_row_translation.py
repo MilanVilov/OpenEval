@@ -1,8 +1,9 @@
-"""Translate mapped dataset input values with OpenAI."""
+"""Translate mapped page row text values with OpenAI."""
 
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 
 from src.db.repositories import MappedInputTranslationRepository
 from src.providers.base import BaseLLMProvider
@@ -33,6 +34,40 @@ Return only JSON that matches the schema.
 """.strip()
 
 
+@dataclass(frozen=True)
+class RowFieldText:
+    """One mapped row field that should be translated."""
+
+    field_name: str
+    row_index: int
+    source_text: str
+
+
+async def translate_mapped_rows(
+    mapped_rows: list[dict[str, str]],
+    *,
+    fields: list[str],
+    target_language: str,
+    provider: BaseLLMProvider | None = None,
+    translation_repo: MappedInputTranslationRepository | None = None,
+) -> list[dict[str, str]]:
+    """Translate the requested mapped fields for one page of rows."""
+    normalized_fields = _normalize_fields(fields)
+    rows = _normalize_rows(mapped_rows, required_fields=normalized_fields)
+    language = target_language.strip()
+    if not language:
+        raise ValueError("Target language is required")
+
+    row_field_texts = _build_row_field_texts(rows, normalized_fields)
+    translations = await _resolve_translations(
+        [row_field_text.source_text for row_field_text in row_field_texts],
+        target_language=language,
+        provider=provider or OpenAIProvider(),
+        translation_repo=translation_repo,
+    )
+    return _apply_translations(rows, row_field_texts, translations)
+
+
 async def translate_input_column(
     mapped_rows: list[dict[str, str]],
     *,
@@ -41,26 +76,35 @@ async def translate_input_column(
     translation_repo: MappedInputTranslationRepository | None = None,
 ) -> list[dict[str, str]]:
     """Translate only the mapped ``input`` column for a page of rows."""
-    rows = _normalize_rows(mapped_rows)
-    language = target_language.strip()
-    if not language:
-        raise ValueError("Target language is required")
-
-    translations = await _resolve_translations(
-        [row["input"] for row in rows],
-        target_language=language,
-        provider=provider or OpenAIProvider(),
+    return await translate_mapped_rows(
+        mapped_rows,
+        fields=["input"],
+        target_language=target_language,
+        provider=provider,
         translation_repo=translation_repo,
     )
-    return _apply_translations(rows, translations)
 
 
-def _normalize_rows(mapped_rows: list[dict[str, str]]) -> list[dict[str, str]]:
-    """Return rows with string values, validating the mapped input column."""
+def _normalize_fields(fields: list[str]) -> list[str]:
+    """Validate the requested mapped fields and return normalized field names."""
+    normalized_fields = [field.strip() for field in fields if field.strip()]
+    if not normalized_fields:
+        raise ValueError("Translation fields must not be empty")
+    return normalized_fields
+
+
+def _normalize_rows(
+    mapped_rows: list[dict[str, str]],
+    *,
+    required_fields: list[str],
+) -> list[dict[str, str]]:
+    """Return rows with string values, validating each required mapped field."""
     normalized_rows: list[dict[str, str]] = []
     for row in mapped_rows:
-        if "input" not in row:
-            raise ValueError("Mapped rows must include input")
+        missing_fields = [field for field in required_fields if field not in row]
+        if missing_fields:
+            missing_field_list = ", ".join(sorted(missing_fields))
+            raise ValueError(f"Mapped rows must include {missing_field_list}")
         normalized_rows.append(
             {
                 str(key): "" if value is None else str(value)
@@ -68,6 +112,24 @@ def _normalize_rows(mapped_rows: list[dict[str, str]]) -> list[dict[str, str]]:
             },
         )
     return normalized_rows
+
+
+def _build_row_field_texts(
+    rows: list[dict[str, str]],
+    fields: list[str],
+) -> list[RowFieldText]:
+    """Return flattened row-field inputs in row order."""
+    row_field_texts: list[RowFieldText] = []
+    for row_index, row in enumerate(rows):
+        for field_name in fields:
+            row_field_texts.append(
+                RowFieldText(
+                    field_name=field_name,
+                    row_index=row_index,
+                    source_text=row[field_name],
+                ),
+            )
+    return row_field_texts
 
 
 async def _request_translations(
@@ -241,12 +303,22 @@ def _normalize_target_language(target_language: str) -> str:
 
 def _apply_translations(
     rows: list[dict[str, str]],
+    row_field_texts: list[RowFieldText],
     translations: list[str],
 ) -> list[dict[str, str]]:
-    """Copy rows with translated ``input`` values."""
+    """Copy rows with translated values for the requested mapped fields."""
     translated_rows: list[dict[str, str]] = []
-    for row, translation in zip(rows, translations, strict=True):
+    translation_index = 0
+    for row_index, row in enumerate(rows):
         translated_row = dict(row)
-        translated_row["input"] = translation
+        while (
+            translation_index < len(row_field_texts)
+            and row_field_texts[translation_index].row_index == row_index
+        ):
+            row_field_text = row_field_texts[translation_index]
+            translated_row[row_field_text.field_name] = translations[translation_index]
+            translation_index += 1
         translated_rows.append(translated_row)
+    if translation_index != len(translations):
+        raise ValueError("Translation response did not match the requested mapped fields")
     return translated_rows

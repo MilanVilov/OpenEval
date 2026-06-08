@@ -354,14 +354,14 @@ async def test_explore_data_source_returns_mapped_rows_and_page_states(
 
 
 @pytest.mark.asyncio
-async def test_translate_input_column_updates_only_mapped_input_values(
+async def test_translate_input_column_updates_requested_mapped_values(
     client: AsyncClient,
 ) -> None:
-    """The translation endpoint should rewrite inputs once and reuse the cached result."""
+    """The translation endpoint should rewrite requested fields and reuse cache."""
     provider = SimpleNamespace(
         generate=AsyncMock(
             return_value=LLMResponse(
-                text='{"translations":["Vraag 1","Vraag 2"]}',
+                text='{"translations":["Vraag 1","Antwoord 1","Vraag 2","Antwoord 2"]}',
                 latency_ms=12,
                 token_usage={"input_tokens": 10, "output_tokens": 4},
             ),
@@ -373,6 +373,7 @@ async def test_translate_input_column_updates_only_mapped_input_values(
             "/api/data-sources/translate-input-column",
             json={
                 "target_language": "Dutch",
+                "fields": ["input", "expected_output"],
                 "mapped_rows": [
                     {"input": "Question 1", "expected_output": "Answer 1", "category": "alpha"},
                     {"input": "Question 2", "expected_output": "Answer 2", "category": "beta"},
@@ -383,8 +384,8 @@ async def test_translate_input_column_updates_only_mapped_input_values(
     assert response.status_code == 200
     body = response.json()
     assert body["mapped_rows"] == [
-        {"input": "Vraag 1", "expected_output": "Answer 1", "category": "alpha"},
-        {"input": "Vraag 2", "expected_output": "Answer 2", "category": "beta"},
+        {"input": "Vraag 1", "expected_output": "Antwoord 1", "category": "alpha"},
+        {"input": "Vraag 2", "expected_output": "Antwoord 2", "category": "beta"},
     ]
     assert provider.generate.await_args.kwargs["model"] == "gpt-5.4-nano"
     assert provider.generate.await_args.kwargs["reasoning_config"] == {"effort": "none"}
@@ -394,6 +395,7 @@ async def test_translate_input_column_updates_only_mapped_input_values(
             "/api/data-sources/translate-input-column",
             json={
                 "target_language": "dutch",
+                "fields": ["input", "expected_output"],
                 "mapped_rows": [
                     {"input": "Question 1", "expected_output": "Answer 1", "category": "alpha"},
                     {"input": "Question 2", "expected_output": "Answer 2", "category": "beta"},

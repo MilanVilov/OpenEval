@@ -23,15 +23,15 @@ from src.routers.schemas.data_sources import (
     ImportPresetCreateRequest,
     ImportPresetResponse,
     ImportPresetUpdateRequest,
-    TranslateInputColumnRequest,
-    TranslateInputColumnResponse,
+    TranslateMappedRowsRequest,
+    TranslateMappedRowsResponse,
 )
 from src.services.data_source_crypto import (
     decrypt_secret_payload,
     encrypt_secret_payload,
 )
 from src.services.data_source_duplicates import duplicate_data_source
-from src.services.mapped_row_translation import translate_input_column
+from src.services.mapped_row_translation import translate_mapped_rows
 from src.services.remote_data_sources import explore_data_source
 
 router = APIRouter(prefix="/api/data-sources", tags=["data-sources"])
@@ -436,15 +436,16 @@ async def explore_remote_data_source(
     )
 
 
-@router.post("/translate-input-column", response_model=TranslateInputColumnResponse)
+@router.post("/translate-input-column", response_model=TranslateMappedRowsResponse)
 async def translate_mapped_input_column(
-    body: TranslateInputColumnRequest,
+    body: TranslateMappedRowsRequest,
     session: AsyncSession = Depends(get_session),
-) -> TranslateInputColumnResponse:
-    """Translate mapped input values for the current page preview."""
+) -> TranslateMappedRowsResponse:
+    """Translate mapped page text values for the current page preview."""
     try:
-        mapped_rows = await translate_input_column(
+        mapped_rows = await translate_mapped_rows(
             body.mapped_rows,
+            fields=body.fields,
             target_language=body.target_language,
             translation_repo=MappedInputTranslationRepository(session),
         )
@@ -453,4 +454,4 @@ async def translate_mapped_input_column(
     except Exception as exc:
         raise HTTPException(status_code=422, detail=f"Translation failed: {exc}") from exc
 
-    return TranslateInputColumnResponse(mapped_rows=mapped_rows)
+    return TranslateMappedRowsResponse(mapped_rows=mapped_rows)

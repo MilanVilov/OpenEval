@@ -164,23 +164,35 @@ class ExploreDataSourceResponse(BaseModel):
     previous_page_state: dict[str, object] | None
 
 
-class TranslateInputColumnRequest(BaseModel):
-    """Request body for translating mapped input values on the current page."""
+class TranslateMappedRowsRequest(BaseModel):
+    """Request body for translating mapped text values on the current page."""
 
     target_language: str = Field(min_length=1, max_length=100)
+    fields: list[str] = Field(min_length=1)
     mapped_rows: list[dict[str, str]]
 
     @model_validator(mode="after")
-    def validate_rows(self) -> TranslateInputColumnRequest:
-        """Require page rows and the mapped input column."""
+    def validate_rows(self) -> TranslateMappedRowsRequest:
+        """Require page rows and every mapped field selected for translation."""
         if not self.mapped_rows:
             raise ValueError("Mapped rows must not be empty")
-        if any("input" not in row for row in self.mapped_rows):
-            raise ValueError("Mapped rows must include input")
+        normalized_fields = [field.strip() for field in self.fields if field.strip()]
+        if not normalized_fields:
+            raise ValueError("Translation fields must not be empty")
+        self.fields = normalized_fields
+
+        missing_fields = {
+            field
+            for field in self.fields
+            if any(field not in row for row in self.mapped_rows)
+        }
+        if missing_fields:
+            missing_field_list = ", ".join(sorted(missing_fields))
+            raise ValueError(f"Mapped rows must include {missing_field_list}")
         return self
 
 
-class TranslateInputColumnResponse(BaseModel):
+class TranslateMappedRowsResponse(BaseModel):
     """Response model for translated mapped rows."""
 
     mapped_rows: list[dict[str, str]]
