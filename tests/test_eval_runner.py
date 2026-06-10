@@ -500,3 +500,45 @@ class TestGraderStats:
         assert grader_stats["exact"]["passed"] == 1
         assert grader_stats["exact"]["failed"] == 1
         assert grader_stats["exact"]["accuracy"] == 0.5
+
+    async def test_null_threshold_graders_are_unjudged(self, mock_repos):
+        """Score-only graders should not contribute pass/fail counts."""
+        config = _make_config(concurrency=5)
+        config.graders = [{
+            "type": "string_check",
+            "name": "score_only",
+            "input_value": "{{ sample.output_text }}",
+            "operation": "equals",
+            "reference_value": "{{ item.expected_output }}",
+            "threshold": None,
+        }]
+        mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
+        mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
+        mock_repos["dataset_repo"].get_by_id_with_content = AsyncMock(return_value=_make_dataset())
+        mock_repos["read_csv"].return_value = [
+            {"input": "q1", "expected_output": "a1"},
+            {"input": "q2", "expected_output": "a2"},
+        ]
+        mock_repos["call_llm"].side_effect = [
+            _make_llm_response("a1", latency_ms=50),
+            _make_llm_response("wrong", latency_ms=50),
+        ]
+
+        await run_evaluation("run1")
+
+        persisted_results = [
+            call.args[0][0]
+            for call in mock_repos["result_repo"].upsert_batch.await_args_list
+        ]
+        summary = mock_repos["run_repo"].set_summary.call_args.kwargs["summary"]
+        grader_stats = summary["grader_stats"]["score_only"]
+
+        assert [result.passed for result in persisted_results] == [None, None]
+        assert summary["passed"] == 0
+        assert summary["failed"] == 0
+        assert summary["unjudged"] == 2
+        assert summary["accuracy"] == 0
+        assert grader_stats["passed"] == 0
+        assert grader_stats["failed"] == 0
+        assert grader_stats["unjudged"] == 2
+        assert grader_stats["judged"] == 0

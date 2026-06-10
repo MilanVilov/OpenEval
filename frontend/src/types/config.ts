@@ -27,7 +27,7 @@ export interface Grader {
   case_sensitive?: boolean;
   strip_whitespace?: boolean;
   // shared
-  threshold: number;
+  threshold: number | null;
   weight: number;
 }
 

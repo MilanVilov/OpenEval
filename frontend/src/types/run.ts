@@ -16,16 +16,20 @@ export interface EvalRun {
 
 export interface GraderStat {
   total: number;
+  judged?: number;
   passed: number;
   failed: number;
+  unjudged?: number;
   accuracy: number;
   avg_score: number;
 }
 
 export interface RunSummary {
   total: number;
+  judged?: number;
   passed: number;
   failed: number;
+  unjudged?: number;
   errors: number;
   accuracy: number;
   avg_latency_ms: number;

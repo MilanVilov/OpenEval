@@ -10,17 +10,24 @@ class SemanticSimilarityComparer(BaseComparer):
 
     Config options:
         name (str): Human-readable grader name.
-        threshold (float): Minimum similarity for a pass. Default 0.8.
+        threshold (float | None): Minimum similarity for a pass.
+            ``None`` makes the grader informational.
         model (str): Embedding model to use. Default "text-embedding-3-small".
     """
 
     def __init__(self, config: dict | None = None) -> None:
         super().__init__(config)
         self.grader_name: str = self.config.get("name", "semantic_similarity")
-        self.threshold: float = self.config.get("threshold", 0.8)
+        self.threshold: float | None = self.config.get("threshold", 0.8)
         self.embed_model: str = self.config.get("model", "text-embedding-3-small")
 
-    async def compare(self, *, expected: str, actual: str, row_data: dict | None = None) -> tuple[float, bool, dict]:
+    async def compare(
+        self,
+        *,
+        expected: str,
+        actual: str,
+        row_data: dict | None = None,
+    ) -> tuple[float, bool | None, dict]:
         """Return cosine similarity score and pass/fail based on threshold."""
         from src.services.openai_client import get_openai_client
 
@@ -37,13 +44,13 @@ class SemanticSimilarityComparer(BaseComparer):
         vec_actual = response.data[1].embedding
 
         score = self._cosine_similarity(vec_expected, vec_actual)
-        passed = score >= threshold
+        passed = None if threshold is None else score >= threshold
         return score, passed, {"threshold": threshold, "model": model}
 
     @staticmethod
     def _cosine_similarity(a: list[float], b: list[float]) -> float:
         """Compute cosine similarity between two vectors."""
-        dot = sum(x * y for x, y in zip(a, b))
+        dot = sum(x * y for x, y in zip(a, b, strict=False))
         norm_a = math.sqrt(sum(x * x for x in a))
         norm_b = math.sqrt(sum(x * x for x in b))
         if norm_a == 0 or norm_b == 0:

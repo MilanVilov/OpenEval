@@ -125,15 +125,15 @@ export function RunCompare() {
                       <TableCell className="min-w-[150px] max-w-[300px] whitespace-pre-wrap break-words">{ra.expected_output}</TableCell>
                       <TableCell className="min-w-[150px] max-w-[300px] whitespace-pre-wrap break-words">{ra.actual_output}</TableCell>
                       <TableCell>
-                        <Badge variant={ra.passed ? 'success' : 'error'}>
-                          {ra.passed ? '✓' : '✗'}
+                        <Badge variant={ra.passed === true ? 'success' : ra.passed === false ? 'error' : 'default'}>
+                          {ra.passed === true ? '✓' : ra.passed === false ? '✗' : '—'}
                         </Badge>
                       </TableCell>
                       <TableCell className="min-w-[150px] max-w-[300px] whitespace-pre-wrap break-words">{rb?.actual_output ?? '—'}</TableCell>
                       <TableCell>
                         {rb ? (
-                          <Badge variant={rb.passed ? 'success' : 'error'}>
-                            {rb.passed ? '✓' : '✗'}
+                          <Badge variant={rb.passed === true ? 'success' : rb.passed === false ? 'error' : 'default'}>
+                            {rb.passed === true ? '✓' : rb.passed === false ? '✗' : '—'}
                           </Badge>
                         ) : '—'}
                       </TableCell>

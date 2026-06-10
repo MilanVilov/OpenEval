@@ -1,22 +1,23 @@
-"""Python grader — execute user-defined ``grade(sample, item)`` functions.
+"""Python grader - execute user-defined ``grade(sample, item)`` functions.
 
 The user supplies a Python source string that must define a ``grade``
 function with signature ``(sample: dict, item: dict) -> float``.
 
-* ``sample`` — ``{"output_text": <LLM output>}``
-* ``item`` — the full CSV row dict
+* ``sample`` - ``{"output_text": <LLM output>}``
+* ``item`` - the full CSV row dict
 
-The returned float is clamped to 0.0–1.0 and compared against the
-configured threshold.
+The returned float is clamped to 0.0-1.0 and compared against the
+configured threshold when one is configured.
 
 Config keys (passed via ``config`` dict):
     name (str): Human-readable grader name.
     source_code (str): Python source defining ``grade(sample, item) -> float``.
-    threshold (float): Minimum score to pass. Default ``0.7``.
+    threshold (float | None): Minimum score to pass.
+        ``None`` makes the grader informational.
 """
 
-import logging
 import json
+import logging
 import math
 import re
 
@@ -71,7 +72,10 @@ def _safe_import(name: str, *args: object, **kwargs: object) -> object:
     """Restricted __import__ that only allows pre-approved modules."""
     if name in _ALLOWED_MODULES:
         return _ALLOWED_MODULES[name]
-    raise ImportError(f"Import of '{name}' is not allowed. Available modules: {', '.join(sorted(_ALLOWED_MODULES))}")
+    available_modules = ", ".join(sorted(_ALLOWED_MODULES))
+    raise ImportError(
+        f"Import of '{name}' is not allowed. Available modules: {available_modules}"
+    )
 
 
 class PythonGraderComparer(BaseComparer):
@@ -81,7 +85,7 @@ class PythonGraderComparer(BaseComparer):
         super().__init__(config)
         self.grader_name: str = self.config.get("name", "python_grader")
         self.source_code: str = self.config.get("source_code", "")
-        self.threshold: float = self.config.get("threshold", 0.7)
+        self.threshold: float | None = self.config.get("threshold", 0.7)
 
     async def compare(
         self,
@@ -89,7 +93,7 @@ class PythonGraderComparer(BaseComparer):
         expected: str,
         actual: str,
         row_data: dict | None = None,
-    ) -> tuple[float, bool, dict]:
+    ) -> tuple[float, bool | None, dict]:
         """Compile and run the user ``grade`` function, returning its score."""
         sample = {"output_text": actual}
         item = dict(row_data) if row_data else {}
@@ -100,10 +104,10 @@ class PythonGraderComparer(BaseComparer):
         }
 
         try:
-            exec(self.source_code, exec_globals)  # noqa: S102 — intentional user code execution
+            exec(self.source_code, exec_globals)
         except Exception as exc:
             logger.warning("Python grader %s: compile/exec error: %s", self.grader_name, exc)
-            return 0.0, False, {
+            return 0.0, self._score_passed(0.0), {
                 "grader_name": self.grader_name,
                 "threshold": self.threshold,
                 "error": f"Execution error: {exc}",
@@ -111,7 +115,7 @@ class PythonGraderComparer(BaseComparer):
 
         grade_fn = exec_globals.get("grade")
         if not callable(grade_fn):
-            return 0.0, False, {
+            return 0.0, self._score_passed(0.0), {
                 "grader_name": self.grader_name,
                 "threshold": self.threshold,
                 "error": "Source code must define a callable 'grade(sample, item)' function.",
@@ -122,14 +126,20 @@ class PythonGraderComparer(BaseComparer):
             score = max(0.0, min(1.0, float(raw_score)))
         except Exception as exc:
             logger.warning("Python grader %s: grade() error: %s", self.grader_name, exc)
-            return 0.0, False, {
+            return 0.0, self._score_passed(0.0), {
                 "grader_name": self.grader_name,
                 "threshold": self.threshold,
                 "error": f"grade() raised: {exc}",
             }
 
-        passed = score >= self.threshold
+        passed = self._score_passed(score)
         return score, passed, {
             "grader_name": self.grader_name,
             "threshold": self.threshold,
         }
+
+    def _score_passed(self, score: float) -> bool | None:
+        """Return the threshold judgment for a score, if configured."""
+        if self.threshold is None:
+            return None
+        return score >= self.threshold

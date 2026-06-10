@@ -14,27 +14,34 @@ class JsonSchemaMatchComparer(BaseComparer):
     Config options:
         name (str): Human-readable grader name.
         strict (bool): If True, actual must have exactly the same keys. Default False.
-        threshold (float): Minimum score to pass. Default 1.0.
+        threshold (float | None): Minimum score to pass. ``None`` makes the grader informational.
     """
 
     def __init__(self, config: dict | None = None) -> None:
         super().__init__(config)
         self.grader_name: str = self.config.get("name", "json_schema")
         self.strict: bool = self.config.get("strict", False)
-        self.threshold: float = self.config.get("threshold", 1.0)
+        self.threshold: float | None = self.config.get("threshold", 1.0)
 
-    async def compare(self, *, expected: str, actual: str, row_data: dict | None = None) -> tuple[float, bool, dict]:
+    async def compare(
+        self,
+        *,
+        expected: str,
+        actual: str,
+        row_data: dict | None = None,
+    ) -> tuple[float, bool | None, dict]:
         """Return score based on matching JSON keys/values."""
         try:
             expected_obj = json.loads(expected)
             actual_obj = json.loads(actual)
         except json.JSONDecodeError as exc:
-            return 0.0, False, {"error": f"JSON parse error: {exc}"}
+            return 0.0, self._score_passed(0.0), {"error": f"JSON parse error: {exc}"}
 
         if not isinstance(expected_obj, dict) or not isinstance(actual_obj, dict):
             # Simple equality for non-dict JSON
             matched = expected_obj == actual_obj
-            return (1.0 if matched else 0.0, matched, {"type": "non_dict_comparison"})
+            score = 1.0 if matched else 0.0
+            return score, self._score_passed(score), {"type": "non_dict_comparison"}
 
         strict = self.strict
 
@@ -45,7 +52,11 @@ class JsonSchemaMatchComparer(BaseComparer):
         if strict and expected_keys != actual_keys:
             missing = expected_keys - actual_keys
             extra = actual_keys - expected_keys
-            return 0.0, False, {"missing_keys": list(missing), "extra_keys": list(extra)}
+            return (
+                0.0,
+                self._score_passed(0.0),
+                {"missing_keys": list(missing), "extra_keys": list(extra)},
+            )
 
         matching = 0
         total = len(expected_keys) if expected_keys else 1
@@ -58,8 +69,18 @@ class JsonSchemaMatchComparer(BaseComparer):
             elif key not in actual_obj:
                 details_keys[key] = "missing"
             else:
-                details_keys[key] = f"mismatch: expected={expected_obj[key]!r}, got={actual_obj[key]!r}"
+                expected_value = expected_obj[key]
+                actual_value = actual_obj[key]
+                details_keys[key] = (
+                    f"mismatch: expected={expected_value!r}, got={actual_value!r}"
+                )
 
         score = matching / total
-        passed = score >= self.threshold
+        passed = self._score_passed(score)
         return score, passed, {"key_results": details_keys, "strict": strict}
+
+    def _score_passed(self, score: float) -> bool | None:
+        """Return the threshold judgment for a score, if configured."""
+        if self.threshold is None:
+            return None
+        return score >= self.threshold

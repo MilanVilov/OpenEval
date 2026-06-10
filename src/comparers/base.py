@@ -27,7 +27,7 @@ class BaseComparer(ABC):
         expected: str,
         actual: str,
         row_data: dict | None = None,
-    ) -> tuple[float, bool, dict]:
+    ) -> tuple[float, bool | None, dict]:
         """Compare expected and actual outputs.
 
         Args:
@@ -38,7 +38,7 @@ class BaseComparer(ABC):
         Returns:
             Tuple of (score, passed, details):
             - score: float between 0.0 and 1.0
-            - passed: whether the comparison passed
+            - passed: whether the comparison passed, or None when no threshold is configured
             - details: dict with additional comparison info
         """
         ...

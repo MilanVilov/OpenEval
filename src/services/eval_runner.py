@@ -195,7 +195,9 @@ async def _process_rows(
     """Process all rows and persist committed result batches incrementally."""
     semaphore = asyncio.Semaphore(context.config.concurrency)
     tasks = [
-        asyncio.create_task(_process_row(context.run.id, index, row, context, grader_bundle, semaphore))
+        asyncio.create_task(
+            _process_row(context.run.id, index, row, context, grader_bundle, semaphore)
+        )
         for index, row in enumerate(rows)
     ]
     persisted_results: list[EvalResult] = []
@@ -337,11 +339,11 @@ async def _apply_graders(
     expected: str,
     actual: str,
     row_data: dict,
-) -> tuple[float, bool, dict]:
+) -> tuple[float, bool | None, dict]:
     """Run all configured graders for one row and combine their outputs."""
     details: dict[str, dict] = {}
     weighted_scores: list[tuple[float, float]] = []
-    weighted_passed: list[tuple[float, bool]] = []
+    weighted_passed: list[tuple[float, bool | None]] = []
 
     for name, comparer in grader_bundle.comparers:
         weight = grader_bundle.weights.get(name, 1.0)
@@ -370,8 +372,8 @@ async def _apply_graders(
 def _combine_grader_results(
     details: dict[str, dict],
     weighted_scores: list[tuple[float, float]],
-    weighted_passed: list[tuple[float, bool]],
-) -> tuple[float, bool, dict]:
+    weighted_passed: list[tuple[float, bool | None]],
+) -> tuple[float, bool | None, dict]:
     """Reduce individual grader outcomes to one score and pass/fail value."""
     total_weight = sum(weight for weight, _ in weighted_scores if weight > 0)
     if total_weight > 0:
@@ -382,8 +384,16 @@ def _combine_grader_results(
     else:
         score = 0.0
 
-    active_passed = [passed for weight, passed in weighted_passed if weight > 0]
-    return score, all(active_passed) if active_passed else False, details
+    active_passed = [
+        passed
+        for weight, passed in weighted_passed
+        if weight > 0 and passed is not None
+    ]
+    if active_passed:
+        return score, all(active_passed), details
+    if total_weight > 0:
+        return score, None, details
+    return score, False, details
 
 
 def _build_summary(results: list[EvalResult]) -> dict:
@@ -391,16 +401,20 @@ def _build_summary(results: list[EvalResult]) -> dict:
     total = len(results)
     passed = sum(1 for result in results if result.passed)
     failed = sum(1 for result in results if result.passed is False)
+    unjudged = sum(1 for result in results if result.passed is None and not result.error)
     errors = sum(1 for result in results if result.error)
     scored = [result.comparer_score for result in results if result.comparer_score is not None]
     avg_score = sum(scored) / max(len(scored), 1)
     avg_input_tokens, avg_output_tokens = _average_token_usage(results)
+    judged = passed + failed
     return {
         "total": total,
+        "judged": judged,
         "passed": passed,
         "failed": failed,
+        "unjudged": unjudged,
         "errors": errors,
-        "accuracy": passed / max(total, 1),
+        "accuracy": passed / max(judged + errors, 1),
         "avg_latency_ms": _average_latency(results),
         "avg_score": round(avg_score, 4),
         "avg_input_tokens": avg_input_tokens,
@@ -441,23 +455,27 @@ def _build_grader_stats(results: list[EvalResult]) -> dict[str, dict]:
                 continue
             stats = grader_stats.setdefault(name, _new_grader_stats())
             stats["total"] += 1
-            if detail.get("passed"):
+            if detail.get("passed") is True:
                 stats["passed"] += 1
-            else:
+            elif detail.get("passed") is False:
                 stats["failed"] += 1
+            else:
+                stats["unjudged"] += 1
             if isinstance(detail.get("score"), (int, float)):
                 stats["scores"].append(detail["score"])
 
     for stats in grader_stats.values():
         scores = stats.pop("scores")
-        stats["accuracy"] = stats["passed"] / max(stats["total"], 1)
+        judged = stats["passed"] + stats["failed"]
+        stats["judged"] = judged
+        stats["accuracy"] = stats["passed"] / max(judged, 1)
         stats["avg_score"] = round(sum(scores) / len(scores), 4) if scores else 0.0
     return grader_stats
 
 
 def _new_grader_stats() -> dict:
     """Return the initial accumulator structure for one grader."""
-    return {"total": 0, "passed": 0, "failed": 0, "scores": []}
+    return {"total": 0, "passed": 0, "failed": 0, "unjudged": 0, "scores": []}
 
 
 async def _heartbeat_until_stopped(run_id: str, stop_event: asyncio.Event) -> None:
@@ -467,7 +485,7 @@ async def _heartbeat_until_stopped(run_id: str, stop_event: asyncio.Event) -> No
         try:
             await asyncio.wait_for(stop_event.wait(), timeout=timeout_seconds)
             return
-        except asyncio.TimeoutError:
+        except TimeoutError:
             await _persist_heartbeat(run_id)
 
 

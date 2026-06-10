@@ -62,11 +62,13 @@ export function GradersEditor({
   }
 
   function updateGrader(index: number, field: keyof Grader, value: string | boolean) {
-    const parsed = field === 'threshold' || field === 'weight'
-      ? (parseFloat(value as string) || 0)
-      : field === 'strict' || field === 'case_sensitive' || field === 'strip_whitespace'
-        ? value as boolean
-        : value;
+    const parsed = field === 'threshold'
+      ? (String(value).trim() === '' ? null : parseFloat(value as string) || 0)
+      : field === 'weight'
+        ? (parseFloat(value as string) || 0)
+        : field === 'strict' || field === 'case_sensitive' || field === 'strip_whitespace'
+          ? value as boolean
+          : value;
     const updated = graders.map((g, i) => {
       if (i !== index) return g;
       const next = { ...g, [field]: parsed };
@@ -307,11 +309,12 @@ export function GradersEditor({
                   step="0.05"
                   min="0"
                   max="1"
-                  value={String(grader.threshold ?? 0.7)}
+                  value={grader.threshold == null ? '' : String(grader.threshold)}
+                  placeholder="None"
                   onChange={(e) => updateGrader(index, 'threshold', e.target.value)}
                   disabled={disabled}
                 />
-                <p className="text-xs text-foreground-secondary">Minimum score (0–1) to pass</p>
+                <p className="text-xs text-foreground-secondary">Leave blank for score-only results</p>
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Weight</Label>
