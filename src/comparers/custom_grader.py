@@ -4,6 +4,7 @@ import json
 import logging
 
 from src.comparers.base import BaseComparer
+from src.providers.openai import REASONING_MODELS
 
 logger = logging.getLogger(__name__)
 
@@ -56,14 +57,17 @@ class CustomGraderComparer(BaseComparer):
                 f"Actual output:\n{actual}"
             )
 
-        response = await client.responses.create(
-            model=self.model,
-            input=[
+        request_kwargs: dict = {
+            "model": self.model,
+            "input": [
                 {"role": "system", "content": self._SYSTEM_PROMPT},
                 {"role": "user", "content": user_message},
             ],
-            temperature=0.0,
-        )
+        }
+        if self.model not in REASONING_MODELS:
+            request_kwargs["temperature"] = 0.0
+
+        response = await client.responses.create(**request_kwargs)
 
         # Extract text from response
         text = ""
