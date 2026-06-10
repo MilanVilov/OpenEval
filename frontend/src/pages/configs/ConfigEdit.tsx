@@ -31,6 +31,7 @@ export function ConfigEdit() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [name, setName] = useState('');
+  const [comment, setComment] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
   const [systemPrompt, setSystemPrompt] = useState('');
@@ -79,6 +80,7 @@ export function ConfigEdit() {
     getConfig(id)
       .then((config) => {
         setName(config.name);
+        setComment(config.comment || '');
         setTags(config.tags || []);
         setSystemPrompt(config.system_prompt);
         setModel(config.model);
@@ -192,6 +194,7 @@ export function ConfigEdit() {
         }));
       await updateConfig(id, {
         name,
+        comment: comment.trim() || null,
         system_prompt: systemPrompt,
         model,
         temperature: parseFloat(temperature),
@@ -223,6 +226,18 @@ export function ConfigEdit() {
         <div className="space-y-2">
           <Label>Name</Label>
           <Input value={name} onChange={(e) => setName(e.target.value)} required disabled={isReadonly} />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Comment</Label>
+          <Textarea
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            placeholder="What this config is for, what changed, or when to use it..."
+            className="min-h-[80px]"
+            disabled={isReadonly}
+          />
+          <p className="text-xs text-foreground-secondary">Optional context for teammates. This is not sent to the model.</p>
         </div>
 
         <div className="space-y-2">

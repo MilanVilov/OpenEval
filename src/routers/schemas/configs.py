@@ -82,6 +82,7 @@ class CreateConfigRequest(BaseModel):
     """Request body for creating an eval configuration."""
 
     name: str
+    comment: str | None = None
     system_prompt: str
     model: str = "gpt-4o"
     temperature: float = 0.7
@@ -94,6 +95,14 @@ class CreateConfigRequest(BaseModel):
     readonly: bool = False
     reasoning_config: dict | None = None
     response_format: dict | None = None
+
+    @field_validator("comment")
+    @classmethod
+    def _normalize_comment(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        comment = v.strip()
+        return comment or None
 
     @field_validator("graders")
     @classmethod
@@ -110,6 +119,7 @@ class UpdateConfigRequest(BaseModel):
     """Request body for updating an eval configuration."""
 
     name: str | None = None
+    comment: str | None = None
     system_prompt: str | None = None
     model: str | None = None
     temperature: float | None = None
@@ -123,12 +133,21 @@ class UpdateConfigRequest(BaseModel):
     reasoning_config: dict | None = None
     response_format: dict | None = None
 
+    @field_validator("comment")
+    @classmethod
+    def _normalize_comment(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        comment = v.strip()
+        return comment or None
+
 
 class ConfigResponse(BaseModel):
     """Response model for an eval configuration."""
 
     id: str
     name: str
+    comment: str | None = None
     system_prompt: str
     model: str
     temperature: float

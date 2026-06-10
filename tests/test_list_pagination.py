@@ -66,6 +66,7 @@ async def test_list_configs_paginates_and_searches_with_tags(client: AsyncClient
         repo = ConfigRepository(session)
         await repo.create(
             name="Alpha Draft",
+            comment="Draft comment for support alpha",
             system_prompt="Draft support checks",
             model="gpt-4.1",
             tags=["draft"],
@@ -108,6 +109,12 @@ async def test_list_configs_paginates_and_searches_with_tags(client: AsyncClient
     empty_tag_page = empty_tag_response.json()
     assert empty_tag_page["total"] == 1
     assert empty_tag_page["items"][0]["name"] == "Alpha Production"
+
+    comment_response = await client.get("/api/configs?page=1&page_size=10&search=draft%20comment")
+    assert comment_response.status_code == 200
+    comment_page = comment_response.json()
+    assert comment_page["total"] == 1
+    assert comment_page["items"][0]["name"] == "Alpha Draft"
 
 
 @pytest.mark.asyncio

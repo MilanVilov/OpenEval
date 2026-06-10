@@ -1,7 +1,6 @@
 """Tests for the POST /api/configs/{config_id}/duplicate endpoint."""
 
-import asyncio
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -10,6 +9,7 @@ from src.app import create_app
 
 SAMPLE_CONFIG_PAYLOAD = {
     "name": "My Test Config",
+    "comment": "Use this config for regression checks.",
     "system_prompt": "You are a helpful assistant.",
     "model": "gpt-4.1",
     "temperature": 0.5,
@@ -51,8 +51,8 @@ def app():
 @pytest.fixture()
 async def _create_tables(app):
     """Ensure tables exist in the in-memory database."""
-    from src.db.session import get_engine
     from src.db.models import Base
+    from src.db.session import get_engine
 
     engine = get_engine()
     async with engine.begin() as conn:
@@ -92,6 +92,7 @@ async def test_duplicate_config_creates_copy_with_new_id(client: AsyncClient):
     # All other fields match the original
     for field in [
         "system_prompt",
+        "comment",
         "model",
         "temperature",
         "max_tokens",

@@ -133,7 +133,11 @@ export function ConfigList() {
                   {config.readonly && <Lock className="h-3 w-3 text-warning shrink-0" />}
                   {config.name}
                 </h3>
-                <p className="text-xs text-foreground-secondary mt-1 line-clamp-2">{config.system_prompt}</p>
+                {config.comment ? (
+                  <p className="text-xs text-foreground-secondary mt-1 line-clamp-2">{config.comment}</p>
+                ) : (
+                  <p className="text-xs text-foreground-secondary mt-1 line-clamp-2">{config.system_prompt}</p>
+                )}
                 <div className="flex items-center gap-2 mt-3">
                   <Badge>{config.model}</Badge>
                   {config.graders && config.graders.length > 0 && (
