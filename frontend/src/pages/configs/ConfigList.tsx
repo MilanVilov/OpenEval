@@ -7,12 +7,20 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { LoadingSkeleton } from '@/components/LoadingSkeleton';
-import { PageTransition } from '@/components/PageTransition';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Copy, Lock, Plus } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 import { TagFilter } from '@/components/TagFilter';
 import { ListPagination, ListSearch } from '@/components/ListControls';
+
+const SYSTEM_PROMPT_PREVIEW_LENGTH = 240;
+
+function promptPreview(systemPrompt: string): string {
+  if (systemPrompt.length <= SYSTEM_PROMPT_PREVIEW_LENGTH) {
+    return systemPrompt;
+  }
+  return `${systemPrompt.slice(0, SYSTEM_PROMPT_PREVIEW_LENGTH).trimEnd()}...`;
+}
 
 export function ConfigList() {
   const [configs, setConfigs] = useState<EvalConfig[]>([]);
@@ -91,7 +99,7 @@ export function ConfigList() {
   if (error) return <Alert variant="destructive" className="animate-fade-in"><AlertDescription>{error}</AlertDescription></Alert>;
 
   return (
-    <PageTransition>
+    <div>
       <PageHeader
         title="Eval Configs"
         description="Manage your evaluation configurations"
@@ -123,17 +131,18 @@ export function ConfigList() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {configs.map((config, idx) => (
+          {configs.map((config) => (
             <Link key={config.id} to={`/configs/${config.id}`}>
               <Card
-                className="p-4 h-full hover:bg-background-hover hover:border-border-hover hover:shadow-medium transition-all duration-200 ease-[var(--ease-smooth)] animate-fade-in-up"
-                style={{ animationDelay: `${idx * 60}ms` }}
+                className="p-4 h-full hover:bg-background-hover hover:border-border-hover hover:shadow-medium transition-all duration-200 ease-[var(--ease-smooth)]"
               >
                 <h3 className="text-sm font-medium text-foreground flex items-center gap-1.5">
                   {config.readonly && <Lock className="h-3 w-3 text-warning shrink-0" />}
                   {config.name}
                 </h3>
-                <p className="text-xs text-foreground-secondary mt-1 line-clamp-2">{config.system_prompt}</p>
+                <p className="text-xs text-foreground-secondary mt-1 line-clamp-2">
+                  {promptPreview(config.system_prompt)}
+                </p>
                 <div className="flex items-center gap-2 mt-3">
                   <Badge>{config.model}</Badge>
                   {config.graders && config.graders.length > 0 && (
@@ -175,6 +184,6 @@ export function ConfigList() {
         onPageChange={setPage}
         onPageSizeChange={handlePageSizeChange}
       />
-    </PageTransition>
+    </div>
   );
 }

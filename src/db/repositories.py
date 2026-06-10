@@ -108,6 +108,16 @@ class ConfigRepository:
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
+    async def list_tags(self) -> list[str]:
+        """Return all unique config tags without loading full config rows."""
+        stmt = select(EvalConfig.tags)
+        result = await self._session.execute(stmt)
+        tags: set[str] = set()
+        for config_tags in result.scalars().all():
+            for tag in config_tags or []:
+                tags.add(tag)
+        return sorted(tags)
+
     async def list_page(
         self,
         *,

@@ -6,6 +6,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from src.app import create_app
+from src.db.repositories import ConfigRepository
 
 SAMPLE_CONFIG = {
     "name": "Tagged Config",
@@ -123,6 +124,18 @@ async def test_list_tags_returns_deduplicated_sorted(client: AsyncClient):
     resp = await client.get("/api/configs/tags")
     assert resp.status_code == 200
     assert resp.json() == ["alpha", "beta", "v2"]
+
+
+@pytest.mark.asyncio
+async def test_list_tags_does_not_load_full_configs(client: AsyncClient):
+    """GET /api/configs/tags uses the tag-only repository query."""
+    await client.post("/api/configs", json=SAMPLE_CONFIG)
+
+    with patch.object(ConfigRepository, "list_all", side_effect=AssertionError):
+        resp = await client.get("/api/configs/tags")
+
+    assert resp.status_code == 200
+    assert resp.json() == ["production", "v2"]
 
 
 @pytest.mark.asyncio

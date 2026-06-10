@@ -31,7 +31,7 @@ function NavItem({ to, icon, label }: NavItemProps) {
 
 export function Sidebar() {
   return (
-    <aside className="flex w-[240px] flex-col bg-background-secondary border-r border-border p-4 gap-0.5 animate-slide-in-left" style={{ animationDuration: '300ms' }}>
+    <aside className="flex w-[240px] flex-col bg-background-secondary border-r border-border p-4 gap-0.5">
       <div className="mb-6 px-3 pt-2">
         <h1 className="text-lg font-semibold text-foreground tracking-tight">OpenEval</h1>
         <p className="text-xs text-foreground-secondary mt-0.5">Evaluation Framework</p>
