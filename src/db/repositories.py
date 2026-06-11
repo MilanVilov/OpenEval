@@ -66,6 +66,7 @@ class ConfigRepository:
         name: str,
         system_prompt: str,
         model: str,
+        comment: str | None = None,
         temperature: float = 0.7,
         max_tokens: int | None = None,
         tools: list | None = None,
@@ -80,6 +81,7 @@ class ConfigRepository:
         """Insert a new evaluation configuration."""
         config = EvalConfig(
             name=name,
+            comment=comment,
             system_prompt=system_prompt,
             model=model,
             temperature=temperature,
@@ -138,6 +140,7 @@ class ConfigRepository:
             filters.append(
                 or_(
                     func.lower(EvalConfig.name).like(pattern),
+                    func.lower(EvalConfig.comment).like(pattern),
                     func.lower(EvalConfig.system_prompt).like(pattern),
                     func.lower(EvalConfig.model).like(pattern),
                     func.lower(cast(EvalConfig.tags, String)).like(pattern),

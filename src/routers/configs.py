@@ -27,6 +27,7 @@ def _config_to_response(
     return ConfigResponse(
         id=config.id,
         name=config.name,
+        comment=config.comment,
         system_prompt=system_prompt if system_prompt is not None else config.system_prompt,
         model=config.model,
         temperature=config.temperature,
@@ -92,11 +93,12 @@ async def list_configs(
 @router.post("", response_model=ConfigResponse, status_code=201)
 async def create_config(
     body: CreateConfigRequest,
-    session: AsyncSession = Depends(get_session),
+    session: Annotated[AsyncSession, Depends(get_session)],
 ) -> ConfigResponse:
     """Create a new evaluation configuration."""
     config = await ConfigRepository(session).create(
         name=body.name,
+        comment=body.comment,
         system_prompt=body.system_prompt,
         model=body.model,
         temperature=body.temperature,
@@ -115,7 +117,7 @@ async def create_config(
 
 @router.get("/tags", response_model=list[str])
 async def list_tags(
-    session: AsyncSession = Depends(get_session),
+    session: Annotated[AsyncSession, Depends(get_session)],
 ) -> list[str]:
     """Return a deduplicated, sorted list of all tags used across configs."""
     configs = await ConfigRepository(session).list_all()
@@ -129,7 +131,7 @@ async def list_tags(
 @router.get("/{config_id}", response_model=ConfigResponse)
 async def get_config(
     config_id: str,
-    session: AsyncSession = Depends(get_session),
+    session: Annotated[AsyncSession, Depends(get_session)],
 ) -> ConfigResponse:
     """Return a single eval configuration."""
     config = await ConfigRepository(session).get_by_id(config_id)
@@ -142,7 +144,7 @@ async def get_config(
 async def update_config(
     config_id: str,
     body: UpdateConfigRequest,
-    session: AsyncSession = Depends(get_session),
+    session: Annotated[AsyncSession, Depends(get_session)],
 ) -> ConfigResponse:
     """Update an existing evaluation configuration."""
     fields = body.model_dump(exclude_unset=True)
@@ -157,7 +159,7 @@ async def update_config(
 @router.post("/{config_id}/duplicate", response_model=ConfigResponse, status_code=201)
 async def duplicate_config(
     config_id: str,
-    session: AsyncSession = Depends(get_session),
+    session: Annotated[AsyncSession, Depends(get_session)],
 ) -> ConfigResponse:
     """Duplicate an existing evaluation configuration."""
     repo = ConfigRepository(session)
@@ -166,6 +168,7 @@ async def duplicate_config(
         raise HTTPException(status_code=404, detail="Configuration not found")
     copy = await repo.create(
         name=f"{original.name} copy",
+        comment=original.comment,
         system_prompt=original.system_prompt,
         model=original.model,
         temperature=original.temperature,
@@ -185,7 +188,7 @@ async def duplicate_config(
 @router.delete("/{config_id}", status_code=204)
 async def delete_config(
     config_id: str,
-    session: AsyncSession = Depends(get_session),
+    session: Annotated[AsyncSession, Depends(get_session)],
 ) -> None:
     """Delete an evaluation configuration."""
     deleted = await ConfigRepository(session).delete(config_id)

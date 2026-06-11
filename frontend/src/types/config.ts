@@ -34,6 +34,7 @@ export interface Grader {
 export interface EvalConfig {
   id: string;
   name: string;
+  comment: string | null;
   system_prompt: string;
   model: string;
   temperature: number;
@@ -52,6 +53,7 @@ export interface EvalConfig {
 
 export interface CreateConfigRequest {
   name: string;
+  comment?: string | null;
   system_prompt: string;
   model: string;
   temperature: number;

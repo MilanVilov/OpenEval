@@ -86,6 +86,15 @@ export function ConfigDetail() {
         </div>
       )}
 
+      {config.comment && (
+        <Card className="animate-fade-in-up">
+          <CardHeader><CardTitle>Comment</CardTitle></CardHeader>
+          <CardContent>
+            <p className="whitespace-pre-wrap text-sm text-foreground-secondary">{config.comment}</p>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card className="animate-fade-in-up" style={{ animationDelay: '60ms' }}>
           <CardHeader><CardTitle>Configuration</CardTitle></CardHeader>

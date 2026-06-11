@@ -1,11 +1,8 @@
 """Tests for Alembic migration graph consistency."""
 
-from __future__ import annotations
-
 import ast
 from collections import Counter
 from pathlib import Path
-
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[1] / "alembic" / "versions"
 
@@ -35,7 +32,7 @@ def test_alembic_has_single_head() -> None:
 
     heads = sorted(set(revisions.values()) - down_revisions)
 
-    assert heads == ["018"]
+    assert heads == ["019"]
 
 
 def _load_revision_ids() -> dict[Path, str]:
@@ -96,9 +93,12 @@ def _get_assignment_value_node(
         )
         return statement.value if has_target else None
 
-    if isinstance(statement, ast.AnnAssign):
-        if isinstance(statement.target, ast.Name) and statement.target.id == variable_name:
-            return statement.value
+    if (
+        isinstance(statement, ast.AnnAssign)
+        and isinstance(statement.target, ast.Name)
+        and statement.target.id == variable_name
+    ):
+        return statement.value
 
     return None
 

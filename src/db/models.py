@@ -35,6 +35,10 @@ class EvalConfig(Base):
 
     id: Mapped[str] = mapped_column(String(ID_LENGTH), primary_key=True, default=_new_id)
     name: Mapped[str] = mapped_column(String(NAME_LENGTH))
+    comment: Mapped[str | None] = mapped_column(
+        Text().with_variant(mysql.LONGTEXT(), "mysql"),
+        default=None,
+    )
     system_prompt: Mapped[str] = mapped_column(Text().with_variant(mysql.LONGTEXT(), "mysql"))
     model: Mapped[str] = mapped_column(String(NAME_LENGTH))
     temperature: Mapped[float] = mapped_column(default=0.7)
