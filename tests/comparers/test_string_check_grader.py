@@ -178,6 +178,26 @@ async def test_threshold_pass_fail():
 
 
 @pytest.mark.asyncio
+async def test_null_threshold_returns_score_without_pass_fail():
+    """A null threshold should produce a score without pass/fail judgment."""
+    grader = StringCheckGraderComparer({
+        "name": "score_only",
+        "input_value": "{{ sample.output_text }}",
+        "operation": "equals",
+        "reference_value": "{{ item.ref }}",
+        "threshold": None,
+    })
+
+    score, passed, details = await grader.compare(
+        expected="", actual="hello", row_data={"ref": "world"},
+    )
+
+    assert score == 0.0
+    assert passed is None
+    assert details["threshold"] is None
+
+
+@pytest.mark.asyncio
 async def test_missing_row_data():
     """When row_data is None, template placeholders for item stay unresolved."""
     grader = StringCheckGraderComparer({

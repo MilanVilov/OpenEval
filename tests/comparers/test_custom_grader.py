@@ -103,6 +103,32 @@ async def test_custom_grader_fails_below_threshold():
 
 
 @pytest.mark.asyncio
+async def test_custom_grader_null_threshold_returns_score_only():
+    """A null threshold should keep the LLM score but omit pass/fail judgment."""
+    grader = CustomGraderComparer({
+        "name": "score_only",
+        "prompt": "Expected: {expected}\nActual: {actual}",
+        "model": "gpt-4o-mini",
+        "threshold": None,
+    })
+
+    mock_client = AsyncMock()
+    mock_client.responses.create = AsyncMock(
+        return_value=_make_openai_response(0.2, "Weak match"),
+    )
+
+    with patch(_PATCH_TARGET, return_value=mock_client):
+        score, passed, details = await grader.compare(
+            expected="Paris",
+            actual="London",
+        )
+
+    assert score == 0.2
+    assert passed is None
+    assert details["threshold"] is None
+
+
+@pytest.mark.asyncio
 async def test_custom_grader_handles_bad_json():
     """Unparseable LLM response should yield score 0.0 and fail."""
     grader = CustomGraderComparer({
