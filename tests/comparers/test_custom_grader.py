@@ -214,3 +214,48 @@ async def test_custom_grader_uses_injected_model():
 
     call_args = mock_client.responses.create.call_args
     assert call_args.kwargs["model"] == "gpt-4.1"
+
+
+@pytest.mark.asyncio
+async def test_custom_grader_omits_temperature_for_reasoning_model():
+    """Reasoning prompt graders should not send unsupported temperature."""
+    grader = CustomGraderComparer({
+        "name": "reasoning_grader",
+        "prompt": "Check: {expected} vs {actual}",
+        "model": "gpt-5.5",
+        "threshold": 0.5,
+    })
+
+    mock_client = AsyncMock()
+    mock_client.responses.create = AsyncMock(
+        return_value=_make_openai_response(0.9, "Fine"),
+    )
+
+    with patch(_PATCH_TARGET, return_value=mock_client):
+        await grader.compare(expected="a", actual="b")
+
+    call_args = mock_client.responses.create.call_args
+    assert call_args.kwargs["model"] == "gpt-5.5"
+    assert "temperature" not in call_args.kwargs
+
+
+@pytest.mark.asyncio
+async def test_custom_grader_sends_temperature_for_non_reasoning_model():
+    """Non-reasoning prompt graders should keep deterministic temperature."""
+    grader = CustomGraderComparer({
+        "name": "standard_grader",
+        "prompt": "Check: {expected} vs {actual}",
+        "model": "gpt-4o-mini",
+        "threshold": 0.5,
+    })
+
+    mock_client = AsyncMock()
+    mock_client.responses.create = AsyncMock(
+        return_value=_make_openai_response(0.9, "Fine"),
+    )
+
+    with patch(_PATCH_TARGET, return_value=mock_client):
+        await grader.compare(expected="a", actual="b")
+
+    call_args = mock_client.responses.create.call_args
+    assert call_args.kwargs["temperature"] == 0.0
