@@ -10,6 +10,7 @@ import { StatCard } from '@/components/StatCard';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { LoadingSkeleton } from '@/components/LoadingSkeleton';
 import { PageTransition } from '@/components/PageTransition';
+import { getResultStatusBadge, type ResultStatusLabels } from '@/lib/resultStatus';
 import { formatPercent } from '@/lib/utils';
 
 interface CompareData {
@@ -18,6 +19,13 @@ interface CompareData {
   results_a: EvalResult[];
   results_b: EvalResult[];
 }
+
+const COMPARE_STATUS_LABELS: ResultStatusLabels = {
+  pass: '✓',
+  fail: '✗',
+  scoreOnly: '—',
+  error: 'Error',
+};
 
 export function RunCompare() {
   const [searchParams] = useSearchParams();
@@ -118,6 +126,14 @@ export function RunCompare() {
               <TableBody>
                 {displayData.results_a.map((ra, i) => {
                   const rb = displayData.results_b[i];
+                  const runAStatus = getResultStatusBadge(
+                    ra.passed,
+                    ra.error,
+                    COMPARE_STATUS_LABELS,
+                  );
+                  const runBStatus = rb
+                    ? getResultStatusBadge(rb.passed, rb.error, COMPARE_STATUS_LABELS)
+                    : null;
                   return (
                     <TableRow key={ra.id}>
                       <TableCell>{ra.row_index}</TableCell>
@@ -125,15 +141,15 @@ export function RunCompare() {
                       <TableCell className="min-w-[150px] max-w-[300px] whitespace-pre-wrap break-words">{ra.expected_output}</TableCell>
                       <TableCell className="min-w-[150px] max-w-[300px] whitespace-pre-wrap break-words">{ra.actual_output}</TableCell>
                       <TableCell>
-                        <Badge variant={ra.passed === true ? 'success' : ra.passed === false ? 'error' : 'default'}>
-                          {ra.passed === true ? '✓' : ra.passed === false ? '✗' : '—'}
+                        <Badge variant={runAStatus.variant}>
+                          {runAStatus.label}
                         </Badge>
                       </TableCell>
                       <TableCell className="min-w-[150px] max-w-[300px] whitespace-pre-wrap break-words">{rb?.actual_output ?? '—'}</TableCell>
                       <TableCell>
-                        {rb ? (
-                          <Badge variant={rb.passed === true ? 'success' : rb.passed === false ? 'error' : 'default'}>
-                            {rb.passed === true ? '✓' : rb.passed === false ? '✗' : '—'}
+                        {runBStatus ? (
+                          <Badge variant={runBStatus.variant}>
+                            {runBStatus.label}
                           </Badge>
                         ) : '—'}
                       </TableCell>

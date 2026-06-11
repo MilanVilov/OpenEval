@@ -18,6 +18,7 @@ import { Popover } from '@/components/ui/popover';
 import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { usePolling } from '@/hooks/usePolling';
+import { getResultStatusBadge } from '@/lib/resultStatus';
 import { rowHasTranslatedChanges, toggleOriginalRowIndexes } from '@/lib/translatedPageRows';
 import {
   translateRowsSequentially,
@@ -554,6 +555,7 @@ export function RunDetail() {
                         && activeTranslationRowIndex !== null
                         && rowIndex > activeTranslationRowIndex;
                       const displayRow = getRunRowForDisplay(result, rowIndex, currentPageTranslation);
+                      const rowStatus = getResultStatusBadge(result.passed, result.error);
 
                       return (
                         <TableRow key={result.id}>
@@ -604,18 +606,22 @@ export function RunDetail() {
                                 return <TableCell key={name} className="text-center">—</TableCell>;
                               }
                               const passed = detail.passed;
+                              const status = getResultStatusBadge(
+                                typeof passed === 'boolean' ? passed : null,
+                                typeof detail.error === 'string' ? detail.error : null,
+                              );
                               return (
                                 <TableCell key={name} className="text-center" title={JSON.stringify(detail, null, 2)}>
-                                  <Badge variant={passed === true ? 'success' : passed === false ? 'error' : 'default'}>
-                                    {passed === true ? 'Pass' : passed === false ? 'Fail' : 'Score only'}
+                                  <Badge variant={status.variant}>
+                                    {status.label}
                                   </Badge>
                                 </TableCell>
                               );
                             })
                           ) : (
                             <TableCell>
-                              <Badge variant={result.passed === true ? 'success' : result.passed === false ? 'error' : 'default'}>
-                                {result.passed === true ? 'Pass' : result.passed === false ? 'Fail' : 'Score only'}
+                              <Badge variant={rowStatus.variant}>
+                                {rowStatus.label}
                               </Badge>
                             </TableCell>
                           )}
