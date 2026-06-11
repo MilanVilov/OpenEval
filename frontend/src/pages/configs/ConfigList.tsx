@@ -14,6 +14,15 @@ import { formatDate } from '@/lib/utils';
 import { TagFilter } from '@/components/TagFilter';
 import { ListPagination, ListSearch } from '@/components/ListControls';
 
+const SYSTEM_PROMPT_PREVIEW_LENGTH = 240;
+
+function promptPreview(systemPrompt: string): string {
+  if (systemPrompt.length <= SYSTEM_PROMPT_PREVIEW_LENGTH) {
+    return systemPrompt;
+  }
+  return `${systemPrompt.slice(0, SYSTEM_PROMPT_PREVIEW_LENGTH).trimEnd()}...`;
+}
+
 export function ConfigList() {
   const [configs, setConfigs] = useState<EvalConfig[]>([]);
   const [total, setTotal] = useState(0);
@@ -133,7 +142,9 @@ export function ConfigList() {
                   {config.readonly && <Lock className="h-3 w-3 text-warning shrink-0" />}
                   {config.name}
                 </h3>
-                <p className="text-xs text-foreground-secondary mt-1 line-clamp-2">{config.system_prompt}</p>
+                <p className="text-xs text-foreground-secondary mt-1 line-clamp-2">
+                  {promptPreview(config.system_prompt)}
+                </p>
                 <div className="flex items-center gap-2 mt-3">
                   <Badge>{config.model}</Badge>
                   {config.graders && config.graders.length > 0 && (

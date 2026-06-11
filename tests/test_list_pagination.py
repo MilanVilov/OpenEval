@@ -111,6 +111,29 @@ async def test_list_configs_paginates_and_searches_with_tags(client: AsyncClient
 
 
 @pytest.mark.asyncio
+async def test_paginated_config_list_returns_prompt_preview(client: AsyncClient):
+    """Paginated config list does not serialize large prompts into list cards."""
+    large_prompt = "Use these instructions. " * 100
+    async with get_session_context() as session:
+        repo = ConfigRepository(session)
+        config = await repo.create(
+            name="Large Prompt Config",
+            system_prompt=large_prompt,
+            model="gpt-4.1",
+        )
+
+    page_response = await client.get("/api/configs?page=1&page_size=10")
+    assert page_response.status_code == 200
+    list_prompt = page_response.json()["items"][0]["system_prompt"]
+    assert list_prompt.endswith("...")
+    assert len(list_prompt) < len(large_prompt)
+
+    detail_response = await client.get(f"/api/configs/{config.id}")
+    assert detail_response.status_code == 200
+    assert detail_response.json()["system_prompt"] == large_prompt
+
+
+@pytest.mark.asyncio
 async def test_list_datasets_paginates_and_searches(client: AsyncClient, tmp_path: Path):
     """Dataset list returns filtered pages without loading every dataset."""
     async with get_session_context() as session:

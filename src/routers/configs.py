@@ -15,14 +15,19 @@ from src.routers.schemas.configs import (
 )
 
 router = APIRouter(prefix="/api/configs", tags=["configs"])
+SYSTEM_PROMPT_PREVIEW_LENGTH = 240
 
 
-def _config_to_response(config: object) -> ConfigResponse:
+def _config_to_response(
+    config: object,
+    *,
+    system_prompt: str | None = None,
+) -> ConfigResponse:
     """Convert an EvalConfig ORM object to a ConfigResponse."""
     return ConfigResponse(
         id=config.id,
         name=config.name,
-        system_prompt=config.system_prompt,
+        system_prompt=system_prompt if system_prompt is not None else config.system_prompt,
         model=config.model,
         temperature=config.temperature,
         max_tokens=config.max_tokens,
@@ -37,6 +42,13 @@ def _config_to_response(config: object) -> ConfigResponse:
         created_at=str(config.created_at),
         updated_at=str(config.updated_at),
     )
+
+
+def _system_prompt_preview(system_prompt: str) -> str:
+    """Return a short prompt preview for config list cards."""
+    if len(system_prompt) <= SYSTEM_PROMPT_PREVIEW_LENGTH:
+        return system_prompt
+    return f"{system_prompt[:SYSTEM_PROMPT_PREVIEW_LENGTH].rstrip()}..."
 
 
 @router.get("", response_model=list[ConfigResponse] | PaginatedConfigResponse)
@@ -63,7 +75,10 @@ async def list_configs(
         tags=selected_tags or None,
     )
     pages = (result.total + requested_page_size - 1) // requested_page_size or 1
-    configs = [_config_to_response(c) for c in result.items]
+    configs = [
+        _config_to_response(c, system_prompt=_system_prompt_preview(c.system_prompt))
+        for c in result.items
+    ]
     return PaginatedConfigResponse(
         items=configs,
         total=result.total,
