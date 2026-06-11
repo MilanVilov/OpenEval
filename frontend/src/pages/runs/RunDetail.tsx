@@ -18,6 +18,7 @@ import { Popover } from '@/components/ui/popover';
 import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { usePolling } from '@/hooks/usePolling';
+import { getResultStatusBadge } from '@/lib/resultStatus';
 import { rowHasTranslatedChanges, toggleOriginalRowIndexes } from '@/lib/translatedPageRows';
 import {
   translateRowsSequentially,
@@ -178,7 +179,7 @@ export function RunDetail() {
     return <Alert variant="destructive" className="animate-fade-in"><AlertDescription>Run not found</AlertDescription></Alert>;
   }
 
-  const filteredResults = showFailuresOnly ? results.filter((result) => !result.passed) : results;
+  const filteredResults = showFailuresOnly ? results.filter((result) => result.passed === false) : results;
   const displayedResults = sortResultsByGrader(filteredResults, graderSort);
   const pages = Math.max(1, Math.ceil(displayedResults.length / pageSize));
   const safePage = Math.min(page, pages);
@@ -375,7 +376,7 @@ export function RunDetail() {
       ) : null}
 
       {run.summary ? (
-        <div className="mb-6 grid grid-cols-2 gap-4 animate-fade-in md:grid-cols-4 lg:grid-cols-7">
+        <div className="mb-6 grid grid-cols-2 gap-4 animate-fade-in md:grid-cols-4 lg:grid-cols-8">
           {hasMultipleGraders ? (
             <Popover
               align="start"
@@ -408,6 +409,9 @@ export function RunDetail() {
           <StatCard label="Total" value={String(run.summary.total)} />
           <StatCard label="Passed" value={String(run.summary.passed)} />
           <StatCard label="Failed" value={String(run.summary.failed)} />
+          {run.summary.unjudged ? (
+            <StatCard label="Unjudged" value={String(run.summary.unjudged)} />
+          ) : null}
           <StatCard label="Avg Latency" value={`${run.summary.avg_latency_ms}ms`} />
           <StatCard label="Avg Input Tokens" value={formatTokens(run.summary.avg_input_tokens ?? 0)} />
           <StatCard label="Avg Output Tokens" value={formatTokens(run.summary.avg_output_tokens ?? 0)} />
@@ -519,7 +523,7 @@ export function RunDetail() {
                                 ) : null}
                                 {hasMultipleGraders && graderStats?.[name] ? (
                                   <Badge variant="default" className="px-1.5 py-0 text-[10px]">
-                                    {formatPercent(graderStats[name].accuracy)}
+                                    {graderStats[name].judged === 0 ? 'Score only' : formatPercent(graderStats[name].accuracy)}
                                   </Badge>
                                 ) : null}
                                 {sortDirection === 'fail-first' ? (
@@ -551,6 +555,7 @@ export function RunDetail() {
                         && activeTranslationRowIndex !== null
                         && rowIndex > activeTranslationRowIndex;
                       const displayRow = getRunRowForDisplay(result, rowIndex, currentPageTranslation);
+                      const rowStatus = getResultStatusBadge(result.passed, result.error);
 
                       return (
                         <TableRow key={result.id}>
@@ -600,19 +605,23 @@ export function RunDetail() {
                               if (!detail) {
                                 return <TableCell key={name} className="text-center">—</TableCell>;
                               }
-                              const passed = detail.passed as boolean | undefined;
+                              const passed = detail.passed;
+                              const status = getResultStatusBadge(
+                                typeof passed === 'boolean' ? passed : null,
+                                typeof detail.error === 'string' ? detail.error : null,
+                              );
                               return (
                                 <TableCell key={name} className="text-center" title={JSON.stringify(detail, null, 2)}>
-                                  <Badge variant={passed ? 'success' : 'error'}>
-                                    {passed ? 'Pass' : 'Fail'}
+                                  <Badge variant={status.variant}>
+                                    {status.label}
                                   </Badge>
                                 </TableCell>
                               );
                             })
                           ) : (
                             <TableCell>
-                              <Badge variant={result.passed ? 'success' : 'error'}>
-                                {result.passed ? 'Pass' : 'Fail'}
+                              <Badge variant={rowStatus.variant}>
+                                {rowStatus.label}
                               </Badge>
                             </TableCell>
                           )}

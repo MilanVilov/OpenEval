@@ -11,7 +11,7 @@ Config keys (passed via ``config`` dict):
     input_value (str): Left-hand template string.
     operation (str): One of equals | not_equals | contains | contains_ignore_case.
     reference_value (str): Right-hand template string.
-    threshold (float): Minimum score to pass. Default ``0.7``.
+    threshold (float | None): Minimum score to pass. ``None`` makes the grader informational.
 """
 
 import logging
@@ -38,7 +38,7 @@ class StringCheckGraderComparer(BaseComparer):
         self.input_value: str = self.config.get("input_value", "")
         self.operation: str = self.config.get("operation", "equals")
         self.reference_value: str = self.config.get("reference_value", "")
-        self.threshold: float = self.config.get("threshold", 0.7)
+        self.threshold: float | None = self.config.get("threshold", 0.7)
 
     async def compare(
         self,
@@ -46,7 +46,7 @@ class StringCheckGraderComparer(BaseComparer):
         expected: str,
         actual: str,
         row_data: dict | None = None,
-    ) -> tuple[float, bool, dict]:
+    ) -> tuple[float, bool | None, dict]:
         """Render templates and perform the configured string comparison."""
         context = {
             "item": row_data or {},
@@ -57,8 +57,9 @@ class StringCheckGraderComparer(BaseComparer):
         resolved_reference = render_template(self.reference_value, context)
 
         if self.operation not in _VALID_OPERATIONS:
-            return 0.0, False, {
+            return 0.0, self._score_passed(0.0), {
                 "grader_name": self.grader_name,
+                "threshold": self.threshold,
                 "error": f"Unknown operation: {self.operation}",
             }
 
@@ -74,7 +75,7 @@ class StringCheckGraderComparer(BaseComparer):
             matched = False
 
         score = 1.0 if matched else 0.0
-        passed = score >= self.threshold
+        passed = self._score_passed(score)
 
         return score, passed, {
             "grader_name": self.grader_name,
@@ -83,3 +84,9 @@ class StringCheckGraderComparer(BaseComparer):
             "resolved_input": resolved_input,
             "resolved_reference": resolved_reference,
         }
+
+    def _score_passed(self, score: float) -> bool | None:
+        """Return the threshold judgment for a score, if configured."""
+        if self.threshold is None:
+            return None
+        return score >= self.threshold

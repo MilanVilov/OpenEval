@@ -4,6 +4,7 @@ import json
 import logging
 
 from src.comparers.base import BaseComparer
+from src.providers.openai import REASONING_MODELS
 
 logger = logging.getLogger(__name__)
 
@@ -23,13 +24,14 @@ class CustomGraderComparer(BaseComparer):
         name (str): Human-readable grader name.
         prompt (str): Evaluation prompt template with {expected}/{actual} placeholders.
         model (str): Model to use for grading. Injected by eval runner from config.
-        threshold (float): Minimum score to pass. Default ``0.7``.
+        threshold (float | None): Minimum score to pass. ``None`` makes the grader informational.
     """
 
     _SYSTEM_PROMPT = (
         "You are an evaluation grader. You will be given an expected output and an actual output. "
         "Use the evaluation criteria provided by the user to score the actual output. "
-        "Respond with ONLY a JSON object: {\"score\": <float 0.0-1.0>, \"reasoning\": \"<brief explanation>\"}"
+        "Respond with ONLY a JSON object: "
+        "{\"score\": <float 0.0-1.0>, \"reasoning\": \"<brief explanation>\"}"
     )
 
     def __init__(self, config: dict | None = None) -> None:
@@ -37,9 +39,15 @@ class CustomGraderComparer(BaseComparer):
         self.grader_name: str = self.config.get("name", "custom_grader")
         self.prompt_template: str = self.config.get("prompt", "")
         self.model: str = self.config.get("model", "gpt-4o-mini")  # injected by eval runner
-        self.threshold: float = self.config.get("threshold", 0.7)
+        self.threshold: float | None = self.config.get("threshold", 0.7)
 
-    async def compare(self, *, expected: str, actual: str, row_data: dict | None = None) -> tuple[float, bool, dict]:
+    async def compare(
+        self,
+        *,
+        expected: str,
+        actual: str,
+        row_data: dict | None = None,
+    ) -> tuple[float, bool | None, dict]:
         """Evaluate actual output against expected using the custom prompt."""
         from src.services.openai_client import get_openai_client
 
@@ -56,14 +64,17 @@ class CustomGraderComparer(BaseComparer):
                 f"Actual output:\n{actual}"
             )
 
-        response = await client.responses.create(
-            model=self.model,
-            input=[
+        request_kwargs: dict = {
+            "model": self.model,
+            "input": [
                 {"role": "system", "content": self._SYSTEM_PROMPT},
                 {"role": "user", "content": user_message},
             ],
-            temperature=0.0,
-        )
+        }
+        if self.model not in REASONING_MODELS:
+            request_kwargs["temperature"] = 0.0
+
+        response = await client.responses.create(**request_kwargs)
 
         # Extract text from response
         text = ""
@@ -82,7 +93,7 @@ class CustomGraderComparer(BaseComparer):
             score = 0.0
             reasoning = f"Failed to parse grader response: {text[:200]}"
 
-        passed = score >= self.threshold
+        passed = None if self.threshold is None else score >= self.threshold
         return score, passed, {
             "grader_name": self.grader_name,
             "threshold": self.threshold,

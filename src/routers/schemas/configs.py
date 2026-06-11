@@ -68,8 +68,8 @@ class GraderSchema(BaseModel):
 
     @model_validator(mode="after")
     def _apply_type_defaults(self) -> "GraderSchema":
-        """Apply per-type threshold defaults when not explicitly set."""
-        if self.threshold is None:
+        """Apply per-type threshold defaults only when the field is omitted."""
+        if "threshold" not in self.model_fields_set:
             _type_thresholds = {
                 "semantic_similarity": 0.8,
                 "json_schema": 1.0,
