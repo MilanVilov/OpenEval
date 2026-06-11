@@ -20,14 +20,19 @@ SAMPLE_CONFIG = {
 
 
 @pytest.fixture()
-def app():
+def app(tmp_path):
     """Create a fresh app instance backed by an in-memory SQLite DB."""
-    with patch("src.db.session.get_settings") as mock_settings:
+    with (
+        patch("src.db.session.get_settings") as mock_db_settings,
+        patch("src.app.get_settings") as mock_app_settings,
+    ):
         settings = MagicMock()
         settings.database_url = "sqlite+aiosqlite://"
-        settings.upload_dir = "/tmp/openeval_test_uploads"
+        settings.upload_dir = str(tmp_path / "uploads")
         settings.cors_origins = ""
-        mock_settings.return_value = settings
+        settings.app_base_url = ""
+        mock_db_settings.return_value = settings
+        mock_app_settings.return_value = settings
 
         import src.db.session as session_mod
 
