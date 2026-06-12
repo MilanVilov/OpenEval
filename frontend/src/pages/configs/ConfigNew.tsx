@@ -7,6 +7,7 @@ import { listVectorStores } from '@/api/vectorStores';
 import { listContainers } from '@/api/containers';
 import type { VectorStore } from '@/types/vectorStore';
 import type { Container } from '@/types/container';
+import { ConfigNotesField } from '@/components/ConfigNotesField';
 import { GradersEditor } from '@/components/CustomGradersEditor';
 import type { Grader } from '@/types/config';
 import { PageHeader } from '@/components/PageHeader';
@@ -19,6 +20,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { PageTransition } from '@/components/PageTransition';
 import { Spinner } from '@/components/Spinner';
 import { TagInput } from '@/components/TagInput';
+import { buildGradersPayload } from '@/lib/configGraders';
 import {
   getReasoningEffortOptions,
   OPENAI_CONFIG_MODEL_OPTIONS,
@@ -121,25 +123,7 @@ export function ConfigNew() {
       const reasoningConfig = isReasoningModel
         ? { effort: reasoningEffort, ...(reasoningSummary !== 'null' ? { summary: reasoningSummary } : {}) }
         : null;
-      const gradersPayload = graders
-        .filter((g) => {
-          if (!g.name.trim()) return false;
-          const t = g.type ?? 'prompt';
-          if (t === 'prompt') return !!(g.prompt ?? '').trim();
-          if (t === 'string_check') return !!(g.input_value ?? '').trim() && !!(g.operation ?? '').trim() && !!(g.reference_value ?? '').trim();
-          if (t === 'python') return !!(g.source_code ?? '').trim();
-          if (t === 'json_field') return !!(g.field_name ?? '').trim();
-          // semantic_similarity and json_schema just need a name
-          return true;
-        })
-        .map((g) => ({
-          ...g,
-          name: g.name.trim(),
-          model: (g.type === 'prompt' || g.type === 'semantic_similarity') ? (g.model || undefined) : undefined,
-          field_name: g.type === 'json_field' ? ((g.field_name ?? '').trim() || undefined) : undefined,
-          threshold: g.threshold ?? 0.7,
-          weight: g.weight ?? 1,
-        }));
+      const gradersPayload = buildGradersPayload(graders);
       const config = await createConfig({
         name,
         comment: comment.trim() || null,
@@ -172,17 +156,6 @@ export function ConfigNew() {
         <div className="space-y-2">
           <Label>Name</Label>
           <Input value={name} onChange={(e) => setName(e.target.value)} required placeholder="My eval config" />
-        </div>
-
-        <div className="space-y-2">
-          <Label>Comment</Label>
-          <Textarea
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            placeholder="What this config is for, what changed, or when to use it..."
-            className="min-h-[80px]"
-          />
-          <p className="text-xs text-foreground-secondary">Optional context for teammates. This is not sent to the model.</p>
         </div>
 
         <div className="space-y-2">
@@ -375,6 +348,8 @@ export function ConfigNew() {
           graders={graders}
           onChange={setGraders}
         />
+
+        <ConfigNotesField value={comment} onChange={setComment} />
 
         <div className="rounded-md border border-border p-4 space-y-2">
           <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
