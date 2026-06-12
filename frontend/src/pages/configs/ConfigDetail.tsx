@@ -11,7 +11,7 @@ import { LoadingSkeleton } from '@/components/LoadingSkeleton';
 import { PageTransition } from '@/components/PageTransition';
 import { CodeBlock } from '@/components/CodeBlock';
 import { formatDate } from '@/lib/utils';
-import { Copy, Lock, Pencil, Trash2 } from 'lucide-react';
+import { Copy, Lock, MessageSquare, Pencil, Trash2 } from 'lucide-react';
 
 export function ConfigDetail() {
   const { id } = useParams<{ id: string }>();
@@ -79,7 +79,7 @@ export function ConfigDetail() {
       />
 
       {config.tags && config.tags.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 animate-fade-in">
+        <div className="mb-4 flex flex-wrap gap-1.5 animate-fade-in">
           {config.tags.map((tag: string) => (
             <Badge key={tag} variant="info">{tag}</Badge>
           ))}
@@ -87,12 +87,15 @@ export function ConfigDetail() {
       )}
 
       {config.comment && (
-        <Card className="animate-fade-in-up">
-          <CardHeader><CardTitle>Comment</CardTitle></CardHeader>
-          <CardContent>
-            <p className="whitespace-pre-wrap text-sm text-foreground-secondary">{config.comment}</p>
-          </CardContent>
-        </Card>
+        <section className="mb-4 rounded-md border border-border-muted bg-background-secondary/60 px-4 py-3 animate-fade-in-up">
+          <div className="flex items-center gap-2 text-xs font-medium uppercase text-foreground-secondary">
+            <MessageSquare className="h-3.5 w-3.5" />
+            Comment
+          </div>
+          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-foreground-secondary">
+            {config.comment}
+          </p>
+        </section>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
