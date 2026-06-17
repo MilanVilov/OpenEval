@@ -16,9 +16,14 @@ class CustomGraderComparer(BaseComparer):
     eval runner using per-config grader definitions stored in ``custom_graders``.
 
     Each grader carries its own evaluation prompt containing ``{expected}`` and
-    ``{actual}`` placeholders.  The LLM must respond with a JSON object::
+    ``{actual}`` placeholders. Threshold-based graders must respond with a JSON
+    object::
 
-        {"score": <float 0.0-1.0>, "reasoning": "<explanation>"}
+        {"score": <float 0.0-1.0>, "response": "<answer>", "reasoning": "<explanation>"}
+
+    Informational graders with no threshold must include a free-text response::
+
+        {"score": <float 0.0-1.0>, "response": "<answer>", "reasoning": "<explanation>"}
 
     Config keys (passed via ``config`` dict):
         name (str): Human-readable grader name.
@@ -27,11 +32,19 @@ class CustomGraderComparer(BaseComparer):
         threshold (float | None): Minimum score to pass. ``None`` makes the grader informational.
     """
 
-    _SYSTEM_PROMPT = (
+    _SCORED_SYSTEM_PROMPT = (
         "You are an evaluation grader. You will be given an expected output and an actual output. "
         "Use the evaluation criteria provided by the user to score the actual output. "
         "Respond with ONLY a JSON object: "
-        "{\"score\": <float 0.0-1.0>, \"reasoning\": \"<brief explanation>\"}"
+        "{\"score\": <float 0.0-1.0>, \"response\": \"<free-text grader response>\", "
+        "\"reasoning\": \"<brief explanation>\"}"
+    )
+    _INFORMATIONAL_SYSTEM_PROMPT = (
+        "You are an evaluation grader. You will be given an expected output and an actual output. "
+        "Use the evaluation criteria provided by the user to produce a free-text grading response. "
+        "Respond with ONLY a JSON object: "
+        "{\"score\": <float 0.0-1.0>, \"response\": \"<free-text grader response>\", "
+        "\"reasoning\": \"<brief explanation>\"}"
     )
 
     def __init__(self, config: dict | None = None) -> None:
@@ -67,7 +80,7 @@ class CustomGraderComparer(BaseComparer):
         request_kwargs: dict = {
             "model": self.model,
             "input": [
-                {"role": "system", "content": self._SYSTEM_PROMPT},
+                {"role": "system", "content": self._system_prompt()},
                 {"role": "user", "content": user_message},
             ],
         }
@@ -89,14 +102,25 @@ class CustomGraderComparer(BaseComparer):
             result = json.loads(text)
             score = float(result.get("score", 0.0))
             reasoning = result.get("reasoning", "")
+            grader_response = result.get("response")
+            if not isinstance(grader_response, str) or not grader_response.strip():
+                grader_response = reasoning or text
         except (json.JSONDecodeError, ValueError):
             score = 0.0
             reasoning = f"Failed to parse grader response: {text[:200]}"
+            grader_response = text
 
         passed = None if self.threshold is None else score >= self.threshold
         return score, passed, {
             "grader_name": self.grader_name,
             "threshold": self.threshold,
             "model": self.model,
+            "response": grader_response,
             "reasoning": reasoning,
         }
+
+    def _system_prompt(self) -> str:
+        """Return the response contract for this grader mode."""
+        if self.threshold is None:
+            return self._INFORMATIONAL_SYSTEM_PROMPT
+        return self._SCORED_SYSTEM_PROMPT

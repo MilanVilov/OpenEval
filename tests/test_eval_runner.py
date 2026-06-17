@@ -502,11 +502,11 @@ class TestGraderStats:
         assert grader_stats["exact"]["accuracy"] == 0.5
 
     async def test_null_threshold_graders_are_unjudged(self, mock_repos):
-        """Score-only graders should not contribute pass/fail counts."""
+        """Informational graders should not contribute pass/fail counts."""
         config = _make_config(concurrency=5)
         config.graders = [{
             "type": "string_check",
-            "name": "score_only",
+            "name": "informational",
             "input_value": "{{ sample.output_text }}",
             "operation": "equals",
             "reference_value": "{{ item.expected_output }}",
@@ -531,7 +531,7 @@ class TestGraderStats:
             for call in mock_repos["result_repo"].upsert_batch.await_args_list
         ]
         summary = mock_repos["run_repo"].set_summary.call_args.kwargs["summary"]
-        grader_stats = summary["grader_stats"]["score_only"]
+        grader_stats = summary["grader_stats"]["informational"]
 
         assert [result.passed for result in persisted_results] == [None, None]
         assert summary["passed"] == 0

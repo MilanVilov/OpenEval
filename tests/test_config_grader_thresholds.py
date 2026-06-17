@@ -11,7 +11,7 @@ def test_grader_schema_omitted_threshold_uses_type_default() -> None:
 
 
 def test_grader_schema_null_threshold_is_preserved() -> None:
-    """Explicit null thresholds make graders score-only."""
+    """Explicit null thresholds make graders informational."""
     grader = GraderSchema(name="judge", type="prompt", threshold=None)
 
     assert grader.threshold is None

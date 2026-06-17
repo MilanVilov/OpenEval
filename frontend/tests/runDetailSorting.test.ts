@@ -29,7 +29,7 @@ const results: TestResult[] = [
     comparer_details: null,
   },
   {
-    id: 'score-only',
+    id: 'informational',
     comparer_details: {
       safety: { passed: null },
     },
@@ -67,7 +67,7 @@ test('sortResultsByGrader groups failed rows before passed rows', () => {
 
   assert.deepEqual(
     sorted.map((result) => result.id),
-    ['fail-a', 'fail-b', 'pass-a', 'pass-b', 'missing', 'score-only'],
+    ['fail-a', 'fail-b', 'pass-a', 'pass-b', 'missing', 'informational'],
   );
 });
 
@@ -79,6 +79,6 @@ test('sortResultsByGrader groups passed rows before failed rows', () => {
 
   assert.deepEqual(
     sorted.map((result) => result.id),
-    ['pass-a', 'pass-b', 'fail-a', 'fail-b', 'missing', 'score-only'],
+    ['pass-a', 'pass-b', 'fail-a', 'fail-b', 'missing', 'informational'],
   );
 });

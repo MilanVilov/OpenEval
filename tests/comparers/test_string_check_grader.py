@@ -181,7 +181,7 @@ async def test_threshold_pass_fail():
 async def test_null_threshold_returns_score_without_pass_fail():
     """A null threshold should produce a score without pass/fail judgment."""
     grader = StringCheckGraderComparer({
-        "name": "score_only",
+        "name": "informational",
         "input_value": "{{ sample.output_text }}",
         "operation": "equals",
         "reference_value": "{{ item.ref }}",

@@ -73,6 +73,7 @@ def _build_run_export_columns(grader_names: list[str]) -> list[str]:
             [
                 f"{key}_score",
                 f"{key}_passed",
+                f"{key}_response",
                 f"{key}_reasoning",
                 f"{key}_details_json",
             ]
@@ -123,6 +124,7 @@ def _build_grader_columns(
         if isinstance(grader_detail, dict):
             columns[f"{key}_score"] = grader_detail.get("score")
             columns[f"{key}_passed"] = grader_detail.get("passed")
+            columns[f"{key}_response"] = grader_detail.get("response")
             columns[f"{key}_reasoning"] = grader_detail.get("reasoning")
             columns[f"{key}_details_json"] = _json_string(grader_detail)
             continue

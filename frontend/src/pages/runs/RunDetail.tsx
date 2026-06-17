@@ -65,6 +65,15 @@ function buildTranslationErrorMessage(
   return `${baseMessage} Translation stopped after ${progress.completed} of ${progress.total} rows.`;
 }
 
+function getGraderResponse(detail: Record<string, unknown>): string | null {
+  const response = detail.response;
+  if (typeof response !== 'string') {
+    return null;
+  }
+  const trimmed = response.trim();
+  return trimmed || null;
+}
+
 export function RunDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -424,7 +433,7 @@ export function RunDetail() {
             <div>
               <CardTitle>Results</CardTitle>
               <p className="mt-1 text-xs text-foreground-secondary">
-                CSV export includes row outputs, grader reasoning, latency, token usage, and raw comparer details.
+                CSV export includes row outputs, grader responses, reasoning, latency, token usage, and raw comparer details.
               </p>
             </div>
             <Button
@@ -523,7 +532,7 @@ export function RunDetail() {
                                 ) : null}
                                 {hasMultipleGraders && graderStats?.[name] ? (
                                   <Badge variant="default" className="px-1.5 py-0 text-[10px]">
-                                    {graderStats[name].judged === 0 ? 'Score only' : formatPercent(graderStats[name].accuracy)}
+                                    {graderStats[name].judged === 0 ? 'Informational' : formatPercent(graderStats[name].accuracy)}
                                   </Badge>
                                 ) : null}
                                 {sortDirection === 'fail-first' ? (
@@ -610,6 +619,18 @@ export function RunDetail() {
                                 typeof passed === 'boolean' ? passed : null,
                                 typeof detail.error === 'string' ? detail.error : null,
                               );
+                              const response = passed == null ? getGraderResponse(detail) : null;
+                              if (response) {
+                                return (
+                                  <TableCell
+                                    key={name}
+                                    className="min-w-[180px] max-w-[320px] whitespace-pre-wrap break-words text-left text-xs"
+                                    title={JSON.stringify(detail, null, 2)}
+                                  >
+                                    {response}
+                                  </TableCell>
+                                );
+                              }
                               return (
                                 <TableCell key={name} className="text-center" title={JSON.stringify(detail, null, 2)}>
                                   <Badge variant={status.variant}>

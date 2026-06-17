@@ -3,17 +3,17 @@ import test from 'node:test';
 
 import { getResultStatusBadge } from '../src/lib/resultStatus.ts';
 
-test('getResultStatusBadge prioritizes errors over score-only state', () => {
+test('getResultStatusBadge prioritizes errors over informational state', () => {
   assert.deepEqual(
     getResultStatusBadge(null, 'LLM call failed'),
     { variant: 'error', label: 'Error' },
   );
 });
 
-test('getResultStatusBadge renders score-only when no error is present', () => {
+test('getResultStatusBadge renders informational when no error is present', () => {
   assert.deepEqual(
     getResultStatusBadge(null, null),
-    { variant: 'default', label: 'Score only' },
+    { variant: 'default', label: 'Informational' },
   );
 });
 

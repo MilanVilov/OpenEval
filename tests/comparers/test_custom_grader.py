@@ -11,11 +11,18 @@ from src.comparers.custom_grader import CustomGraderComparer
 _PATCH_TARGET = "src.services.openai_client.get_openai_client"
 
 
-def _make_openai_response(score: float, reasoning: str) -> MagicMock:
+def _make_openai_response(
+    score: float,
+    reasoning: str,
+    response: str | None = None,
+) -> MagicMock:
     """Create a mock OpenAI response with a JSON score payload."""
     text_content = MagicMock()
     text_content.type = "output_text"
-    text_content.text = json.dumps({"score": score, "reasoning": reasoning})
+    payload: dict[str, float | str] = {"score": score, "reasoning": reasoning}
+    if response is not None:
+        payload["response"] = response
+    text_content.text = json.dumps(payload)
 
     message = MagicMock()
     message.type = "message"
@@ -53,7 +60,7 @@ async def test_custom_grader_passes_above_threshold():
 
     mock_client = AsyncMock()
     mock_client.responses.create = AsyncMock(
-        return_value=_make_openai_response(0.9, "Great tone match"),
+        return_value=_make_openai_response(0.9, "Great tone match", "The tone is friendly."),
     )
 
     with patch(_PATCH_TARGET, return_value=mock_client):
@@ -66,6 +73,7 @@ async def test_custom_grader_passes_above_threshold():
     assert passed is True
     assert details["grader_name"] == "tone_check"
     assert details["reasoning"] == "Great tone match"
+    assert details["response"] == "The tone is friendly."
     assert details["threshold"] == 0.7
     assert details["model"] == "gpt-4o-mini"
 
@@ -103,10 +111,10 @@ async def test_custom_grader_fails_below_threshold():
 
 
 @pytest.mark.asyncio
-async def test_custom_grader_null_threshold_returns_score_only():
-    """A null threshold should keep the LLM score but omit pass/fail judgment."""
+async def test_custom_grader_null_threshold_returns_informational_response():
+    """A null threshold should expose the grader response without pass/fail judgment."""
     grader = CustomGraderComparer({
-        "name": "score_only",
+        "name": "review",
         "prompt": "Expected: {expected}\nActual: {actual}",
         "model": "gpt-4o-mini",
         "threshold": None,
@@ -114,7 +122,7 @@ async def test_custom_grader_null_threshold_returns_score_only():
 
     mock_client = AsyncMock()
     mock_client.responses.create = AsyncMock(
-        return_value=_make_openai_response(0.2, "Weak match"),
+        return_value=_make_openai_response(0.2, "Weak match", "The answer names the wrong city."),
     )
 
     with patch(_PATCH_TARGET, return_value=mock_client):
@@ -126,6 +134,10 @@ async def test_custom_grader_null_threshold_returns_score_only():
     assert score == 0.2
     assert passed is None
     assert details["threshold"] is None
+    assert details["response"] == "The answer names the wrong city."
+    assert details["reasoning"] == "Weak match"
+    system_msg = mock_client.responses.create.call_args.kwargs["input"][0]["content"]
+    assert "free-text grader response" in system_msg
 
 
 @pytest.mark.asyncio
@@ -151,6 +163,7 @@ async def test_custom_grader_handles_bad_json():
 
     assert score == 0.0
     assert passed is False
+    assert details["response"] == "This is not JSON"
     assert "Failed to parse" in details["reasoning"]
 
 
@@ -201,6 +214,7 @@ async def test_custom_grader_uses_system_prompt():
     system_msg = call_args.kwargs["input"][0]["content"]
     assert "evaluation grader" in system_msg.lower()
     assert "JSON" in system_msg
+    assert "response" in system_msg
 
 
 @pytest.mark.asyncio

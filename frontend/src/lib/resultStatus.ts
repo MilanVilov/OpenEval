@@ -3,7 +3,7 @@ export type ResultStatusVariant = 'default' | 'success' | 'error';
 export interface ResultStatusLabels {
   pass: string;
   fail: string;
-  scoreOnly: string;
+  informational: string;
   error: string;
 }
 
@@ -15,7 +15,7 @@ export interface ResultStatusBadge {
 const DEFAULT_RESULT_STATUS_LABELS: ResultStatusLabels = {
   pass: 'Pass',
   fail: 'Fail',
-  scoreOnly: 'Score only',
+  informational: 'Informational',
   error: 'Error',
 };
 
@@ -36,5 +36,5 @@ export function getResultStatusBadge(
     return { variant: 'error', label: labels.fail };
   }
 
-  return { variant: 'default', label: labels.scoreOnly };
+  return { variant: 'default', label: labels.informational };
 }

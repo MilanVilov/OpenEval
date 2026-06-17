@@ -23,7 +23,7 @@ interface CompareData {
 const COMPARE_STATUS_LABELS: ResultStatusLabels = {
   pass: '✓',
   fail: '✗',
-  scoreOnly: '—',
+  informational: '—',
   error: 'Error',
 };
 

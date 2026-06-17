@@ -314,7 +314,7 @@ export function GradersEditor({
                   onChange={(e) => updateGrader(index, 'threshold', e.target.value)}
                   disabled={disabled}
                 />
-                <p className="text-xs text-foreground-secondary">Leave blank for score-only results</p>
+                <p className="text-xs text-foreground-secondary">Leave blank for informational free-text responses</p>
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Weight</Label>

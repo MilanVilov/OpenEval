@@ -219,11 +219,13 @@ async def test_export_run_returns_full_result_csv(client: AsyncClient, tmp_path:
                 "llm_judge": {
                     "score": 0.95,
                     "passed": True,
+                    "response": "Correct answer.",
                     "reasoning": "The answer matches exactly.",
                 },
                 "custom:clarity": {
                     "score": 0.9,
                     "passed": True,
+                    "response": "Clear and concise.",
                     "reasoning": "The response is short and clear.",
                     "model": "gpt-4.1-mini",
                 },
@@ -241,7 +243,9 @@ async def test_export_run_returns_full_result_csv(client: AsyncClient, tmp_path:
     assert f'{run.id}.csv' in export_response.headers["content-disposition"]
     assert "run_id,run_status,config_name,dataset_name" in export_response.text
     assert len(rows) == 1
+    assert rows[0]["grader_llm_judge_response"] == "Correct answer."
     assert rows[0]["grader_llm_judge_reasoning"] == "The answer matches exactly."
+    assert rows[0]["grader_custom_clarity_response"] == "Clear and concise."
     assert rows[0]["grader_custom_clarity_reasoning"] == "The response is short and clear."
     assert rows[0]["latency_ms"] == "412"
     assert rows[0]["input_tokens"] == "25"
