@@ -40,6 +40,7 @@ async def explore_data_source(
     page_state: dict[str, object] | None = None,
     records_path: str | None = None,
     field_mapping: dict[str, str] | None = None,
+    page_size_override: int | None = None,
 ) -> ExploreResult:
     """Fetch and inspect a single page from a remote data source."""
     request_params = dict(data_source.query_params or {})
@@ -55,9 +56,14 @@ async def explore_data_source(
         data_source.pagination_mode,
         data_source.pagination_config or {},
         current_state,
+        page_size_override=page_size_override,
     )
 
-    payload = await _request_json(data_source, request_params=request_params, request_body=request_body)
+    payload = await _request_json(
+        data_source,
+        request_params=request_params,
+        request_body=request_body,
+    )
     candidate_array_paths = find_array_paths(payload)
     records = extract_records(payload, records_path)
     mapped_rows = map_records(records, field_mapping or {}) if records and field_mapping else []
@@ -67,6 +73,7 @@ async def explore_data_source(
         data_source.pagination_mode,
         data_source.pagination_config or {},
         current_state,
+        page_size_override=page_size_override,
     )
     next_page_state = _build_next_page_state(
         payload,
@@ -75,6 +82,7 @@ async def explore_data_source(
         data_source.pagination_mode,
         data_source.pagination_config or {},
         current_state,
+        page_size_override=page_size_override,
     )
 
     return ExploreResult(
@@ -134,7 +142,7 @@ def _build_request_headers(data_source: DataSource) -> dict[str, str]:
         username = secrets.get("basic_username", "")
         password = secrets.get("basic_password", "")
         if isinstance(username, str) and isinstance(password, str):
-            token = base64.b64encode(f"{username}:{password}".encode("utf-8")).decode("utf-8")
+            token = base64.b64encode(f"{username}:{password}".encode()).decode("utf-8")
             headers["Authorization"] = f"Basic {token}"
 
     return headers
@@ -195,6 +203,8 @@ def _apply_page_state(
     mode: str,
     config: dict,
     page_state: dict[str, object] | None,
+    *,
+    page_size_override: int | None,
 ) -> None:
     """Apply the current pagination state to request params or body."""
     if mode == "none" or page_state is None:
@@ -210,8 +220,12 @@ def _apply_page_state(
             page_state["page"],
             placement=placement,
         )
-        page_size = config.get("page_size")
         page_size_param = config.get("page_size_param")
+        page_size = _resolve_page_size(
+            config,
+            page_size_override=page_size_override,
+            default=None,
+        )
         if page_size is not None and page_size_param:
             _set_request_value(
                 request_params,
@@ -225,7 +239,11 @@ def _apply_page_state(
     if mode == "offset":
         offset_param = str(config.get("offset_param", "offset"))
         limit_param = str(config.get("limit_param", "limit"))
-        page_size = _int_value(config.get("page_size"), default=50)
+        page_size = _resolve_page_size(
+            config,
+            page_size_override=page_size_override,
+            default=50,
+        )
         _set_request_value(
             request_params,
             request_body,
@@ -260,6 +278,8 @@ def _build_previous_page_state(
     mode: str,
     config: dict,
     page_state: dict[str, object] | None,
+    *,
+    page_size_override: int | None,
 ) -> dict[str, object] | None:
     """Return the previous page state for the current page, if available."""
     if page_state is None:
@@ -272,7 +292,11 @@ def _build_previous_page_state(
         return {"page": current_page - 1}
     if mode == "offset":
         start_offset = _int_value(config.get("start_offset"), default=0)
-        page_size = _int_value(config.get("page_size"), default=50)
+        page_size = _resolve_page_size(
+            config,
+            page_size_override=page_size_override,
+            default=50,
+        )
         current_offset = _int_value(page_state.get("offset"), default=start_offset)
         if current_offset <= start_offset:
             return None
@@ -295,32 +319,83 @@ def _build_next_page_state(
     mode: str,
     config: dict,
     page_state: dict[str, object] | None,
+    *,
+    page_size_override: int | None,
 ) -> dict[str, object] | None:
     """Return the next page state when more data appears to be available."""
     if page_state is None or mode == "none":
         return None
     if mode == "next_token":
-        token_path = str(config.get("response_token_path", "next_token"))
-        next_token = resolve_path(payload, token_path)
-        if next_token in (None, ""):
-            return None
-        history = page_state.get("history", [])
-        if not isinstance(history, list):
-            history = []
-        return {"token": next_token, "history": [*history, page_state.get("token")]}
+        return _build_next_token_page_state(payload, config, page_state)
 
-    has_more = _extract_has_more(payload, config)
-    if has_more is None:
-        has_more = _response_has_items(payload, candidate_array_paths, records)
+    has_more = _resolve_has_more(payload, candidate_array_paths, records, config)
     if not has_more:
         return None
 
     if mode == "page":
         return {"page": _int_value(page_state.get("page"), default=1) + 1}
     if mode == "offset":
-        page_size = _int_value(config.get("page_size"), default=50)
+        page_size = _resolve_page_size(
+            config,
+            page_size_override=page_size_override,
+            default=50,
+        )
         return {"offset": _int_value(page_state.get("offset"), default=0) + page_size}
     return None
+
+
+def _build_next_token_page_state(
+    payload: object,
+    config: dict,
+    page_state: dict[str, object],
+) -> dict[str, object] | None:
+    """Return the next-token pagination state from the response payload."""
+    token_path = str(config.get("response_token_path", "next_token"))
+    next_token = resolve_path(payload, token_path)
+    if next_token in (None, ""):
+        return None
+
+    history = page_state.get("history", [])
+    if not isinstance(history, list):
+        history = []
+    return {"token": next_token, "history": [*history, page_state.get("token")]}
+
+
+def _resolve_has_more(
+    payload: object,
+    candidate_array_paths: list[str],
+    records: list[object],
+    config: dict,
+) -> bool:
+    """Return whether the response indicates another page is available."""
+    has_more = _extract_has_more(payload, config)
+    if has_more is not None:
+        return has_more
+    return _response_has_items(payload, candidate_array_paths, records)
+
+
+def _resolve_page_size(
+    config: dict,
+    *,
+    page_size_override: int | None,
+    default: int | None,
+) -> int | None:
+    """Return the requested page size override or the configured value."""
+    if page_size_override is not None:
+        return page_size_override
+    configured_page_size = config.get("page_size")
+    if configured_page_size is None:
+        return default
+    if isinstance(configured_page_size, bool):
+        return default
+    if isinstance(configured_page_size, int):
+        return configured_page_size
+    if isinstance(configured_page_size, str) and configured_page_size.strip():
+        try:
+            return int(configured_page_size)
+        except ValueError:
+            return default
+    return default
 
 
 def _extract_has_more(payload: object, config: dict) -> bool | None:

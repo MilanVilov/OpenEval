@@ -411,6 +411,7 @@ async def explore_remote_data_source(
             page_state=body.page_state,
             records_path=records_path,
             field_mapping=field_mapping,
+            page_size_override=body.page_size,
         )
     except httpx.HTTPStatusError as exc:
         raise HTTPException(

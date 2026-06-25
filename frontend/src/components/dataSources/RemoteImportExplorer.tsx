@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -36,6 +37,11 @@ import { ArrowLeft, ArrowRight, Download, Trash2 } from 'lucide-react';
 import {
   buildDisabledReason,
   buildDraftFieldMapping,
+  countSelectedPageRows,
+  mergeBasketItems,
+  parsePageSizeOverride,
+  REMOTE_PAGE_SIZE_OPTIONS,
+  removeBasketItems,
   splitInitialFieldMapping,
 } from './remoteImportExplorer.helpers';
 
@@ -159,6 +165,7 @@ export function RemoteImportExplorer({
   const [translating, setTranslating] = useState(false);
   const [translationProgress, setTranslationProgress] = useState<RowTranslationProgress | null>(null);
   const [importing, setImporting] = useState(false);
+  const [pageSizeOverride, setPageSizeOverride] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const activeRecordsPath = mode === 'append' && recordsPath
@@ -174,11 +181,28 @@ export function RemoteImportExplorer({
     pageState: exploreResult?.current_page_state ?? { page: 'root' },
     recordsPath: activeRecordsPath || '$',
     mapping: mappingResult.fieldMapping ?? null,
+    pageSize: pageSizeOverride ?? 'default',
   });
   const currentRecords = exploreResult?.records ?? [];
   const currentPageTranslation = translatedPages[selectionScope] ?? null;
   const baseMappedRows = exploreResult?.mapped_rows ?? [];
   const currentMappedRows = buildDisplayRows(baseMappedRows, currentPageTranslation);
+  const currentPageBasketItems = currentMappedRows.reduce<BasketItem[]>((items, row, index) => {
+    const record = currentRecords[index];
+    if (record === undefined) {
+      return items;
+    }
+    items.push({
+      selectionId: buildSelectionId(selectionScope, index),
+      record,
+      mappedRow: row,
+    });
+    return items;
+  }, []);
+  const currentPageSelectionIds = currentPageBasketItems.map((item) => item.selectionId);
+  const selectedPageCount = countSelectedPageRows(basket, currentPageSelectionIds);
+  const allCurrentPageRowsSelected = currentPageBasketItems.length > 0
+    && selectedPageCount === currentPageBasketItems.length;
   const canCreateDataset = mode === 'append'
     ? basket.length > 0
     : basket.length > 0
@@ -206,6 +230,7 @@ export function RemoteImportExplorer({
   async function handleExplore(
     pageState?: Record<string, JsonValue> | null,
     overrideRecordsPath?: string,
+    overridePageSize?: number | null,
   ) {
     if (translating) {
       return;
@@ -219,12 +244,16 @@ export function RemoteImportExplorer({
     setError(null);
     try {
       const nextRecordsPath = (overrideRecordsPath ?? activeRecordsPath).trim();
+      const nextPageSize = overridePageSize === undefined ? pageSizeOverride : overridePageSize;
       const payload: ExploreDataSourceRequest = {
         page_state: pageState ?? undefined,
         records_path: nextRecordsPath || undefined,
       };
       if (mappingResult.fieldMapping) {
         payload.field_mapping = mappingResult.fieldMapping;
+      }
+      if (nextPageSize !== null) {
+        payload.page_size = nextPageSize;
       }
       const result = await exploreDataSource(sourceId, payload);
       setExploreResult(result);
@@ -307,6 +336,37 @@ export function RemoteImportExplorer({
         mappedRow: currentMappedRows[rowIndex],
       },
     ]);
+  }
+
+  function handleAddPageToBasket() {
+    if (loading || translating || currentPageBasketItems.length === 0) {
+      return;
+    }
+    setBasket((current) => mergeBasketItems(current, currentPageBasketItems));
+  }
+
+  function handleRemovePageFromBasket() {
+    if (loading || translating || currentPageSelectionIds.length === 0) {
+      return;
+    }
+    setBasket((current) => removeBasketItems(current, currentPageSelectionIds));
+  }
+
+  async function handlePageSizeChange(value: string) {
+    if (translating) {
+      return;
+    }
+
+    const nextPageSize = parsePageSizeOverride(value);
+    if (nextPageSize === pageSizeOverride) {
+      return;
+    }
+
+    setPageSizeOverride(nextPageSize);
+    if (!exploreResult) {
+      return;
+    }
+    await handleExplore(undefined, undefined, nextPageSize);
   }
 
   async function handleTranslatePageText() {
@@ -482,6 +542,27 @@ export function RemoteImportExplorer({
           />
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="flex flex-col gap-3 rounded-md border border-border bg-background-secondary/60 p-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="space-y-2">
+              <Label htmlFor={`${sourceId}-remote-page-size`}>Page Size</Label>
+              <Select
+                id={`${sourceId}-remote-page-size`}
+                value={pageSizeOverride === null ? 'default' : String(pageSizeOverride)}
+                onChange={(event) => void handlePageSizeChange(event.target.value)}
+                className="w-40"
+                disabled={loading || translating}
+              >
+                <option value="default">Source default</option>
+                {REMOTE_PAGE_SIZE_OPTIONS.map((option) => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </Select>
+            </div>
+            <p className="max-w-md text-xs text-foreground-secondary">
+              Changing page size reloads from the first page. Use a larger page to add more rows into the basket at once.
+            </p>
+          </div>
+
           {mode === 'append' && activeRecordsPath ? (
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="info">Locked Records Path: {activeRecordsPath}</Badge>
@@ -715,13 +796,35 @@ export function RemoteImportExplorer({
               This is the current page transformed into dataset rows. Add rows from here into the basket and paginate through mapped pages here.
             </p>
           </div>
-          <PaginationActions
-            loading={loading || translating}
-            hasPrevious={Boolean(exploreResult?.previous_page_state)}
-            hasNext={Boolean(exploreResult?.next_page_state)}
-            onPrevious={() => void handleExplore(exploreResult?.previous_page_state)}
-            onNext={() => void handleExplore(exploreResult?.next_page_state)}
-          />
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleAddPageToBasket}
+              disabled={loading || translating || currentPageBasketItems.length === 0 || allCurrentPageRowsSelected}
+            >
+              {allCurrentPageRowsSelected
+                ? `Page Added (${selectedPageCount})`
+                : `Add Page (${currentPageBasketItems.length})`}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleRemovePageFromBasket}
+              disabled={loading || translating || selectedPageCount === 0}
+            >
+              Remove Page ({selectedPageCount})
+            </Button>
+            <PaginationActions
+              loading={loading || translating}
+              hasPrevious={Boolean(exploreResult?.previous_page_state)}
+              hasNext={Boolean(exploreResult?.next_page_state)}
+              onPrevious={() => void handleExplore(exploreResult?.previous_page_state)}
+              onNext={() => void handleExplore(exploreResult?.next_page_state)}
+            />
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {baseMappedRows.length > 0 ? (

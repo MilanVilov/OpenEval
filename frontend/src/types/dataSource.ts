@@ -70,6 +70,7 @@ export interface ExploreDataSourceRequest {
   records_path?: string;
   field_mapping?: Record<string, string>;
   page_state?: Record<string, JsonValue>;
+  page_size?: number;
 }
 
 export interface ExploreDataSourceResponse {

@@ -92,6 +92,52 @@ async def test_explore_data_source_offset_pagination_sets_params() -> None:
 
 
 @pytest.mark.asyncio
+async def test_explore_data_source_offset_pagination_honors_page_size_override() -> None:
+    """Offset pagination should use the requested override for limit and offsets."""
+    source = DataSource(
+        name="Users",
+        url="https://example.test/users",
+        method="GET",
+        auth_type="none",
+        query_params={"scope": "all"},
+        request_body=None,
+        headers={},
+        encrypted_secrets=None,
+        pagination_mode="offset",
+        pagination_config={
+            "offset_param": "skip",
+            "limit_param": "take",
+            "page_size": 10,
+            "has_more_path": "$.meta.has_more",
+        },
+    )
+    calls: list[dict[str, object]] = []
+
+    async def fake_request(self, method, url, params=None, json=None, headers=None):
+        calls.append({"params": params})
+        return httpx.Response(
+            200,
+            json={
+                "items": [{"question": "q1", "answer": "a1"}],
+                "meta": {"has_more": True},
+            },
+            request=httpx.Request(method, url),
+        )
+
+    with patch("httpx.AsyncClient.request", new=fake_request):
+        result = await explore_data_source(
+            source,
+            records_path="$.items",
+            field_mapping={"input": "question", "expected_output": "answer"},
+            page_size_override=25,
+        )
+
+    assert calls[0]["params"] == {"scope": "all", "skip": 0, "take": 25}
+    assert result.next_page_state == {"offset": 25}
+    assert result.previous_page_state is None
+
+
+@pytest.mark.asyncio
 async def test_explore_data_source_next_token_tracks_history() -> None:
     """Next-token pagination should emit a next token and a reversible history."""
     source = DataSource(

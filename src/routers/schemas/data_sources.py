@@ -141,6 +141,7 @@ class ExploreDataSourceRequest(BaseModel):
     records_path: str | None = None
     field_mapping: dict[str, str] | None = None
     page_state: dict[str, object] | None = None
+    page_size: int | None = Field(default=None, ge=1, le=100)
 
     @model_validator(mode="after")
     def validate_mapping(self) -> ExploreDataSourceRequest:

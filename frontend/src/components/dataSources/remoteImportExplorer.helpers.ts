@@ -1,4 +1,9 @@
 export type RemoteImportMode = 'create' | 'append';
+export const REMOTE_PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
+
+interface BasketSelection {
+  selectionId: string;
+}
 
 export function splitInitialFieldMapping(fieldMapping?: Record<string, string>): {
   input: string;
@@ -81,4 +86,55 @@ export function buildDisabledReason({
     return 'Define input and expected_output mappings, then click Show Mapped Data.';
   }
   return '';
+}
+
+export function countSelectedPageRows<T extends BasketSelection>(
+  basket: T[],
+  selectionIds: string[],
+): number {
+  if (basket.length === 0 || selectionIds.length === 0) {
+    return 0;
+  }
+
+  const selectedIds = new Set(basket.map((item) => item.selectionId));
+  return selectionIds.filter((selectionId) => selectedIds.has(selectionId)).length;
+}
+
+export function mergeBasketItems<T extends BasketSelection>(
+  basket: T[],
+  pageItems: T[],
+): T[] {
+  if (pageItems.length === 0) {
+    return basket;
+  }
+
+  const merged = new Map(basket.map((item) => [item.selectionId, item]));
+  pageItems.forEach((item) => {
+    merged.set(item.selectionId, item);
+  });
+  return Array.from(merged.values());
+}
+
+export function removeBasketItems<T extends BasketSelection>(
+  basket: T[],
+  selectionIds: string[],
+): T[] {
+  if (basket.length === 0 || selectionIds.length === 0) {
+    return basket;
+  }
+
+  const idsToRemove = new Set(selectionIds);
+  return basket.filter((item) => !idsToRemove.has(item.selectionId));
+}
+
+export function parsePageSizeOverride(value: string): number | null {
+  if (value === 'default') {
+    return null;
+  }
+
+  const parsedValue = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsedValue) || parsedValue < 1) {
+    return null;
+  }
+  return parsedValue;
 }
