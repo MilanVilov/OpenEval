@@ -354,6 +354,41 @@ async def test_explore_data_source_returns_mapped_rows_and_page_states(
 
 
 @pytest.mark.asyncio
+async def test_explore_data_source_page_size_override_updates_remote_request(
+    client: AsyncClient,
+) -> None:
+    """Explore should let the UI override the configured remote page size."""
+    source_id = await _create_source(client)
+    calls: list[dict[str, object]] = []
+
+    async def fake_request_json(data_source, *, request_params, request_body):
+        calls.append({"params": request_params, "body": request_body})
+        return {
+            "items": [
+                {"question": "q1", "answer": "a1"},
+                {"question": "q2", "answer": "a2"},
+            ],
+            "meta": {"has_more": True},
+        }
+
+    with patch("src.services.remote_data_sources._request_json", new=fake_request_json):
+        response = await client.post(
+            f"/api/data-sources/{source_id}/explore",
+            json={
+                "records_path": "$.items",
+                "field_mapping": {
+                    "input": "question",
+                    "expected_output": "answer",
+                },
+                "page_size": 100,
+            },
+        )
+
+    assert response.status_code == 200
+    assert calls[0]["params"] == {"scope": "all", "page": 1, "limit": 100}
+
+
+@pytest.mark.asyncio
 async def test_translate_input_column_updates_requested_mapped_values(
     client: AsyncClient,
 ) -> None:
