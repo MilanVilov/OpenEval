@@ -2,7 +2,9 @@
 
 from typing import Literal
 
-from pydantic import BaseModel, field_validator, model_validator
+from jsonschema import SchemaError
+from jsonschema.validators import validator_for
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 GraderType = Literal[
     "prompt",
@@ -23,11 +25,13 @@ class GraderSchema(BaseModel):
     * ``string_check`` — deterministic string comparison (equals, contains, …).
     * ``python`` — execute a user-supplied ``grade(sample, item)`` function.
     * ``semantic_similarity`` — cosine similarity via OpenAI embeddings.
-    * ``json_schema`` — validate JSON structure and key values.
+    * ``json_schema`` — validate the model output against a configured JSON Schema.
     * ``json_field`` — extract and compare a named field from JSON output.
 
     Fields are type-dependent; unused fields may be ``None``.
     """
+
+    model_config = {"populate_by_name": True}
 
     name: str
     type: GraderType = "prompt"
@@ -48,7 +52,7 @@ class GraderSchema(BaseModel):
     # Uses threshold (shared) and optionally model
 
     # --- JSON schema fields ---
-    strict: bool | None = None
+    schema_: dict | None = Field(default=None, alias="schema")
 
     # --- JSON field fields ---
     field_name: str | None = None
@@ -75,7 +79,18 @@ class GraderSchema(BaseModel):
                 "json_schema": 1.0,
             }
             self.threshold = _type_thresholds.get(self.type, 0.7)
+        if self.type == "json_schema":
+            self._validate_json_schema()
         return self
+
+    def _validate_json_schema(self) -> None:
+        """Validate the configured JSON Schema for schema-based graders."""
+        if self.schema_ is None:
+            raise ValueError("JSON schema graders require a schema")
+        try:
+            validator_for(self.schema_).check_schema(self.schema_)
+        except SchemaError as exc:
+            raise ValueError(f"Invalid JSON schema: {exc.message}") from exc
 
 
 class CreateConfigRequest(BaseModel):

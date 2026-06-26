@@ -10,7 +10,12 @@ from src.providers.base import LLMResponse
 from src.services.eval_runner import run_evaluation
 
 
-def _make_config(concurrency: int = 3) -> MagicMock:
+def _make_config(
+    concurrency: int = 3,
+    *,
+    graders: list[dict] | None = None,
+    response_format: dict | None = None,
+) -> MagicMock:
     """Create a fake EvalConfig."""
     config = MagicMock()
     config.system_prompt = "You are a test assistant."
@@ -19,7 +24,7 @@ def _make_config(concurrency: int = 3) -> MagicMock:
     config.max_tokens = None
     config.tools = []
     config.tool_options = {}
-    config.graders = [{
+    config.graders = graders or [{
         "type": "string_check",
         "name": "exact",
         "input_value": "{{ sample.output_text }}",
@@ -28,7 +33,7 @@ def _make_config(concurrency: int = 3) -> MagicMock:
     }]
     config.concurrency = concurrency
     config.reasoning_config = None
-    config.response_format = None
+    config.response_format = response_format
     return config
 
 
@@ -269,7 +274,9 @@ class TestFileSearchToolPassed:
         mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
         mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
         mock_repos["dataset_repo"].get_by_id_with_content = AsyncMock(return_value=_make_dataset())
-        mock_repos["read_csv"].return_value = [{"input": "What is X?", "expected_output": "X is Y"}]
+        mock_repos["read_csv"].return_value = [
+            {"input": "What is X?", "expected_output": "X is Y"},
+        ]
         mock_repos["call_llm"].return_value = _make_llm_response("X is Y", latency_ms=150)
 
         await run_evaluation("run1")
@@ -343,7 +350,10 @@ class TestRunCompletion:
 
         final_call = mock_repos["run_repo"].update_status.call_args_list[-1]
         assert final_call.kwargs["status"] == "failed"
-        assert final_call.kwargs["error_message"] == "Failed to read dataset: RuntimeError: bad csv"
+        assert (
+            final_call.kwargs["error_message"]
+            == "Failed to read dataset: RuntimeError: bad csv"
+        )
         assert isinstance(final_call.kwargs["completed_at"], datetime)
 
     async def test_unexpected_finalization_error_marks_run_failed(self, mock_repos):
@@ -542,3 +552,50 @@ class TestGraderStats:
         assert grader_stats["failed"] == 0
         assert grader_stats["unjudged"] == 2
         assert grader_stats["judged"] == 0
+
+
+class TestResponseFormatForwarding:
+    """Configured response formats should stay independent from graders."""
+
+    async def test_json_schema_grader_does_not_derive_response_format(self, mock_repos):
+        """A schema grader should not modify the provider request format."""
+        schema = {
+            "type": "object",
+            "properties": {"answer": {"type": "string"}},
+            "required": ["answer"],
+            "additionalProperties": False,
+        }
+        config = _make_config(
+            graders=[{"type": "json_schema", "name": "shape", "schema": schema}],
+        )
+        mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
+        mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
+        mock_repos["dataset_repo"].get_by_id_with_content = AsyncMock(return_value=_make_dataset())
+        mock_repos["read_csv"].return_value = [{"input": "q1", "expected_output": ""}]
+        mock_repos["call_llm"].return_value = _make_llm_response('{"answer":"ok"}', latency_ms=40)
+
+        await run_evaluation("run1")
+
+        assert mock_repos["call_llm"].await_args.kwargs["response_format"] is None
+
+    async def test_explicit_response_format_takes_precedence(self, mock_repos):
+        """A configured response format should be forwarded unchanged."""
+        config = _make_config(
+            graders=[{
+                "type": "json_schema",
+                "name": "shape",
+                "schema": {"type": "object"},
+            }],
+            response_format={"type": "json_object"},
+        )
+        mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
+        mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
+        mock_repos["dataset_repo"].get_by_id_with_content = AsyncMock(return_value=_make_dataset())
+        mock_repos["read_csv"].return_value = [{"input": "q1", "expected_output": ""}]
+        mock_repos["call_llm"].return_value = _make_llm_response('{"answer":"ok"}', latency_ms=40)
+
+        await run_evaluation("run1")
+
+        assert mock_repos["call_llm"].await_args.kwargs["response_format"] == {
+            "type": "json_object",
+        }

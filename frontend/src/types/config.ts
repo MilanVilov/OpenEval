@@ -21,7 +21,8 @@ export interface Grader {
   // semantic similarity
   // uses model (above) and threshold (below)
   // json schema
-  strict?: boolean;
+  schema?: Record<string, unknown>;
+  schema_text?: string;
   // json field
   field_name?: string;
   case_sensitive?: boolean;

@@ -105,7 +105,7 @@ async def create_config(
         max_tokens=body.max_tokens,
         tools=body.tools,
         tool_options=body.tool_options,
-        graders=[g.model_dump() for g in body.graders],
+        graders=[g.model_dump(by_alias=True) for g in body.graders],
         tags=body.tags,
         concurrency=body.concurrency,
         readonly=body.readonly,
@@ -147,7 +147,7 @@ async def update_config(
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> ConfigResponse:
     """Update an existing evaluation configuration."""
-    fields = body.model_dump(exclude_unset=True)
+    fields = body.model_dump(exclude_unset=True, by_alias=True)
     if not fields:
         raise HTTPException(status_code=422, detail="No fields to update")
     config = await ConfigRepository(session).update(config_id, **fields)

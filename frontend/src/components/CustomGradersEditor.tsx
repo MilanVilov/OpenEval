@@ -29,7 +29,7 @@ const GRADER_TYPE_DEFAULTS: Record<GraderType, Partial<Grader>> = {
   string_check: { operation: 'equals', threshold: 0.7 },
   python: { source_code: '', threshold: 0.7 },
   semantic_similarity: { threshold: 0.8 },
-  json_schema: { strict: false, threshold: 1.0 },
+  json_schema: { schema_text: '', threshold: 1.0 },
   json_field: { field_name: '', case_sensitive: false, strip_whitespace: true, threshold: 0.7 },
 };
 
@@ -66,12 +66,15 @@ export function GradersEditor({
       ? (String(value).trim() === '' ? null : parseFloat(value as string) || 0)
       : field === 'weight'
         ? (parseFloat(value as string) || 0)
-        : field === 'strict' || field === 'case_sensitive' || field === 'strip_whitespace'
+        : field === 'case_sensitive' || field === 'strip_whitespace'
           ? value as boolean
           : value;
     const updated = graders.map((g, i) => {
       if (i !== index) return g;
       const next = { ...g, [field]: parsed };
+      if (field === 'schema_text') {
+        next.schema = undefined;
+      }
       // When switching type, apply defaults for the new type
       if (field === 'type') {
         const defaults = GRADER_TYPE_DEFAULTS[value as GraderType] ?? {};
@@ -216,18 +219,15 @@ export function GradersEditor({
             {/* JSON schema grader fields */}
             {graderType === 'json_schema' && (
               <>
-                <label className="flex items-center gap-2 text-sm cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={grader.strict ?? false}
-                    onChange={(e) => updateGrader(index, 'strict', e.target.checked)}
-                    className="rounded border-border"
-                    disabled={disabled}
-                  />
-                  Strict mode (actual must have exactly the same keys)
-                </label>
+                <Textarea
+                  value={grader.schema_text ?? (grader.schema ? JSON.stringify(grader.schema, null, 2) : '')}
+                  onChange={(e) => updateGrader(index, 'schema_text', e.target.value)}
+                  placeholder={'{\n  "type": "object",\n  "properties": {\n    "answer": { "type": "string" }\n  },\n  "required": ["answer"]\n}'}
+                  className="font-mono min-h-[160px] text-sm"
+                  disabled={disabled}
+                />
                 <p className="text-xs text-foreground-secondary">
-                  Parses both expected and actual as JSON, then checks if all keys in expected exist in actual with matching values. Extra keys are allowed unless strict mode is enabled.
+                  Validates the LLM output JSON against this schema after the response is produced. This grader does not change the request response format.
                 </p>
               </>
             )}
