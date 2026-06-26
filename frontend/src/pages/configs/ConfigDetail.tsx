@@ -142,9 +142,16 @@ export function ConfigDetail() {
                           <p className="text-xs text-foreground-secondary">Compares expected vs actual using embedding similarity</p>
                         )}
                         {graderType === 'json_schema' && (
-                          <p className="text-xs text-foreground-secondary">
-                            Validates output against JSON schema{g.strict ? ' (strict)' : ''}
-                          </p>
+                          <>
+                            <p className="text-xs text-foreground-secondary">
+                              Validates output against the configured JSON schema
+                            </p>
+                            {g.schema && (
+                              <p className="text-xs text-foreground-secondary font-mono line-clamp-3">
+                                {JSON.stringify(g.schema)}
+                              </p>
+                            )}
+                          </>
                         )}
                         {graderType === 'json_field' && g.field_name && (
                           <p className="text-xs text-foreground-secondary font-mono">

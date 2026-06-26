@@ -14,6 +14,7 @@ dependencies = [
     "cryptography",
     "python-multipart",
     "httpx",
+    "jsonschema",
     "openai",
     "pydantic-settings",
     "apscheduler>=3.10",
