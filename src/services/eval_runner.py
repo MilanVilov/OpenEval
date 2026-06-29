@@ -17,6 +17,7 @@ from src.db.repositories import (
 from src.db.session import get_session_context
 from src.services import slack_notifier
 from src.services.dataset_storage import read_dataset_rows
+from src.services.error_monitoring import report_exception
 from src.services.eval_client import call_llm
 
 logger = logging.getLogger(__name__)
@@ -45,11 +46,78 @@ class GraderBundle:
     weights: dict[str, float]
 
 
+def _run_tags(run_id: str, stage: str) -> dict[str, str]:
+    """Return shared Sentry tags for one run exception."""
+    return {"component": "eval_runner", "run_id": run_id, "stage": stage}
+
+
+def _run_contexts(
+    run_id: str,
+    context: RunExecutionContext | None = None,
+    *,
+    extra_contexts: dict[str, dict[str, object]] | None = None,
+) -> dict[str, dict[str, object]]:
+    """Return shared Sentry contexts for one run exception."""
+    contexts: dict[str, dict[str, object]] = {"run": {"id": run_id}}
+    if context is not None:
+        contexts["run"]["eval_config_id"] = context.run.eval_config_id
+        contexts["run"]["dataset_id"] = context.run.dataset_id
+        scheduled_by_id = _optional_string(getattr(context.run, "scheduled_by_id", None))
+        if scheduled_by_id is not None:
+            contexts["run"]["scheduled_by_id"] = scheduled_by_id
+        contexts["config"] = {
+            "model": context.config.model,
+            "concurrency": context.config.concurrency,
+            "tools": list(context.config.tools or []),
+        }
+        contexts["dataset"] = {"file_path": context.dataset.file_path}
+    if extra_contexts:
+        contexts.update(extra_contexts)
+    return contexts
+
+
+def _report_run_exception(
+    exc: Exception,
+    *,
+    run_id: str,
+    stage: str,
+    context: RunExecutionContext | None = None,
+    extra_contexts: dict[str, dict[str, object]] | None = None,
+    extras: dict[str, object] | None = None,
+) -> None:
+    """Report one handled run exception to Sentry."""
+    report_exception(
+        exc,
+        tags=_run_tags(run_id, stage),
+        contexts=_run_contexts(run_id, context, extra_contexts=extra_contexts),
+        extras=extras,
+    )
+
+
+def _row_context(result: EvalResult, row: dict) -> dict[str, object]:
+    """Return lightweight row metadata for Sentry context."""
+    return {
+        "row_index": result.row_index,
+        "row_keys": sorted(str(key) for key in row),
+        "input_chars": len(result.input_data or ""),
+        "expected_output_chars": len(result.expected_output or ""),
+    }
+
+
+def _optional_string(value: object) -> str | None:
+    """Return one string only when ``value`` is a non-empty string."""
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip()
+    return normalized or None
+
+
 async def run_evaluation(run_id: str) -> None:
     """Execute an evaluation run in a background task."""
     try:
         await _run_evaluation(run_id)
     except Exception as exc:
+        _report_run_exception(exc, run_id=run_id, stage="run_evaluation")
         logger.exception("Run %s crashed during execution", run_id)
         await _mark_run_failed(run_id, exc)
 
@@ -65,7 +133,7 @@ async def _run_evaluation(run_id: str) -> None:
         heartbeat_stop = asyncio.Event()
         heartbeat_task = asyncio.create_task(_heartbeat_until_stopped(run_id, heartbeat_stop))
         try:
-            rows = await _read_rows(context.run_repo, run_id, context.dataset)
+            rows = await _read_rows(context)
             if rows is None:
                 return
 
@@ -132,17 +200,16 @@ async def _mark_run_started(run_repo: RunRepository, run_id: str) -> None:
 
 
 async def _read_rows(
-    run_repo: RunRepository,
-    run_id: str,
-    dataset: Dataset,
+    context: RunExecutionContext,
 ) -> list[dict] | None:
     """Load CSV rows for a run or mark the run failed."""
     try:
-        return await read_dataset_rows(dataset)
+        return await read_dataset_rows(context.dataset)
     except Exception as exc:
-        logger.error("Failed to read dataset for run %s: %s", run_id, exc)
-        await run_repo.update_status(
-            run_id,
+        _report_run_exception(exc, run_id=context.run.id, stage="read_dataset", context=context)
+        logger.exception("Failed to read dataset for run %s", context.run.id)
+        await context.run_repo.update_status(
+            context.run.id,
             status="failed",
             error_message=_format_error_message("Failed to read dataset", exc),
             completed_at=datetime.now(UTC),
@@ -288,11 +355,17 @@ async def _persist_run_progress(
             heartbeat_at=datetime.now(UTC),
         )
     except Exception as exc:
-        logger.warning(
-            "Progress update failed for run %s at %s rows: %s",
+        _report_run_exception(
+            exc,
+            run_id=context.run.id,
+            stage="persist_progress",
+            context=context,
+            extra_contexts={"progress": {"committed_count": committed_count}},
+        )
+        logger.exception(
+            "Progress update failed for run %s at %s rows",
             context.run.id,
             committed_count,
-            exc,
         )
         await _rollback_progress_update(context)
 
@@ -302,7 +375,13 @@ async def _rollback_progress_update(context: RunExecutionContext) -> None:
     try:
         await context.run_repo.rollback()
     except Exception as exc:
-        logger.warning("Progress rollback failed for run %s: %s", context.run.id, exc)
+        _report_run_exception(
+            exc,
+            run_id=context.run.id,
+            stage="rollback_progress",
+            context=context,
+        )
+        logger.exception("Progress rollback failed for run %s", context.run.id)
 
 
 async def _heartbeat_until_stopped(run_id: str, stop_event: asyncio.Event) -> None:
@@ -325,7 +404,8 @@ async def _persist_heartbeat(run_id: str) -> None:
                 heartbeat_at=datetime.now(UTC),
             )
     except Exception as exc:
-        logger.warning("Heartbeat update failed for run %s: %s", run_id, exc)
+        _report_run_exception(exc, run_id=run_id, stage="persist_heartbeat")
+        logger.exception("Heartbeat update failed for run %s", run_id)
 
 
 async def _stop_heartbeat(
@@ -399,21 +479,34 @@ async def _populate_row_result(
             result.passed,
             result.comparer_details,
         ) = await _apply_graders(
+            context,
             grader_bundle,
             expected=result.expected_output,
             actual=llm_response.text,
             row_data=row,
+            row_index=result.row_index,
         )
     except Exception as exc:
+        result.passed = False
         result.error = str(exc)
+        _report_run_exception(
+            exc,
+            run_id=context.run.id,
+            stage="process_row",
+            context=context,
+            extra_contexts={"row": _row_context(result, row)},
+        )
+        logger.exception("Run %s row %s failed", context.run.id, result.row_index)
 
 
 async def _apply_graders(
+    context: RunExecutionContext,
     grader_bundle: GraderBundle,
     *,
     expected: str,
     actual: str,
     row_data: dict,
+    row_index: int,
 ) -> tuple[float, bool | None, dict]:
     """Run all configured graders for one row and combine their outputs."""
     details: dict[str, dict] = {}
@@ -437,6 +530,25 @@ async def _apply_graders(
             weighted_scores.append((weight, score))
             weighted_passed.append((weight, passed))
         except Exception as exc:
+            _report_run_exception(
+                exc,
+                run_id=context.run.id,
+                stage="grader_compare",
+                context=context,
+                extra_contexts={
+                    "row": {
+                        "row_index": row_index,
+                        "row_keys": sorted(str(key) for key in row_data),
+                    },
+                    "grader": {"name": name, "weight": weight},
+                },
+            )
+            logger.exception(
+                "Run %s grader %s failed on row %s",
+                context.run.id,
+                name,
+                row_index,
+            )
             details[name] = {"error": str(exc), "passed": False, "weight": weight}
             weighted_scores.append((weight, 0.0))
             weighted_passed.append((weight, False))
@@ -453,16 +565,13 @@ def _combine_grader_results(
     total_weight = sum(weight for weight, _ in weighted_scores if weight > 0)
     if total_weight > 0:
         score = (
-            sum(weight * value for weight, value in weighted_scores if weight > 0)
-            / total_weight
+            sum(weight * value for weight, value in weighted_scores if weight > 0) / total_weight
         )
     else:
         score = 0.0
 
     active_passed = [
-        passed
-        for weight, passed in weighted_passed
-        if weight > 0 and passed is not None
+        passed for weight, passed in weighted_passed if weight > 0 and passed is not None
     ]
     if active_passed:
         return score, all(active_passed), details
@@ -489,7 +598,7 @@ def _build_summary(results: list[EvalResult]) -> dict:
         "failed": failed,
         "unjudged": unjudged,
         "errors": errors,
-        "accuracy": passed / max(judged + errors, 1),
+        "accuracy": passed / max(judged, 1),
         "avg_latency_ms": _average_latency(results),
         "avg_score": round(avg_score, 4),
         "avg_input_tokens": avg_input_tokens,
@@ -572,7 +681,8 @@ async def _mark_run_failed(run_id: str, exc: Exception) -> None:
                 completed_at=datetime.now(UTC),
                 heartbeat_at=datetime.now(UTC),
             )
-    except Exception:
+    except Exception as mark_failed_exc:
+        _report_run_exception(mark_failed_exc, run_id=run_id, stage="mark_run_failed")
         logger.exception("Unable to mark run %s as failed", run_id)
 
 
@@ -600,7 +710,8 @@ async def _send_slack_notification(
     try:
         await slack_notifier.send(webhook_url, blocks)
     except Exception as exc:
-        logger.warning("Slack notification failed for run %s: %s", run_id, exc)
+        _report_run_exception(exc, run_id=run_id, stage="send_slack_notification")
+        logger.exception("Slack notification failed for run %s", run_id)
 
 
 async def _gather_slack_payload(session, run_id: str) -> tuple[str, list[dict]] | None:
@@ -633,5 +744,6 @@ async def _gather_slack_payload(session, run_id: str) -> tuple[str, list[dict]] 
         )
         return webhook_url, blocks
     except Exception as exc:
-        logger.warning("Slack notification skipped for run %s: %s", run_id, exc)
+        _report_run_exception(exc, run_id=run_id, stage="build_slack_notification")
+        logger.exception("Slack notification skipped for run %s", run_id)
         return None

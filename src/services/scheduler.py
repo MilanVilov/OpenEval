@@ -22,9 +22,34 @@ from src.db.repositories import (
     ScheduleRepository,
 )
 from src.db.session import get_session_context
+from src.services.error_monitoring import report_exception
 from src.services.eval_runner import run_evaluation
 
 logger = logging.getLogger(__name__)
+_background_tasks: set[asyncio.Task[None]] = set()
+
+
+def _scheduler_tags(stage: str) -> dict[str, str]:
+    """Return shared Sentry tags for scheduler failures."""
+    return {"component": "scheduler", "stage": stage}
+
+
+def _scheduler_contexts(
+    *,
+    schedule_id: str | None = None,
+    cron_expression: str | None = None,
+) -> dict[str, dict[str, object]]:
+    """Return shared Sentry contexts for scheduler failures."""
+    schedule_context: dict[str, object] = {}
+    if schedule_id is not None:
+        schedule_context["id"] = schedule_id
+    if cron_expression is not None:
+        schedule_context["cron_expression"] = cron_expression
+
+    contexts: dict[str, dict[str, object]] = {"scheduler": {"service": "SchedulerService"}}
+    if schedule_context:
+        contexts["schedule"] = schedule_context
+    return contexts
 
 
 def is_valid_cron(expression: str) -> bool:
@@ -72,11 +97,15 @@ class SchedulerService:
         try:
             async with get_session_context() as session:
                 schedules = await ScheduleRepository(session).list_enabled()
-        except Exception as exc:  # noqa: BLE001 — never block startup
-            logger.warning(
-                "Scheduler rehydrate skipped: %s. "
-                "Run `alembic upgrade head` to enable scheduled runs.",
+        except Exception as exc:
+            report_exception(
                 exc,
+                tags=_scheduler_tags("rehydrate"),
+                contexts=_scheduler_contexts(),
+            )
+            logger.exception(
+                "Scheduler rehydrate skipped. "
+                "Run `alembic upgrade head` to enable scheduled runs.",
             )
             return
         for schedule in schedules:
@@ -112,11 +141,18 @@ class SchedulerService:
         try:
             trigger = CronTrigger.from_crontab(schedule.cron_expression, timezone="UTC")
         except ValueError as exc:
-            logger.error(
-                "Schedule %s has invalid cron %r: %s",
+            report_exception(
+                exc,
+                tags=_scheduler_tags("register_schedule"),
+                contexts=_scheduler_contexts(
+                    schedule_id=schedule.id,
+                    cron_expression=schedule.cron_expression,
+                ),
+            )
+            logger.exception(
+                "Schedule %s has invalid cron %r",
                 schedule.id,
                 schedule.cron_expression,
-                exc,
             )
             return
         self._scheduler.add_job(
@@ -143,7 +179,8 @@ async def _trigger_run(schedule_id: str) -> None:
         config = await ConfigRepository(session).get_by_id(schedule.eval_config_id)
         if dataset is None or config is None:
             logger.warning(
-                "Schedule %s skipped: missing config or dataset", schedule_id,
+                "Schedule %s skipped: missing config or dataset",
+                schedule_id,
             )
             return
         run = await RunRepository(session).create(
@@ -153,11 +190,18 @@ async def _trigger_run(schedule_id: str) -> None:
             scheduled_by_id=schedule.id,
         )
         await ScheduleRepository(session).mark_triggered(
-            schedule.id, when=datetime.now(UTC),
+            schedule.id,
+            when=datetime.now(UTC),
         )
         run_id = run.id
 
-    asyncio.create_task(run_evaluation(run_id))
+    _track_background_task(asyncio.create_task(run_evaluation(run_id)))
+
+
+def _track_background_task(task: asyncio.Task[None]) -> None:
+    """Keep a strong reference to one fire-and-forget scheduler task."""
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
 
 
 # Process-wide singleton accessor -------------------------------------------

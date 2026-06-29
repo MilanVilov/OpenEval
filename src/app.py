@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from src.config import get_settings
+from src.services.error_monitoring import init_sentry
 from src.services.scheduler import get_scheduler_service
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -143,6 +144,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     settings = get_settings()
+    init_sentry(settings)
     spa_base_path = _normalize_base_path(settings.app_base_url)
     app = FastAPI(title="OpenEval", lifespan=lifespan)
 
@@ -169,8 +171,8 @@ def create_app() -> FastAPI:
     # Check multiple candidate paths: works both in dev (repo root) and
     # when installed as a package (e.g. inside a Docker container).
     candidates = [
-        Path("/app/frontend/dist"),                   # Docker container
-        BASE_DIR / "frontend" / "dist",               # running from repo root
+        Path("/app/frontend/dist"),  # Docker container
+        BASE_DIR / "frontend" / "dist",  # running from repo root
     ]
     spa_dir: Path | None = None
     for candidate in candidates:

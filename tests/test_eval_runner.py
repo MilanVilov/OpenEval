@@ -24,13 +24,15 @@ def _make_config(
     config.max_tokens = None
     config.tools = []
     config.tool_options = {}
-    config.graders = graders or [{
-        "type": "string_check",
-        "name": "exact",
-        "input_value": "{{ sample.output_text }}",
-        "operation": "equals",
-        "reference_value": "{{ item.expected_output }}",
-    }]
+    config.graders = graders or [
+        {
+            "type": "string_check",
+            "name": "exact",
+            "input_value": "{{ sample.output_text }}",
+            "operation": "equals",
+            "reference_value": "{{ item.expected_output }}",
+        }
+    ]
     config.concurrency = concurrency
     config.reasoning_config = None
     config.response_format = response_format
@@ -126,8 +128,7 @@ class TestLatencyPerRow:
         await run_evaluation("run1")
 
         persisted_results = [
-            call.args[0][0]
-            for call in mock_repos["result_repo"].upsert_batch.await_args_list
+            call.args[0][0] for call in mock_repos["result_repo"].upsert_batch.await_args_list
         ]
         latencies = sorted(result.latency_ms for result in persisted_results)
         assert latencies == [50, 100, 250]
@@ -170,8 +171,7 @@ class TestLatencyPerRow:
         await run_evaluation("run1")
 
         persisted_results = [
-            call.args[0][0]
-            for call in mock_repos["result_repo"].upsert_batch.await_args_list
+            call.args[0][0] for call in mock_repos["result_repo"].upsert_batch.await_args_list
         ]
         successful = [result for result in persisted_results if result.error is None]
         errored = [result for result in persisted_results if result.error is not None]
@@ -180,9 +180,13 @@ class TestLatencyPerRow:
         assert successful[0].latency_ms == 200
         assert len(errored) == 1
         assert errored[0].latency_ms is None
+        assert errored[0].passed is False
 
         summary = mock_repos["run_repo"].set_summary.call_args.kwargs["summary"]
         assert summary["avg_latency_ms"] == 100
+        assert summary["failed"] == 1
+        assert summary["errors"] == 1
+        assert summary["accuracy"] == 0.5
 
 
 class TestConcurrency:
@@ -258,8 +262,7 @@ class TestLatencyMeasuresOnlyApiCall:
         await run_evaluation("run1")
 
         persisted_results = [
-            call.args[0][0]
-            for call in mock_repos["result_repo"].upsert_batch.await_args_list
+            call.args[0][0] for call in mock_repos["result_repo"].upsert_batch.await_args_list
         ]
         assert all(result.latency_ms == 100 for result in persisted_results)
 
@@ -352,10 +355,29 @@ class TestRunCompletion:
         final_call = mock_repos["run_repo"].update_status.call_args_list[-1]
         assert final_call.kwargs["status"] == "failed"
         assert (
-            final_call.kwargs["error_message"]
-            == "Failed to read dataset: RuntimeError: bad csv"
+            final_call.kwargs["error_message"] == "Failed to read dataset: RuntimeError: bad csv"
         )
         assert isinstance(final_call.kwargs["completed_at"], datetime)
+
+    async def test_dataset_read_error_reported_to_sentry(self, mock_repos):
+        """Dataset read failures should be reported with run context."""
+        config = _make_config(concurrency=5)
+        mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
+        mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
+        mock_repos["dataset_repo"].get_by_id_with_content = AsyncMock(return_value=_make_dataset())
+        mock_repos["read_csv"].side_effect = RuntimeError("bad csv")
+
+        with patch("src.services.eval_runner.report_exception") as mock_report_exception:
+            await run_evaluation("run1")
+
+        reported_error = mock_report_exception.call_args.args[0]
+        reported_tags = mock_report_exception.call_args.kwargs["tags"]
+        reported_contexts = mock_report_exception.call_args.kwargs["contexts"]
+
+        assert isinstance(reported_error, RuntimeError)
+        assert reported_tags["stage"] == "read_dataset"
+        assert reported_contexts["run"]["id"] == "run1"
+        assert reported_contexts["run"]["eval_config_id"] == "cfg1"
 
     async def test_unexpected_finalization_error_marks_run_failed(self, mock_repos):
         """Unhandled persistence errors should not leave the run active."""
@@ -374,6 +396,25 @@ class TestRunCompletion:
         assert final_call.kwargs["error_message"] == (
             "Run failed during evaluation: RuntimeError: DB write failed"
         )
+
+    async def test_unexpected_finalization_error_reported_to_sentry(self, mock_repos):
+        """Top-level run crashes should be reported to Sentry."""
+        config = _make_config(concurrency=5)
+        mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
+        mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
+        mock_repos["dataset_repo"].get_by_id_with_content = AsyncMock(return_value=_make_dataset())
+        mock_repos["read_csv"].return_value = [{"input": "q1", "expected_output": "a1"}]
+        mock_repos["call_llm"].return_value = _make_llm_response("a1", latency_ms=50)
+        mock_repos["result_repo"].upsert_batch.side_effect = RuntimeError("DB write failed")
+
+        with patch("src.services.eval_runner.report_exception") as mock_report_exception:
+            await run_evaluation("run1")
+
+        reported_error = mock_report_exception.call_args.args[0]
+        reported_tags = mock_report_exception.call_args.kwargs["tags"]
+
+        assert isinstance(reported_error, RuntimeError)
+        assert reported_tags["stage"] == "run_evaluation"
 
 
 class TestProgressTracking:
@@ -486,6 +527,31 @@ class TestProgressTracking:
         assert final_call.kwargs["status"] == "completed"
 
 
+class TestExceptionReporting:
+    """Verify handled row failures are reported to Sentry."""
+
+    async def test_row_error_reported_to_sentry(self, mock_repos):
+        """Provider errors should be reported with row context."""
+        config = _make_config(concurrency=1)
+        mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
+        mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
+        mock_repos["dataset_repo"].get_by_id_with_content = AsyncMock(return_value=_make_dataset())
+        mock_repos["read_csv"].return_value = [{"input": "q1", "expected_output": "a1"}]
+        mock_repos["call_llm"].side_effect = RuntimeError("provider exploded")
+
+        with patch("src.services.eval_runner.report_exception") as mock_report_exception:
+            await run_evaluation("run1")
+
+        reported_error = mock_report_exception.call_args.args[0]
+        reported_tags = mock_report_exception.call_args.kwargs["tags"]
+        reported_contexts = mock_report_exception.call_args.kwargs["contexts"]
+
+        assert isinstance(reported_error, RuntimeError)
+        assert reported_tags["stage"] == "process_row"
+        assert reported_contexts["row"]["row_index"] == 0
+        assert reported_contexts["config"]["model"] == "gpt-4.1"
+
+
 class TestGraderStats:
     """Verify per-grader statistics in the final summary."""
 
@@ -562,14 +628,16 @@ class TestGraderStats:
     async def test_null_threshold_graders_are_unjudged(self, mock_repos):
         """Score-only graders should not contribute pass/fail counts."""
         config = _make_config(concurrency=5)
-        config.graders = [{
-            "type": "string_check",
-            "name": "score_only",
-            "input_value": "{{ sample.output_text }}",
-            "operation": "equals",
-            "reference_value": "{{ item.expected_output }}",
-            "threshold": None,
-        }]
+        config.graders = [
+            {
+                "type": "string_check",
+                "name": "score_only",
+                "input_value": "{{ sample.output_text }}",
+                "operation": "equals",
+                "reference_value": "{{ item.expected_output }}",
+                "threshold": None,
+            }
+        ]
         mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
         mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
         mock_repos["dataset_repo"].get_by_id_with_content = AsyncMock(return_value=_make_dataset())
@@ -585,8 +653,7 @@ class TestGraderStats:
         await run_evaluation("run1")
 
         persisted_results = [
-            call.args[0][0]
-            for call in mock_repos["result_repo"].upsert_batch.await_args_list
+            call.args[0][0] for call in mock_repos["result_repo"].upsert_batch.await_args_list
         ]
         summary = mock_repos["run_repo"].set_summary.call_args.kwargs["summary"]
         grader_stats = summary["grader_stats"]["score_only"]
@@ -629,11 +696,13 @@ class TestResponseFormatForwarding:
     async def test_explicit_response_format_takes_precedence(self, mock_repos):
         """A configured response format should be forwarded unchanged."""
         config = _make_config(
-            graders=[{
-                "type": "json_schema",
-                "name": "shape",
-                "schema": {"type": "object"},
-            }],
+            graders=[
+                {
+                    "type": "json_schema",
+                    "name": "shape",
+                    "schema": {"type": "object"},
+                }
+            ],
             response_format={"type": "json_object"},
         )
         mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
