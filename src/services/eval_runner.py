@@ -264,11 +264,7 @@ async def _flush_result_batch(
     await context.result_repo.upsert_batch(pending_results)
     persisted_results.extend(pending_results)
     committed_count += len(pending_results)
-    await context.run_repo.update_progress(
-        context.run.id,
-        progress=committed_count,
-        heartbeat_at=datetime.now(UTC),
-    )
+    await _persist_run_progress(context, committed_count)
     return committed_count
 
 
@@ -277,11 +273,36 @@ async def _refresh_run_heartbeat(
     committed_count: int,
 ) -> None:
     """Refresh the run heartbeat while waiting for slow in-flight rows."""
-    await context.run_repo.update_progress(
-        context.run.id,
-        progress=committed_count,
-        heartbeat_at=datetime.now(UTC),
-    )
+    await _persist_run_progress(context, committed_count)
+
+
+async def _persist_run_progress(
+    context: RunExecutionContext,
+    committed_count: int,
+) -> None:
+    """Best-effort run progress persistence that never aborts the evaluation."""
+    try:
+        await context.run_repo.update_progress(
+            context.run.id,
+            progress=committed_count,
+            heartbeat_at=datetime.now(UTC),
+        )
+    except Exception as exc:
+        logger.warning(
+            "Progress update failed for run %s at %s rows: %s",
+            context.run.id,
+            committed_count,
+            exc,
+        )
+        await _rollback_progress_update(context)
+
+
+async def _rollback_progress_update(context: RunExecutionContext) -> None:
+    """Clear the shared session after a non-fatal progress write failure."""
+    try:
+        await context.run_repo.rollback()
+    except Exception as exc:
+        logger.warning("Progress rollback failed for run %s: %s", context.run.id, exc)
 
 
 async def _heartbeat_until_stopped(run_id: str, stop_event: asyncio.Event) -> None:

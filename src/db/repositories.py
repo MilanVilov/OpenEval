@@ -785,6 +785,10 @@ class RunRepository:
         run.heartbeat_at = heartbeat_at
         await self._session.commit()
 
+    async def rollback(self) -> None:
+        """Rollback the current transaction on the underlying session."""
+        await self._session.rollback()
+
     async def fail_stale_run(
         self,
         run_id: str,
