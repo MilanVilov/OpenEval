@@ -88,6 +88,7 @@ def mock_repos():
         run_repo.update_status = AsyncMock()
         run_repo.update_progress = AsyncMock()
         run_repo.update_heartbeat = AsyncMock()
+        run_repo.rollback = AsyncMock()
         run_repo.set_summary = AsyncMock()
         result_repo.create_batch = AsyncMock()
         result_repo.upsert_batch = AsyncMock()
@@ -466,6 +467,23 @@ class TestProgressTracking:
 
             llm_gate.set()
             await task
+
+    async def test_progress_write_failure_does_not_abort_run(self, mock_repos):
+        """Transient progress persistence errors should not fail the evaluation."""
+        config = _make_config(concurrency=1)
+        mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
+        mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
+        mock_repos["dataset_repo"].get_by_id_with_content = AsyncMock(return_value=_make_dataset())
+        mock_repos["read_csv"].return_value = [{"input": "q1", "expected_output": "a1"}]
+        mock_repos["call_llm"].return_value = _make_llm_response("a1", latency_ms=50)
+        mock_repos["run_repo"].update_progress.side_effect = RuntimeError("progress write failed")
+
+        await run_evaluation("run1")
+
+        mock_repos["result_repo"].upsert_batch.assert_awaited_once()
+        mock_repos["run_repo"].rollback.assert_awaited_once()
+        final_call = mock_repos["run_repo"].update_status.call_args_list[-1]
+        assert final_call.kwargs["status"] == "completed"
 
 
 class TestGraderStats:
