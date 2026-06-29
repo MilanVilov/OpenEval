@@ -1,7 +1,7 @@
 """Tests for eval_runner — latency, durability, and completion behavior."""
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -436,6 +436,36 @@ class TestProgressTracking:
         await task
 
         assert mock_repos["run_repo"].update_progress.await_count == 1
+
+    async def test_heartbeat_refreshes_while_waiting_for_slow_rows(self, mock_repos):
+        """Long in-flight rows should still refresh the run heartbeat."""
+        config = _make_config(concurrency=1)
+        mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
+        mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
+        mock_repos["dataset_repo"].get_by_id_with_content = AsyncMock(return_value=_make_dataset())
+        mock_repos["read_csv"].return_value = [{"input": "q1", "expected_output": "a1"}]
+        llm_gate = asyncio.Event()
+
+        async def blocked_llm(**kwargs):
+            await llm_gate.wait()
+            return _make_llm_response("a1", latency_ms=50)
+
+        mock_repos["call_llm"].side_effect = blocked_llm
+
+        with patch(
+            "src.services.eval_runner.RUN_HEARTBEAT_INTERVAL",
+            new=timedelta(milliseconds=10),
+        ):
+            task = asyncio.create_task(run_evaluation("run1"))
+            await asyncio.sleep(0.05)
+
+            assert any(
+                call.kwargs["progress"] == 0
+                for call in mock_repos["run_repo"].update_progress.await_args_list
+            )
+
+            llm_gate.set()
+            await task
 
 
 class TestGraderStats:

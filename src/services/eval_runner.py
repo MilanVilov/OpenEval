@@ -194,28 +194,38 @@ async def _process_rows(
 ) -> list[EvalResult]:
     """Process all rows and persist committed result batches incrementally."""
     semaphore = asyncio.Semaphore(context.config.concurrency)
-    tasks = [
+    tasks = {
         asyncio.create_task(
             _process_row(context.run.id, index, row, context, grader_bundle, semaphore)
         )
         for index, row in enumerate(rows)
-    ]
+    }
     persisted_results: list[EvalResult] = []
     pending_results: list[EvalResult] = []
     committed_count = 0
 
     try:
-        for task in asyncio.as_completed(tasks):
-            pending_results.append(await task)
-            if len(pending_results) < RESULT_PERSIST_BATCH_SIZE:
-                continue
-            committed_count = await _flush_result_batch(
-                context,
-                pending_results,
-                committed_count,
-                persisted_results,
+        while tasks:
+            done, tasks = await asyncio.wait(
+                tasks,
+                timeout=RUN_HEARTBEAT_INTERVAL.total_seconds(),
+                return_when=asyncio.FIRST_COMPLETED,
             )
-            pending_results = []
+            if not done:
+                await _refresh_run_heartbeat(context, committed_count)
+                continue
+
+            for task in done:
+                pending_results.append(await task)
+                if len(pending_results) < RESULT_PERSIST_BATCH_SIZE:
+                    continue
+                committed_count = await _flush_result_batch(
+                    context,
+                    pending_results,
+                    committed_count,
+                    persisted_results,
+                )
+                pending_results = []
         if pending_results:
             await _flush_result_batch(
                 context,
@@ -225,7 +235,7 @@ async def _process_rows(
             )
         return persisted_results
     except Exception:
-        await _cancel_tasks(tasks)
+        await _cancel_tasks(list(tasks))
         raise
 
 
@@ -260,6 +270,50 @@ async def _flush_result_batch(
         heartbeat_at=datetime.now(UTC),
     )
     return committed_count
+
+
+async def _refresh_run_heartbeat(
+    context: RunExecutionContext,
+    committed_count: int,
+) -> None:
+    """Refresh the run heartbeat while waiting for slow in-flight rows."""
+    await context.run_repo.update_progress(
+        context.run.id,
+        progress=committed_count,
+        heartbeat_at=datetime.now(UTC),
+    )
+
+
+async def _heartbeat_until_stopped(run_id: str, stop_event: asyncio.Event) -> None:
+    """Refresh the run heartbeat until ``stop_event`` is set."""
+    timeout_seconds = RUN_HEARTBEAT_INTERVAL.total_seconds()
+    while True:
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=timeout_seconds)
+            return
+        except TimeoutError:
+            await _persist_heartbeat(run_id)
+
+
+async def _persist_heartbeat(run_id: str) -> None:
+    """Write a heartbeat using a short-lived session."""
+    try:
+        async with get_session_context() as session:
+            await RunRepository(session).update_heartbeat(
+                run_id,
+                heartbeat_at=datetime.now(UTC),
+            )
+    except Exception as exc:
+        logger.warning("Heartbeat update failed for run %s: %s", run_id, exc)
+
+
+async def _stop_heartbeat(
+    stop_event: asyncio.Event,
+    heartbeat_task: asyncio.Task[None],
+) -> None:
+    """Stop the heartbeat loop and wait for it to exit cleanly."""
+    stop_event.set()
+    await heartbeat_task
 
 
 async def _mark_run_completed(
@@ -476,38 +530,6 @@ def _build_grader_stats(results: list[EvalResult]) -> dict[str, dict]:
 def _new_grader_stats() -> dict:
     """Return the initial accumulator structure for one grader."""
     return {"total": 0, "passed": 0, "failed": 0, "unjudged": 0, "scores": []}
-
-
-async def _heartbeat_until_stopped(run_id: str, stop_event: asyncio.Event) -> None:
-    """Refresh the run heartbeat until ``stop_event`` is set."""
-    timeout_seconds = RUN_HEARTBEAT_INTERVAL.total_seconds()
-    while True:
-        try:
-            await asyncio.wait_for(stop_event.wait(), timeout=timeout_seconds)
-            return
-        except TimeoutError:
-            await _persist_heartbeat(run_id)
-
-
-async def _persist_heartbeat(run_id: str) -> None:
-    """Write a heartbeat using a short-lived session."""
-    try:
-        async with get_session_context() as session:
-            await RunRepository(session).update_heartbeat(
-                run_id,
-                heartbeat_at=datetime.now(UTC),
-            )
-    except Exception as exc:
-        logger.warning("Heartbeat update failed for run %s: %s", run_id, exc)
-
-
-async def _stop_heartbeat(
-    stop_event: asyncio.Event,
-    heartbeat_task: asyncio.Task[None],
-) -> None:
-    """Stop the heartbeat loop and wait for it to exit cleanly."""
-    stop_event.set()
-    await heartbeat_task
 
 
 async def _cancel_tasks(tasks: list[asyncio.Task[EvalResult]]) -> None:
