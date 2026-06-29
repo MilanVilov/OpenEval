@@ -17,6 +17,7 @@ dependencies = [
     "jsonschema",
     "openai",
     "pydantic-settings",
+    "sentry-sdk[fastapi]>=2,<3",
     "apscheduler>=3.10",
     "croniter>=2.0",
 ]

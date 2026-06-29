@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173"
     slack_webhook_url: str = ""
     app_base_url: str = ""
+    sentry_dsn: str = ""
+    sentry_environment: str = ""
+    sentry_release: str = ""
+    sentry_traces_sample_rate: float = 0.0
 
     model_config = {
         "env_file": ".env",
