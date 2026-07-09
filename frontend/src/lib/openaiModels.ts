@@ -9,7 +9,12 @@ export interface ModelGroup {
 }
 
 export interface ReasoningEffortOption {
-  value: 'low' | 'medium' | 'high' | 'xhigh';
+  value: 'none' | 'low' | 'medium' | 'high' | 'xhigh';
+  label: string;
+}
+
+export interface ReasoningModeOption {
+  value: 'standard' | 'pro';
   label: string;
 }
 
@@ -17,6 +22,10 @@ const OPENAI_CONFIG_MODEL_GROUPS: ModelGroup[] = [
   {
     group: 'Frontier',
     models: [
+      { value: 'gpt-5.6', label: 'GPT-5.6' },
+      { value: 'gpt-5.6-sol', label: 'GPT-5.6 Sol' },
+      { value: 'gpt-5.6-terra', label: 'GPT-5.6 Terra' },
+      { value: 'gpt-5.6-luna', label: 'GPT-5.6 Luna' },
       { value: 'gpt-5.5', label: 'GPT-5.5' },
       { value: 'gpt-5.5-pro', label: 'GPT-5.5 Pro' },
       { value: 'gpt-5.4', label: 'GPT-5.4' },
@@ -60,6 +69,34 @@ const OPENAI_CONFIG_MODEL_GROUPS: ModelGroup[] = [
 ];
 
 const REASONING_EFFORT_OPTIONS: Record<string, ReasoningEffortOption[]> = {
+  'gpt-5.6': [
+    { value: 'none', label: 'None' },
+    { value: 'low', label: 'Low' },
+    { value: 'medium', label: 'Medium' },
+    { value: 'high', label: 'High' },
+    { value: 'xhigh', label: 'Extra High' },
+  ],
+  'gpt-5.6-sol': [
+    { value: 'none', label: 'None' },
+    { value: 'low', label: 'Low' },
+    { value: 'medium', label: 'Medium' },
+    { value: 'high', label: 'High' },
+    { value: 'xhigh', label: 'Extra High' },
+  ],
+  'gpt-5.6-terra': [
+    { value: 'none', label: 'None' },
+    { value: 'low', label: 'Low' },
+    { value: 'medium', label: 'Medium' },
+    { value: 'high', label: 'High' },
+    { value: 'xhigh', label: 'Extra High' },
+  ],
+  'gpt-5.6-luna': [
+    { value: 'none', label: 'None' },
+    { value: 'low', label: 'Low' },
+    { value: 'medium', label: 'Medium' },
+    { value: 'high', label: 'High' },
+    { value: 'xhigh', label: 'Extra High' },
+  ],
   'gpt-5.5': [
     { value: 'low', label: 'Low' },
     { value: 'medium', label: 'Medium' },
@@ -158,6 +195,25 @@ const REASONING_EFFORT_OPTIONS: Record<string, ReasoningEffortOption[]> = {
   ],
 };
 
+const REASONING_MODE_OPTIONS: Record<string, ReasoningModeOption[]> = {
+  'gpt-5.6': [
+    { value: 'standard', label: 'Standard' },
+    { value: 'pro', label: 'Pro' },
+  ],
+  'gpt-5.6-sol': [
+    { value: 'standard', label: 'Standard' },
+    { value: 'pro', label: 'Pro' },
+  ],
+  'gpt-5.6-terra': [
+    { value: 'standard', label: 'Standard' },
+    { value: 'pro', label: 'Pro' },
+  ],
+  'gpt-5.6-luna': [
+    { value: 'standard', label: 'Standard' },
+    { value: 'pro', label: 'Pro' },
+  ],
+};
+
 export const OPENAI_CONFIG_MODEL_OPTIONS: ModelGroup[] = OPENAI_CONFIG_MODEL_GROUPS;
 
 export const OPENAI_GRADER_MODEL_OPTIONS: ModelGroup[] = [
@@ -172,6 +228,14 @@ export function getReasoningEffortOptions(model: string): ReasoningEffortOption[
   return REASONING_EFFORT_OPTIONS[model] ?? [];
 }
 
+export function getReasoningModeOptions(model: string): ReasoningModeOption[] {
+  return REASONING_MODE_OPTIONS[model] ?? [];
+}
+
 export function supportsReasoning(model: string): boolean {
   return getReasoningEffortOptions(model).length > 0;
+}
+
+export function supportsReasoningMode(model: string): boolean {
+  return getReasoningModeOptions(model).length > 0;
 }

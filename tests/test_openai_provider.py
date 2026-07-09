@@ -99,7 +99,18 @@ class TestLatencyMeasurement:
 
     @pytest.mark.parametrize(
         "model",
-        ["o3", "gpt-5.5", "gpt-5.5-pro", "gpt-5.4-pro", "gpt-5.3-codex", "gpt-5-pro"],
+        [
+            "o3",
+            "gpt-5.6",
+            "gpt-5.6-sol",
+            "gpt-5.6-terra",
+            "gpt-5.6-luna",
+            "gpt-5.5",
+            "gpt-5.5-pro",
+            "gpt-5.4-pro",
+            "gpt-5.3-codex",
+            "gpt-5-pro",
+        ],
     )
     async def test_reasoning_model_skips_temperature(self, model: str):
         """Reasoning models should not include temperature in the request."""

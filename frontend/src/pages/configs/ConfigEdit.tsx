@@ -24,8 +24,10 @@ import { TagInput } from '@/components/TagInput';
 import { buildGradersPayload } from '@/lib/configGraders';
 import {
   getReasoningEffortOptions,
+  getReasoningModeOptions,
   OPENAI_CONFIG_MODEL_OPTIONS,
   supportsReasoning,
+  supportsReasoningMode,
 } from '@/lib/openaiModels';
 import { Lock } from 'lucide-react';
 
@@ -42,6 +44,7 @@ export function ConfigEdit() {
   const [graders, setGraders] = useState<Grader[]>([]);
   const [concurrency, setConcurrency] = useState('5');
   const [reasoningEffort, setReasoningEffort] = useState('medium');
+  const [reasoningMode, setReasoningMode] = useState('standard');
   const [reasoningSummary, setReasoningSummary] = useState('auto');
   const [responseFormatType, setResponseFormatType] = useState('text');
   const [jsonSchemaName, setJsonSchemaName] = useState('');
@@ -63,7 +66,9 @@ export function ConfigEdit() {
   const [isReadonly, setIsReadonly] = useState(false);
 
   const reasoningEffortOptions = getReasoningEffortOptions(model);
+  const reasoningModeOptions = getReasoningModeOptions(model);
   const isReasoningModel = supportsReasoning(model);
+  const isReasoningModeModel = supportsReasoningMode(model);
 
   useEffect(() => {
     listVectorStores()
@@ -92,6 +97,9 @@ export function ConfigEdit() {
         setIsReadonly(config.readonly ?? false);
         if (config.reasoning_config?.effort) {
           setReasoningEffort(config.reasoning_config.effort);
+        }
+        if ((config.reasoning_config as Record<string, string> | null)?.mode) {
+          setReasoningMode((config.reasoning_config as Record<string, string>).mode);
         }
         if (config.reasoning_config) {
           const summary = (config.reasoning_config as Record<string, string>).summary;
@@ -134,6 +142,16 @@ export function ConfigEdit() {
     }
   }, [reasoningEffort, reasoningEffortOptions]);
 
+  useEffect(() => {
+    if (reasoningModeOptions.length === 0) {
+      return;
+    }
+    const currentOptionStillValid = reasoningModeOptions.some((option) => option.value === reasoningMode);
+    if (!currentOptionStillValid) {
+      setReasoningMode(reasoningModeOptions[0].value);
+    }
+  }, [reasoningMode, reasoningModeOptions]);
+
   function buildResponseFormat(): Record<string, unknown> | null {
     if (responseFormatType === 'text') return null;
     if (responseFormatType === 'json_object') return { type: 'json_object' };
@@ -173,7 +191,11 @@ export function ConfigEdit() {
         toolOptions.tool_choice = toolChoice;
       }
       const reasoningConfig = isReasoningModel
-        ? { effort: reasoningEffort, ...(reasoningSummary !== 'null' ? { summary: reasoningSummary } : {}) }
+        ? {
+          effort: reasoningEffort,
+          ...(isReasoningModeModel ? { mode: reasoningMode } : {}),
+          ...(reasoningSummary !== 'null' ? { summary: reasoningSummary } : {}),
+        }
         : null;
       const gradersPayload = buildGradersPayload(graders);
       await updateConfig(id, {
@@ -244,6 +266,17 @@ export function ConfigEdit() {
 
         {isReasoningModel && (
           <>
+          {isReasoningModeModel && (
+            <div className="space-y-2">
+              <Label>Reasoning Mode</Label>
+              <Select value={reasoningMode} onChange={(e) => setReasoningMode(e.target.value)} disabled={isReadonly}>
+                {reasoningModeOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </Select>
+              <p className="text-xs text-foreground-secondary">Select standard or pro reasoning execution for GPT-5.6 models</p>
+            </div>
+          )}
           <div className="space-y-2">
             <Label>Reasoning Effort</Label>
             <Select value={reasoningEffort} onChange={(e) => setReasoningEffort(e.target.value)} disabled={isReadonly}>

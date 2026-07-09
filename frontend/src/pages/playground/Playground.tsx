@@ -78,7 +78,11 @@ export function Playground() {
                   <Badge key={t} variant="info">{t}</Badge>
                 ))}
                 {selectedConfig.reasoning_config && (
-                  <Badge variant="info">reasoning: {selectedConfig.reasoning_config.effort}</Badge>
+                  <Badge variant="info">
+                    reasoning: {(selectedConfig.reasoning_config as Record<string, string>).mode
+                      ? `${(selectedConfig.reasoning_config as Record<string, string>).mode} · ${selectedConfig.reasoning_config.effort}`
+                      : selectedConfig.reasoning_config.effort}
+                  </Badge>
                 )}
               </div>
             )}

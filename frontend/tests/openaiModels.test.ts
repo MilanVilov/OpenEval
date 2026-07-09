@@ -3,9 +3,11 @@ import test from 'node:test';
 
 import {
   getReasoningEffortOptions,
+  getReasoningModeOptions,
   OPENAI_CONFIG_MODEL_OPTIONS,
   OPENAI_GRADER_MODEL_OPTIONS,
   supportsReasoning,
+  supportsReasoningMode,
 } from '../src/lib/openaiModels.ts';
 
 function flattenModelValues(
@@ -17,6 +19,10 @@ function flattenModelValues(
 test('config model options include the latest OpenAI frontier models', () => {
   const values = flattenModelValues(OPENAI_CONFIG_MODEL_OPTIONS);
 
+  assert.ok(values.includes('gpt-5.6'));
+  assert.ok(values.includes('gpt-5.6-sol'));
+  assert.ok(values.includes('gpt-5.6-terra'));
+  assert.ok(values.includes('gpt-5.6-luna'));
   assert.ok(values.includes('gpt-5.5'));
   assert.ok(values.includes('gpt-5.5-pro'));
   assert.ok(values.includes('gpt-5.4-pro'));
@@ -34,6 +40,10 @@ test('grader model options reuse the config model catalog', () => {
 
 test('reasoning effort options reflect model-specific constraints', () => {
   assert.deepEqual(
+    getReasoningEffortOptions('gpt-5.6').map((option) => option.value),
+    ['none', 'low', 'medium', 'high', 'xhigh'],
+  );
+  assert.deepEqual(
     getReasoningEffortOptions('gpt-5-pro').map((option) => option.value),
     ['high'],
   );
@@ -46,4 +56,13 @@ test('reasoning effort options reflect model-specific constraints', () => {
     ['low', 'medium', 'high', 'xhigh'],
   );
   assert.equal(supportsReasoning('gpt-4.1'), false);
+});
+
+test('reasoning mode options are only exposed for GPT-5.6 family models', () => {
+  assert.deepEqual(
+    getReasoningModeOptions('gpt-5.6-terra').map((option) => option.value),
+    ['standard', 'pro'],
+  );
+  assert.equal(supportsReasoningMode('gpt-5.6-luna'), true);
+  assert.equal(supportsReasoningMode('gpt-5.5'), false);
 });
