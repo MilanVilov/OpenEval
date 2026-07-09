@@ -172,6 +172,9 @@ export function ConfigDetail() {
               <div>
                 <p className="text-xs text-foreground-secondary uppercase">Reasoning</p>
                 <div className="flex gap-1">
+                  {(config.reasoning_config as Record<string, string>).mode && (
+                    <Badge>mode: {(config.reasoning_config as Record<string, string>).mode}</Badge>
+                  )}
                   <Badge>effort: {config.reasoning_config.effort}</Badge>
                   {(config.reasoning_config as Record<string, string>).summary && (
                     <Badge>summary: {(config.reasoning_config as Record<string, string>).summary}</Badge>
