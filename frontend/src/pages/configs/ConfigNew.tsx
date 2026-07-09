@@ -64,6 +64,9 @@ export function ConfigNew() {
   const reasoningEffortOptions = getReasoningEffortOptions(model);
   const reasoningModeOptions = getReasoningModeOptions(model);
   const isReasoningModel = supportsReasoning(model);
+  const effectiveReasoningEffort = reasoningEffortOptions.some((option) => option.value === reasoningEffort)
+    ? reasoningEffort
+    : (reasoningEffortOptions[0]?.value ?? reasoningEffort);
   const isReasoningModeModel = supportsReasoningMode(model);
 
   useEffect(() => {
@@ -137,7 +140,7 @@ export function ConfigNew() {
       }
       const reasoningConfig = isReasoningModel
         ? {
-          effort: reasoningEffort,
+          effort: effectiveReasoningEffort,
           ...(isReasoningModeModel ? { mode: reasoningMode } : {}),
           ...(reasoningSummary !== 'null' ? { summary: reasoningSummary } : {}),
         }
@@ -222,7 +225,7 @@ export function ConfigNew() {
           )}
           <div className="space-y-2">
             <Label>Reasoning Effort</Label>
-            <Select value={reasoningEffort} onChange={(e) => setReasoningEffort(e.target.value)}>
+            <Select value={effectiveReasoningEffort} onChange={(e) => setReasoningEffort(e.target.value)}>
               {reasoningEffortOptions.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
               ))}
