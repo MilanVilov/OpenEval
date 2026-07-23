@@ -285,3 +285,87 @@ async def test_custom_grader_sends_temperature_for_non_reasoning_model():
 
     call_args = mock_client.responses.create.call_args
     assert call_args.kwargs["temperature"] == 0.0
+
+
+@pytest.mark.asyncio
+async def test_custom_grader_renders_item_template_variables():
+    """Template variables like {{ item.input }} should be resolved from row_data."""
+    grader = CustomGraderComparer({
+        "name": "context_grader",
+        "prompt": (
+            "The user asked: {{ item.input }}\n"
+            "Expected: {expected}\n"
+            "Actual: {actual}\n"
+            "Category: {{ item.category }}"
+        ),
+        "model": "gpt-4o-mini",
+        "threshold": 0.7,
+    })
+
+    mock_client = AsyncMock()
+    mock_client.responses.create = AsyncMock(
+        return_value=_make_openai_response(0.85, "Correct with context"),
+    )
+
+    with patch(_PATCH_TARGET, return_value=mock_client):
+        score, passed, details = await grader.compare(
+            expected="Paris",
+            actual="Paris",
+            row_data={"input": "What is the capital of France?", "category": "geography"},
+        )
+
+    assert score == 0.85
+    assert passed is True
+
+    call_args = mock_client.responses.create.call_args
+    user_msg = call_args.kwargs["input"][1]["content"]
+    assert "What is the capital of France?" in user_msg
+    assert "geography" in user_msg
+    assert "Paris" in user_msg
+
+
+@pytest.mark.asyncio
+async def test_custom_grader_renders_sample_output_text():
+    """{{ sample.output_text }} should resolve to the actual LLM output."""
+    grader = CustomGraderComparer({
+        "name": "sample_grader",
+        "prompt": "LLM said: {{ sample.output_text }}\nExpected: {expected}",
+        "model": "gpt-4o-mini",
+        "threshold": 0.5,
+    })
+
+    mock_client = AsyncMock()
+    mock_client.responses.create = AsyncMock(
+        return_value=_make_openai_response(0.7, "Matched"),
+    )
+
+    with patch(_PATCH_TARGET, return_value=mock_client):
+        await grader.compare(expected="42", actual="The answer is 42")
+
+    call_args = mock_client.responses.create.call_args
+    user_msg = call_args.kwargs["input"][1]["content"]
+    assert "The answer is 42" in user_msg
+    assert "42" in user_msg
+
+
+@pytest.mark.asyncio
+async def test_custom_grader_unresolved_template_left_as_is():
+    """Unresolvable {{ item.missing }} placeholders should remain in the prompt."""
+    grader = CustomGraderComparer({
+        "name": "missing_field",
+        "prompt": "Field: {{ item.nonexistent }}\nExpected: {expected}\nActual: {actual}",
+        "model": "gpt-4o-mini",
+        "threshold": 0.5,
+    })
+
+    mock_client = AsyncMock()
+    mock_client.responses.create = AsyncMock(
+        return_value=_make_openai_response(0.5, "ok"),
+    )
+
+    with patch(_PATCH_TARGET, return_value=mock_client):
+        await grader.compare(expected="a", actual="b", row_data={"input": "hello"})
+
+    call_args = mock_client.responses.create.call_args
+    user_msg = call_args.kwargs["input"][1]["content"]
+    assert "{ item.nonexistent }" in user_msg

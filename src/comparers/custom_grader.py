@@ -4,6 +4,7 @@ import json
 import logging
 
 from src.comparers.base import BaseComparer
+from src.comparers.template_utils import render_template
 from src.providers.openai import REASONING_MODELS
 
 logger = logging.getLogger(__name__)
@@ -53,13 +54,21 @@ class CustomGraderComparer(BaseComparer):
 
         client = get_openai_client()
 
-        # Build the user message from the template
-        if "{expected}" in self.prompt_template or "{actual}" in self.prompt_template:
-            user_message = self.prompt_template.format(expected=expected, actual=actual)
+        # Build the user message from the template.
+        # First, render {{ item.* }} / {{ sample.* }} Jinja-style placeholders,
+        # then handle {expected}/{actual} Python format-string placeholders.
+        context = {
+            "item": row_data or {},
+            "sample": {"output_text": actual},
+        }
+        rendered = render_template(self.prompt_template, context)
+
+        if "{expected}" in rendered or "{actual}" in rendered:
+            user_message = rendered.format(expected=expected, actual=actual)
         else:
             # If no placeholders, append expected/actual context automatically
             user_message = (
-                f"{self.prompt_template}\n\n"
+                f"{rendered}\n\n"
                 f"Expected output:\n{expected}\n\n"
                 f"Actual output:\n{actual}"
             )

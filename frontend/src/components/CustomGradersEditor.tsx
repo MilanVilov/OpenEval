@@ -147,7 +147,10 @@ export function GradersEditor({
                   disabled={disabled}
                 />
                 <p className="text-xs text-foreground-secondary">
-                  Use <code className="font-mono bg-muted px-1 rounded">{'{expected}'}</code> and <code className="font-mono bg-muted px-1 rounded">{'{actual}'}</code> placeholders in your prompt. The LLM must return a JSON score.
+                  Use <code className="font-mono bg-muted px-1 rounded">{'{expected}'}</code> and <code className="font-mono bg-muted px-1 rounded">{'{actual}'}</code> for expected/actual outputs.
+                  {' '}You can also use <code className="font-mono bg-muted px-1 rounded">{'{{ item.input }}'}</code>, <code className="font-mono bg-muted px-1 rounded">{'{{ item.<column> }}'}</code> for any CSV column,
+                  {' '}and <code className="font-mono bg-muted px-1 rounded">{'{{ sample.output_text }}'}</code> for the LLM output.
+                  {' '}The LLM must return a JSON score.
                 </p>
               </>
             )}
