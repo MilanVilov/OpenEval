@@ -108,11 +108,11 @@ function GraderDetailPopover({ detail, status }: GraderDetailPopoverProps) {
           <Info className="h-3 w-3 shrink-0 text-foreground-secondary" />
         </span>
       }
-      className="w-80 min-w-60 resize overflow-auto"
+      className="w-80 min-w-60 min-h-[200px] resize overflow-hidden"
       align="end"
     >
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
+      <div className="flex flex-col h-full space-y-2">
+        <div className="flex items-center justify-between shrink-0">
           <span className="text-xs font-medium text-foreground">Grader Details</span>
           <button
             type="button"
@@ -125,7 +125,9 @@ function GraderDetailPopover({ detail, status }: GraderDetailPopoverProps) {
             {copied ? 'Copied' : 'Copy'}
           </button>
         </div>
-        <CodeBlock code={detail} language="json" maxHeight="200px" />
+        <div className="flex-1 min-h-0 overflow-auto">
+          <CodeBlock code={detail} language="json" />
+        </div>
       </div>
     </Popover>
   );
