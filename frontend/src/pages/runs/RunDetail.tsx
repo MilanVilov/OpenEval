@@ -75,10 +75,27 @@ function GraderDetailPopover({ detail, status }: GraderDetailPopoverProps) {
   const [copied, setCopied] = useState(false);
   const detailJson = JSON.stringify(detail, null, 2);
 
-  async function handleCopy() {
-    await navigator.clipboard.writeText(detailJson);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  function handleCopy(e: React.MouseEvent) {
+    e.stopPropagation();
+    e.preventDefault();
+    // Use fallback for environments where clipboard API may not work
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(detailJson).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      });
+    } else {
+      const textarea = document.createElement('textarea');
+      textarea.value = detailJson;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
   }
 
   return (
@@ -91,7 +108,7 @@ function GraderDetailPopover({ detail, status }: GraderDetailPopoverProps) {
           <Info className="h-3 w-3 shrink-0 text-foreground-secondary" />
         </span>
       }
-      className="w-80"
+      className="w-80 min-w-60 resize overflow-auto"
       align="end"
     >
       <div className="space-y-2">
@@ -99,6 +116,7 @@ function GraderDetailPopover({ detail, status }: GraderDetailPopoverProps) {
           <span className="text-xs font-medium text-foreground">Grader Details</span>
           <button
             type="button"
+            onMouseDown={(e) => e.stopPropagation()}
             onClick={handleCopy}
             className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-foreground-secondary hover:text-foreground hover:bg-background-hover transition-colors"
             title="Copy to clipboard"
