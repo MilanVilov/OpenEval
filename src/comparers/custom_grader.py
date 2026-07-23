@@ -29,6 +29,13 @@ class CustomGraderComparer(BaseComparer):
     """
 
     _SYSTEM_PROMPT = (
+        "You are an evaluation grader. "
+        "Use the evaluation criteria provided by the user to score the content. "
+        "Respond with ONLY a JSON object: "
+        "{\"score\": <float 0.0-1.0>, \"reasoning\": \"<brief explanation>\"}"
+    )
+
+    _SYSTEM_PROMPT_WITH_EXPECTED_ACTUAL = (
         "You are an evaluation grader. You will be given an expected output and an actual output. "
         "Use the evaluation criteria provided by the user to score the actual output. "
         "Respond with ONLY a JSON object: "
@@ -66,9 +73,11 @@ class CustomGraderComparer(BaseComparer):
 
         if "{expected}" in rendered or "{actual}" in rendered:
             user_message = rendered.format(expected=expected, actual=actual)
+            system_prompt = self._SYSTEM_PROMPT_WITH_EXPECTED_ACTUAL
         elif has_template_vars:
             # User explicitly used {{ item.* }} / {{ sample.* }} — don't auto-append
             user_message = rendered
+            system_prompt = self._SYSTEM_PROMPT
         else:
             # If no placeholders at all, append expected/actual context automatically
             user_message = (
@@ -76,11 +85,12 @@ class CustomGraderComparer(BaseComparer):
                 f"Expected output:\n{expected}\n\n"
                 f"Actual output:\n{actual}"
             )
+            system_prompt = self._SYSTEM_PROMPT_WITH_EXPECTED_ACTUAL
 
         request_kwargs: dict = {
             "model": self.model,
             "input": [
-                {"role": "system", "content": self._SYSTEM_PROMPT},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_message},
             ],
         }
@@ -112,4 +122,5 @@ class CustomGraderComparer(BaseComparer):
             "threshold": self.threshold,
             "model": self.model,
             "reasoning": reasoning,
+            "raw_response": text,
         }
