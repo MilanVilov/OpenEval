@@ -152,6 +152,10 @@ export function GradersEditor({
                   {' '}and <code className="font-mono bg-muted px-1 rounded">{'{{ sample.output_text }}'}</code> for the LLM output.
                   {' '}The LLM must return a JSON score.
                 </p>
+                <p className="text-xs text-foreground-secondary">
+                  If no placeholders are used, the expected and actual outputs are automatically appended to your prompt.
+                  {' '}When using <code className="font-mono bg-muted px-1 rounded">{'{{ item.* }}'}</code> or <code className="font-mono bg-muted px-1 rounded">{'{{ sample.* }}'}</code> templates, only your prompt is sent — nothing is auto-appended.
+                </p>
               </>
             )}
 
