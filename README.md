@@ -1,18 +1,37 @@
 # OpenEval
 
-An open-source AI prompt & tool evaluation framework. Configure prompts, models, and tools (including OpenAI file_search and code_interpreter), upload evaluation datasets as CSV, run evaluations with parallel execution, and compare results with pluggable comparers.
+**Ship better AI workflows with evidence, not vibes.** OpenEval is an open-source workspace for testing prompts, models, and tools against real data—then seeing exactly where they succeed, fail, and improve.
+
+Bring a CSV, configure your prompt and OpenAI tools, add the graders that matter, and run a repeatable evaluation in minutes. No accounts or multi-tenant setup required.
+
+## What you can do
+
+- **Test real AI workflows** — Combine system prompts, models, structured outputs, reasoning settings, and hosted tools such as file search, code interpreter, and containers.
+- **Turn data into useful test cases** — Upload CSVs, import remote data, map fields into datasets, and translate input, expected-output, and model-output rows when you need a shared language for review.
+- **Grade what actually matters** — Use prompt graders with your own rubric and CSV-field context, or combine string, Python, semantic-similarity, JSON-schema, and JSON-field checks with thresholds and weights.
+- **Find the signal quickly** — Run rows in parallel, watch live progress, inspect per-row outputs and grader reasoning, sort failures first, and export the details.
+- **Improve with confidence** — Compare runs side by side, experiment in the playground, schedule recurring evaluations, and extend the system with custom comparer plugins.
+
+## Get started
+
+```bash
+git clone https://github.com/your-org/OpenEval.git
+cd OpenEval
+cp .env.example .env
+# Add OPENAI_API_KEY, APP_MYSQL_CLIENT_PASS, and MYSQL_ROOT_PASSWORD to .env
+docker compose up --build
+```
+
+Open [http://localhost:8000](http://localhost:8000), then create a config, upload a dataset, and launch your first run.
 
 ## Features
 
-- **Eval Configuration** — Define system prompts, model settings, tools, and comparers
-- **Dataset Management** — Upload CSV datasets with input/expected_output columns
-- **Vector Store Management** — Create and manage OpenAI vector stores for file_search
-- **Parallel Evaluation** — Run evals with configurable concurrency via asyncio
-- **6 Built-in Comparers** — exact_match, pattern_match, json_schema_match, json_field_match, semantic_similarity, llm_judge
-- **Plugin System** — Add custom comparers via Python entry points
-- **Live Progress** — Real-time progress tracking with polling
-- **Run Comparison** — Side-by-side comparison of two evaluation runs
-- **Dark UI** — Cursor Dark Midnight theme with responsive layout
+- **Configurable evaluations** — Define prompts, models, hosted tools, response formats, concurrency, and reusable configurations
+- **Flexible data** — Build datasets from CSV uploads or data sources, map fields, and translate rows for review
+- **Multiple graders per run** — Combine prompt, string, Python, semantic, JSON schema, and JSON field graders with custom thresholds and weights
+- **Fast, explainable results** — Parallel execution, live progress, per-grader statistics and reasoning, failure sorting, and CSV export
+- **Experiment and automate** — Playground, side-by-side run comparisons, recurring schedules, vector stores, and containers
+- **Extensible by design** — Add custom comparers through Python entry points
 
 ## Tech Stack
 
