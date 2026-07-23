@@ -27,7 +27,7 @@ import {
 } from '@/lib/translateRowsSequentially';
 import { formatDate, formatPercent, formatTokens } from '@/lib/utils';
 import type { EvalResult, EvalRun, GraderStat, RunProgress } from '@/types/run';
-import { ArrowDown, ArrowUp, ArrowUpDown, Download, Info, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, Check, Copy, Download, Info, Trash2 } from 'lucide-react';
 import { getNextGraderSort, sortResultsByGrader } from './runDetailSorting';
 import type { GraderSort } from './runDetailSorting';
 import {
@@ -72,6 +72,15 @@ interface GraderDetailPopoverProps {
 }
 
 function GraderDetailPopover({ detail, status }: GraderDetailPopoverProps) {
+  const [copied, setCopied] = useState(false);
+  const detailJson = JSON.stringify(detail, null, 2);
+
+  async function handleCopy() {
+    await navigator.clipboard.writeText(detailJson);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
   return (
     <Popover
       trigger={
@@ -86,7 +95,18 @@ function GraderDetailPopover({ detail, status }: GraderDetailPopoverProps) {
       align="end"
     >
       <div className="space-y-2">
-        <span className="text-xs font-medium text-foreground">Grader Details</span>
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-medium text-foreground">Grader Details</span>
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-foreground-secondary hover:text-foreground hover:bg-background-hover transition-colors"
+            title="Copy to clipboard"
+          >
+            {copied ? <Check className="h-3 w-3 text-success" /> : <Copy className="h-3 w-3" />}
+            {copied ? 'Copied' : 'Copy'}
+          </button>
+        </div>
         <CodeBlock code={detail} language="json" maxHeight="200px" />
       </div>
     </Popover>

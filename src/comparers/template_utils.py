@@ -10,6 +10,11 @@ import re
 _PLACEHOLDER_RE = re.compile(r"\{\{\s*([\w]+(?:\.[\w]+)*)\s*\}\}")
 
 
+def has_template_placeholders(template: str) -> bool:
+    """Return True if the template contains any ``{{ ... }}`` placeholders."""
+    return _PLACEHOLDER_RE.search(template) is not None
+
+
 def render_template(template: str, context: dict) -> str:
     """Replace ``{{ path.to.value }}`` tokens with values from *context*.
 

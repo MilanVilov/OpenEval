@@ -369,3 +369,35 @@ async def test_custom_grader_unresolved_template_left_as_is():
     call_args = mock_client.responses.create.call_args
     user_msg = call_args.kwargs["input"][1]["content"]
     assert "{ item.nonexistent }" in user_msg
+
+
+@pytest.mark.asyncio
+async def test_custom_grader_template_vars_without_expected_actual_no_auto_append():
+    """When using {{ item.* }} without {expected}/{actual}, don't auto-append expected/actual."""
+    grader = CustomGraderComparer({
+        "name": "standalone_template",
+        "prompt": "Check if the text in: {{ item.input }} is longer than 100 chars.",
+        "model": "gpt-4o-mini",
+        "threshold": 0.7,
+    })
+
+    mock_client = AsyncMock()
+    mock_client.responses.create = AsyncMock(
+        return_value=_make_openai_response(0.9, "Long enough"),
+    )
+
+    with patch(_PATCH_TARGET, return_value=mock_client):
+        await grader.compare(
+            expected="some expected",
+            actual="some actual",
+            row_data={"input": "A very long input text that should be evaluated"},
+        )
+
+    call_args = mock_client.responses.create.call_args
+    user_msg = call_args.kwargs["input"][1]["content"]
+    # Template variable should be resolved
+    assert "A very long input text that should be evaluated" in user_msg
+    # Expected/actual should NOT be auto-appended
+    assert "Expected output:" not in user_msg
+    assert "Actual output:" not in user_msg
+    assert "some expected" not in user_msg
