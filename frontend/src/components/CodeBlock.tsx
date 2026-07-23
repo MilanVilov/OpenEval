@@ -74,6 +74,7 @@ export function CodeBlock({ code, language = 'json', maxHeight = '400px', expand
           showLineNumbers={codeStr.split('\n').length > 5}
           lineNumberStyle={{ color: '#4a4a5c', fontSize: '11px', minWidth: '2.5em' }}
           wrapLongLines
+          customStyle={{ wordBreak: 'break-all', whiteSpace: 'pre-wrap' }}
         >
           {codeStr}
         </SyntaxHighlighter>
