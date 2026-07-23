@@ -195,13 +195,18 @@ async def _trigger_run(schedule_id: str) -> None:
         )
         run_id = run.id
 
-    _track_background_task(asyncio.create_task(run_evaluation(run_id)))
+    start_run_task(run_id)
 
 
 def _track_background_task(task: asyncio.Task[None]) -> None:
-    """Keep a strong reference to one fire-and-forget scheduler task."""
+    """Keep a strong reference to one fire-and-forget run task."""
     _background_tasks.add(task)
     task.add_done_callback(_background_tasks.discard)
+
+
+def start_run_task(run_id: str) -> None:
+    """Start one eval run as a tracked fire-and-forget asyncio task."""
+    _track_background_task(asyncio.create_task(run_evaluation(run_id)))
 
 
 # Process-wide singleton accessor -------------------------------------------

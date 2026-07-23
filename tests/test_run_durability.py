@@ -91,6 +91,25 @@ async def _create_run_fixture() -> tuple[str, str, str]:
         return config.id, dataset.id, run.id
 
 
+async def _create_config_dataset_fixture() -> tuple[str, str]:
+    """Insert a config and dataset for run-launch API tests."""
+    async with get_session_context() as session:
+        config = await ConfigRepository(session).create(
+            name="Config",
+            system_prompt="Prompt",
+            model="gpt-4.1",
+            temperature=0.0,
+        )
+        dataset = await DatasetRepository(session).create(
+            name="Dataset",
+            file_path="/tmp/dataset.csv",
+            row_count=1,
+            columns=["input", "expected_output"],
+            csv_content="input,expected_output\nhello,world\n",
+        )
+        return config.id, dataset.id
+
+
 @pytest.mark.asyncio
 async def test_result_repository_upsert_batch_replaces_existing_row(_create_tables):
     """Upserted results should replace an existing row instead of duplicating it."""
@@ -156,3 +175,18 @@ async def test_progress_endpoint_marks_stale_run_failed(client: AsyncClient):
     assert stored_run is not None
     assert stored_run.status == "failed"
     assert stored_run.error_message == STALE_RUN_ERROR_MESSAGE
+
+
+@pytest.mark.asyncio
+async def test_create_run_starts_tracked_async_task(client: AsyncClient):
+    """Manual run creation should launch the tracked async runner task."""
+    config_id, dataset_id = await _create_config_dataset_fixture()
+
+    with patch("src.routers.runs.start_run_task") as mock_start_run_task:
+        response = await client.post(
+            "/api/runs",
+            json={"eval_config_id": config_id, "dataset_id": dataset_id},
+        )
+
+    assert response.status_code == 201
+    mock_start_run_task.assert_called_once()
