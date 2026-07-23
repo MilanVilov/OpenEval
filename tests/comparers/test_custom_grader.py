@@ -68,6 +68,7 @@ async def test_custom_grader_passes_above_threshold():
     assert details["reasoning"] == "Great tone match"
     assert details["threshold"] == 0.7
     assert details["model"] == "gpt-4o-mini"
+    assert details["raw_response"] == '{"score": 0.9, "reasoning": "Great tone match"}'
 
     # Verify prompt template was interpolated correctly
     call_args = mock_client.responses.create.call_args

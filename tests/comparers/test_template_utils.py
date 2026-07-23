@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.comparers.template_utils import render_template
+from src.comparers.template_utils import has_template_placeholders, render_template
 
 
 class TestRenderTemplate:
@@ -50,3 +50,19 @@ class TestRenderTemplate:
     def test_empty_template(self):
         result = render_template("", {"item": {"x": "y"}})
         assert result == ""
+
+
+class TestHasTemplatePlaceholders:
+    """Test the has_template_placeholders helper."""
+
+    def test_detects_item_placeholder(self):
+        assert has_template_placeholders("{{ item.input }}") is True
+
+    def test_detects_sample_placeholder(self):
+        assert has_template_placeholders("{{ sample.output_text }}") is True
+
+    def test_no_placeholders(self):
+        assert has_template_placeholders("plain text {expected}") is False
+
+    def test_empty_string(self):
+        assert has_template_placeholders("") is False
