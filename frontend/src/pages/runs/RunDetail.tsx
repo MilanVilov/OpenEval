@@ -108,10 +108,10 @@ function GraderDetailPopover({ detail, status }: GraderDetailPopoverProps) {
           <Info className="h-3 w-3 shrink-0 text-foreground-secondary" />
         </span>
       }
-      className="w-80 min-w-60 min-h-[200px] resize overflow-hidden"
+      className="w-80 min-w-60 min-h-[200px] resize overflow-hidden flex flex-col"
       align="end"
     >
-      <div className="flex flex-col h-full space-y-2">
+      <div className="flex flex-col flex-1 min-h-0 space-y-2">
         <div className="flex items-center justify-between shrink-0">
           <span className="text-xs font-medium text-foreground">Grader Details</span>
           <button
