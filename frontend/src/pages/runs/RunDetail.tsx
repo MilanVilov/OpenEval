@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { translateMappedRows } from '@/api/dataSources';
 import { deleteRun, exportRun, getRun, getRunProgress, getRunResults } from '@/api/runs';
+import { CodeBlock } from '@/components/CodeBlock';
 import { InputTranslationActions } from '@/components/dataSources/InputTranslationActions';
 import { ListPagination } from '@/components/ListControls';
 import { LoadingSkeleton } from '@/components/LoadingSkeleton';
@@ -26,7 +27,7 @@ import {
 } from '@/lib/translateRowsSequentially';
 import { formatDate, formatPercent, formatTokens } from '@/lib/utils';
 import type { EvalResult, EvalRun, GraderStat, RunProgress } from '@/types/run';
-import { ArrowDown, ArrowUp, ArrowUpDown, Download, Info, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, Check, Copy, Download, Info, Trash2 } from 'lucide-react';
 import { getNextGraderSort, sortResultsByGrader } from './runDetailSorting';
 import type { GraderSort } from './runDetailSorting';
 import {
@@ -63,6 +64,73 @@ function buildTranslationErrorMessage(
     return baseMessage;
   }
   return `${baseMessage} Translation stopped after ${progress.completed} of ${progress.total} rows.`;
+}
+
+interface GraderDetailPopoverProps {
+  detail: Record<string, unknown>;
+  status: { variant: 'default' | 'success' | 'error'; label: string };
+}
+
+function GraderDetailPopover({ detail, status }: GraderDetailPopoverProps) {
+  const [copied, setCopied] = useState(false);
+  const detailJson = JSON.stringify(detail, null, 2);
+
+  function handleCopy(e: React.MouseEvent) {
+    e.stopPropagation();
+    e.preventDefault();
+    // Use fallback for environments where clipboard API may not work
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(detailJson).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      });
+    } else {
+      const textarea = document.createElement('textarea');
+      textarea.value = detailJson;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  }
+
+  return (
+    <Popover
+      trigger={
+        <span className="inline-flex items-center gap-1">
+          <Badge variant={status.variant}>
+            {status.label}
+          </Badge>
+          <Info className="h-3 w-3 shrink-0 text-foreground-secondary" />
+        </span>
+      }
+      className="w-80 min-w-60 min-h-[200px] resize overflow-hidden flex flex-col"
+      align="end"
+    >
+      <div className="flex flex-col flex-1 min-h-0 space-y-2">
+        <div className="flex items-center justify-between shrink-0">
+          <span className="text-xs font-medium text-foreground">Grader Details</span>
+          <button
+            type="button"
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={handleCopy}
+            className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-foreground-secondary hover:text-foreground hover:bg-background-hover transition-colors"
+            title="Copy to clipboard"
+          >
+            {copied ? <Check className="h-3 w-3 text-success" /> : <Copy className="h-3 w-3" />}
+            {copied ? 'Copied' : 'Copy'}
+          </button>
+        </div>
+        <div className="flex-1 min-h-0 overflow-auto">
+          <CodeBlock code={detail} language="json" />
+        </div>
+      </div>
+    </Popover>
+  );
 }
 
 export function RunDetail() {
@@ -611,10 +679,8 @@ export function RunDetail() {
                                 typeof detail.error === 'string' ? detail.error : null,
                               );
                               return (
-                                <TableCell key={name} className="text-center" title={JSON.stringify(detail, null, 2)}>
-                                  <Badge variant={status.variant}>
-                                    {status.label}
-                                  </Badge>
+                                <TableCell key={name} className="text-center">
+                                  <GraderDetailPopover detail={detail} status={status} />
                                 </TableCell>
                               );
                             })

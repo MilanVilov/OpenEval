@@ -68,10 +68,11 @@ async def test_custom_grader_passes_above_threshold():
     assert details["reasoning"] == "Great tone match"
     assert details["threshold"] == 0.7
     assert details["model"] == "gpt-4o-mini"
+    assert details["raw_response"] == '{"score": 0.9, "reasoning": "Great tone match"}'
 
     # Verify prompt template was interpolated correctly
     call_args = mock_client.responses.create.call_args
-    user_msg = call_args.kwargs["input"][1]["content"]
+    user_msg = call_args.kwargs["input"][0]["content"]
     assert "Hello there" in user_msg
     assert "Hi there!" in user_msg
 
@@ -173,17 +174,17 @@ async def test_custom_grader_auto_appends_context_when_no_placeholders():
         await grader.compare(expected="foo", actual="bar")
 
     call_args = mock_client.responses.create.call_args
-    user_msg = call_args.kwargs["input"][1]["content"]
+    user_msg = call_args.kwargs["input"][0]["content"]
     assert "Rate the quality of the response." in user_msg
     assert "Expected output:\nfoo" in user_msg
     assert "Actual output:\nbar" in user_msg
 
 
 @pytest.mark.asyncio
-async def test_custom_grader_uses_system_prompt():
-    """The system prompt should instruct the LLM to return JSON."""
+async def test_custom_grader_uses_json_schema_response_format():
+    """Grader should use structured output via json_schema, not prompt instructions."""
     grader = CustomGraderComparer({
-        "name": "sys_check",
+        "name": "schema_check",
         "prompt": "Check: {expected} vs {actual}",
         "model": "gpt-4o-mini",
         "threshold": 0.5,
@@ -198,9 +199,18 @@ async def test_custom_grader_uses_system_prompt():
         await grader.compare(expected="a", actual="a")
 
     call_args = mock_client.responses.create.call_args
-    system_msg = call_args.kwargs["input"][0]["content"]
-    assert "evaluation grader" in system_msg.lower()
-    assert "JSON" in system_msg
+    messages = call_args.kwargs["input"]
+    # Only one message (user), no system message
+    assert len(messages) == 1
+    assert messages[0]["role"] == "user"
+    # No JSON format instruction in the user message itself
+    assert "Respond with ONLY" not in messages[0]["content"]
+    # JSON schema enforced via text.format
+    text_format = call_args.kwargs["text"]["format"]
+    assert text_format["type"] == "json_schema"
+    assert text_format["strict"] is True
+    assert "score" in text_format["schema"]["properties"]
+    assert "reasoning" in text_format["schema"]["properties"]
 
 
 @pytest.mark.asyncio
@@ -285,3 +295,119 @@ async def test_custom_grader_sends_temperature_for_non_reasoning_model():
 
     call_args = mock_client.responses.create.call_args
     assert call_args.kwargs["temperature"] == 0.0
+
+
+@pytest.mark.asyncio
+async def test_custom_grader_renders_item_template_variables():
+    """Template variables like {{ item.input }} should be resolved from row_data."""
+    grader = CustomGraderComparer({
+        "name": "context_grader",
+        "prompt": (
+            "The user asked: {{ item.input }}\n"
+            "Expected: {expected}\n"
+            "Actual: {actual}\n"
+            "Category: {{ item.category }}"
+        ),
+        "model": "gpt-4o-mini",
+        "threshold": 0.7,
+    })
+
+    mock_client = AsyncMock()
+    mock_client.responses.create = AsyncMock(
+        return_value=_make_openai_response(0.85, "Correct with context"),
+    )
+
+    with patch(_PATCH_TARGET, return_value=mock_client):
+        score, passed, details = await grader.compare(
+            expected="Paris",
+            actual="Paris",
+            row_data={"input": "What is the capital of France?", "category": "geography"},
+        )
+
+    assert score == 0.85
+    assert passed is True
+
+    call_args = mock_client.responses.create.call_args
+    user_msg = call_args.kwargs["input"][0]["content"]
+    assert "What is the capital of France?" in user_msg
+    assert "geography" in user_msg
+    assert "Paris" in user_msg
+
+
+@pytest.mark.asyncio
+async def test_custom_grader_renders_sample_output_text():
+    """{{ sample.output_text }} should resolve to the actual LLM output."""
+    grader = CustomGraderComparer({
+        "name": "sample_grader",
+        "prompt": "LLM said: {{ sample.output_text }}\nExpected: {expected}",
+        "model": "gpt-4o-mini",
+        "threshold": 0.5,
+    })
+
+    mock_client = AsyncMock()
+    mock_client.responses.create = AsyncMock(
+        return_value=_make_openai_response(0.7, "Matched"),
+    )
+
+    with patch(_PATCH_TARGET, return_value=mock_client):
+        await grader.compare(expected="42", actual="The answer is 42")
+
+    call_args = mock_client.responses.create.call_args
+    user_msg = call_args.kwargs["input"][0]["content"]
+    assert "The answer is 42" in user_msg
+    assert "42" in user_msg
+
+
+@pytest.mark.asyncio
+async def test_custom_grader_unresolved_template_left_as_is():
+    """Unresolvable {{ item.missing }} placeholders should remain in the prompt."""
+    grader = CustomGraderComparer({
+        "name": "missing_field",
+        "prompt": "Field: {{ item.nonexistent }}\nExpected: {expected}\nActual: {actual}",
+        "model": "gpt-4o-mini",
+        "threshold": 0.5,
+    })
+
+    mock_client = AsyncMock()
+    mock_client.responses.create = AsyncMock(
+        return_value=_make_openai_response(0.5, "ok"),
+    )
+
+    with patch(_PATCH_TARGET, return_value=mock_client):
+        await grader.compare(expected="a", actual="b", row_data={"input": "hello"})
+
+    call_args = mock_client.responses.create.call_args
+    user_msg = call_args.kwargs["input"][0]["content"]
+    assert "{ item.nonexistent }" in user_msg
+
+
+@pytest.mark.asyncio
+async def test_custom_grader_template_vars_without_expected_actual_no_auto_append():
+    """When using {{ item.* }} without {expected}/{actual}, don't auto-append expected/actual."""
+    grader = CustomGraderComparer({
+        "name": "standalone_template",
+        "prompt": "Check if the text in: {{ item.input }} is longer than 100 chars.",
+        "model": "gpt-4o-mini",
+        "threshold": 0.7,
+    })
+
+    mock_client = AsyncMock()
+    mock_client.responses.create = AsyncMock(
+        return_value=_make_openai_response(0.9, "Long enough"),
+    )
+
+    with patch(_PATCH_TARGET, return_value=mock_client):
+        await grader.compare(
+            expected="some expected",
+            actual="some actual",
+            row_data={"input": "A very long input text that should be evaluated"},
+        )
+
+    call_args = mock_client.responses.create.call_args
+    user_msg = call_args.kwargs["input"][0]["content"]
+    # Template variable should be resolved
+    assert "A very long input text that should be evaluated" in user_msg
+    # Expected/actual should NOT be auto-appended
+    assert "Expected output:" not in user_msg
+    assert "Actual output:" not in user_msg
+    assert "some expected" not in user_msg

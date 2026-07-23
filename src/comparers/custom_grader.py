@@ -4,6 +4,7 @@ import json
 import logging
 
 from src.comparers.base import BaseComparer
+from src.comparers.template_utils import has_template_placeholders, render_template
 from src.providers.openai import REASONING_MODELS
 
 logger = logging.getLogger(__name__)
@@ -16,7 +17,7 @@ class CustomGraderComparer(BaseComparer):
     eval runner using per-config grader definitions stored in ``custom_graders``.
 
     Each grader carries its own evaluation prompt containing ``{expected}`` and
-    ``{actual}`` placeholders.  The LLM must respond with a JSON object::
+    ``{actual}`` placeholders.  The LLM responds with a structured JSON object::
 
         {"score": <float 0.0-1.0>, "reasoning": "<explanation>"}
 
@@ -27,12 +28,20 @@ class CustomGraderComparer(BaseComparer):
         threshold (float | None): Minimum score to pass. ``None`` makes the grader informational.
     """
 
-    _SYSTEM_PROMPT = (
-        "You are an evaluation grader. You will be given an expected output and an actual output. "
-        "Use the evaluation criteria provided by the user to score the actual output. "
-        "Respond with ONLY a JSON object: "
-        "{\"score\": <float 0.0-1.0>, \"reasoning\": \"<brief explanation>\"}"
-    )
+    _RESPONSE_FORMAT = {
+        "type": "json_schema",
+        "name": "grader_result",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "score": {"type": "number"},
+                "reasoning": {"type": "string"},
+            },
+            "required": ["score", "reasoning"],
+            "additionalProperties": False,
+        },
+    }
 
     def __init__(self, config: dict | None = None) -> None:
         super().__init__(config)
@@ -53,13 +62,25 @@ class CustomGraderComparer(BaseComparer):
 
         client = get_openai_client()
 
-        # Build the user message from the template
-        if "{expected}" in self.prompt_template or "{actual}" in self.prompt_template:
-            user_message = self.prompt_template.format(expected=expected, actual=actual)
+        # Build the user message from the template.
+        # First, render {{ item.* }} / {{ sample.* }} Jinja-style placeholders,
+        # then handle {expected}/{actual} Python format-string placeholders.
+        context = {
+            "item": row_data or {},
+            "sample": {"output_text": actual},
+        }
+        has_template_vars = has_template_placeholders(self.prompt_template)
+        rendered = render_template(self.prompt_template, context)
+
+        if "{expected}" in rendered or "{actual}" in rendered:
+            user_message = rendered.format(expected=expected, actual=actual)
+        elif has_template_vars:
+            # User explicitly used {{ item.* }} / {{ sample.* }} — don't auto-append
+            user_message = rendered
         else:
-            # If no placeholders, append expected/actual context automatically
+            # If no placeholders at all, append expected/actual context automatically
             user_message = (
-                f"{self.prompt_template}\n\n"
+                f"{rendered}\n\n"
                 f"Expected output:\n{expected}\n\n"
                 f"Actual output:\n{actual}"
             )
@@ -67,9 +88,9 @@ class CustomGraderComparer(BaseComparer):
         request_kwargs: dict = {
             "model": self.model,
             "input": [
-                {"role": "system", "content": self._SYSTEM_PROMPT},
                 {"role": "user", "content": user_message},
             ],
+            "text": {"format": self._RESPONSE_FORMAT},
         }
         if self.model not in REASONING_MODELS:
             request_kwargs["temperature"] = 0.0
@@ -99,4 +120,5 @@ class CustomGraderComparer(BaseComparer):
             "threshold": self.threshold,
             "model": self.model,
             "reasoning": reasoning,
+            "raw_response": text,
         }

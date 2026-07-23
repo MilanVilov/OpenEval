@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,8 +22,8 @@ from src.routers.schemas.runs import (
     RunResponse,
 )
 from src.services.csv_export import build_run_export_csv, sanitize_export_name
-from src.services.eval_runner import run_evaluation
 from src.services.run_monitor import fail_stale_run, fail_stale_runs
+from src.services.scheduler import start_run_task
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 
@@ -102,7 +102,6 @@ async def list_runs(
 @router.post("", response_model=RunResponse, status_code=201)
 async def create_run(
     body: CreateRunRequest,
-    background_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_session),
 ) -> RunResponse:
     """Create and start an evaluation run."""
@@ -119,7 +118,7 @@ async def create_run(
         dataset_id=body.dataset_id,
         total_rows=dataset.row_count,
     )
-    background_tasks.add_task(run_evaluation, run.id)
+    start_run_task(run.id)
 
     # Re-fetch with relationships loaded
     run = await RunRepository(session).get_by_id(run.id)

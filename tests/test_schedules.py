@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -283,10 +283,10 @@ async def test_run_now_creates_scheduled_run(client: AsyncClient) -> None:
     assert resp.status_code == 201
     sid = resp.json()["id"]
 
-    # Patch out run_evaluation so we don't actually hit OpenAI.
-    with patch("src.routers.schedules.run_evaluation", AsyncMock(return_value=None)):
+    with patch("src.routers.schedules.start_run_task") as mock_start_run_task:
         resp = await client.post(f"/api/schedules/{sid}/run-now")
         assert resp.status_code == 200
+        mock_start_run_task.assert_called_once()
 
     # A new run should now exist for this config/dataset.
     resp = await client.get("/api/runs")

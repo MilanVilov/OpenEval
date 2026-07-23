@@ -35,6 +35,10 @@ services:
       - UPLOAD_DIR=./data/uploads
       - PORT=${PORT:-8000}
       - CORS_ORIGINS=${CORS_ORIGINS:-}
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - SENTRY_ENVIRONMENT=${SENTRY_ENVIRONMENT:-}
+      - SENTRY_RELEASE=${SENTRY_RELEASE:-}
+      - SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE:-0.0}
     volumes:
       - openeval-data:/app/data
 

@@ -47,6 +47,7 @@ export function Popover({ trigger, children, className, align = 'center' }: Popo
       {open && (
         <div
           role="dialog"
+          onMouseDown={(e) => e.stopPropagation()}
           className={cn(
             'absolute z-50 mt-2 rounded-md border border-border bg-background-card p-3 shadow-medium animate-fade-in',
             alignClass,

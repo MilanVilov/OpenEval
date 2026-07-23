@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models import Schedule
@@ -20,8 +20,7 @@ from src.routers.schemas.schedules import (
     ScheduleResponse,
     ScheduleUpdate,
 )
-from src.services.eval_runner import run_evaluation
-from src.services.scheduler import get_scheduler_service, is_valid_cron
+from src.services.scheduler import get_scheduler_service, is_valid_cron, start_run_task
 from src.services.slack_notifier import is_allowed_webhook_url
 
 router = APIRouter(prefix="/api/schedules", tags=["schedules"])
@@ -215,7 +214,6 @@ async def toggle_schedule(
 @router.post("/{schedule_id}/run-now", response_model=ScheduleResponse)
 async def run_schedule_now(
     schedule_id: str,
-    background_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_session),
 ) -> ScheduleResponse:
     """Trigger an immediate run for a schedule (does not alter cron timing)."""
@@ -237,7 +235,7 @@ async def run_schedule_now(
         scheduled_by_id=schedule.id,
     )
     await schedule_repo.mark_triggered(schedule.id, when=datetime.now(UTC))
-    background_tasks.add_task(run_evaluation, run.id)
+    start_run_task(run.id)
 
     schedule = await schedule_repo.get_by_id(schedule_id)
     assert schedule is not None
