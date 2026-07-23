@@ -28,17 +28,8 @@ class CustomGraderComparer(BaseComparer):
         threshold (float | None): Minimum score to pass. ``None`` makes the grader informational.
     """
 
-    _SYSTEM_PROMPT = (
-        "You are an evaluation grader. "
-        "Use the evaluation criteria provided by the user to score the content. "
-        "Respond with ONLY a JSON object: "
-        "{\"score\": <float 0.0-1.0>, \"reasoning\": \"<brief explanation>\"}"
-    )
-
-    _SYSTEM_PROMPT_WITH_EXPECTED_ACTUAL = (
-        "You are an evaluation grader. You will be given an expected output and an actual output. "
-        "Use the evaluation criteria provided by the user to score the actual output. "
-        "Respond with ONLY a JSON object: "
+    _RESPONSE_FORMAT_INSTRUCTION = (
+        "\n\nRespond with ONLY a JSON object: "
         "{\"score\": <float 0.0-1.0>, \"reasoning\": \"<brief explanation>\"}"
     )
 
@@ -73,11 +64,9 @@ class CustomGraderComparer(BaseComparer):
 
         if "{expected}" in rendered or "{actual}" in rendered:
             user_message = rendered.format(expected=expected, actual=actual)
-            system_prompt = self._SYSTEM_PROMPT_WITH_EXPECTED_ACTUAL
         elif has_template_vars:
             # User explicitly used {{ item.* }} / {{ sample.* }} — don't auto-append
             user_message = rendered
-            system_prompt = self._SYSTEM_PROMPT
         else:
             # If no placeholders at all, append expected/actual context automatically
             user_message = (
@@ -85,12 +74,13 @@ class CustomGraderComparer(BaseComparer):
                 f"Expected output:\n{expected}\n\n"
                 f"Actual output:\n{actual}"
             )
-            system_prompt = self._SYSTEM_PROMPT_WITH_EXPECTED_ACTUAL
+
+        # Append JSON response format instruction to the user message
+        user_message += self._RESPONSE_FORMAT_INSTRUCTION
 
         request_kwargs: dict = {
             "model": self.model,
             "input": [
-                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_message},
             ],
         }
