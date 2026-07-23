@@ -17,7 +17,7 @@ class CustomGraderComparer(BaseComparer):
     eval runner using per-config grader definitions stored in ``custom_graders``.
 
     Each grader carries its own evaluation prompt containing ``{expected}`` and
-    ``{actual}`` placeholders.  The LLM must respond with a JSON object::
+    ``{actual}`` placeholders.  The LLM responds with a structured JSON object::
 
         {"score": <float 0.0-1.0>, "reasoning": "<explanation>"}
 
@@ -28,10 +28,20 @@ class CustomGraderComparer(BaseComparer):
         threshold (float | None): Minimum score to pass. ``None`` makes the grader informational.
     """
 
-    _RESPONSE_FORMAT_INSTRUCTION = (
-        "\n\nRespond with ONLY a JSON object: "
-        "{\"score\": <float 0.0-1.0>, \"reasoning\": \"<brief explanation>\"}"
-    )
+    _RESPONSE_FORMAT = {
+        "type": "json_schema",
+        "name": "grader_result",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "score": {"type": "number"},
+                "reasoning": {"type": "string"},
+            },
+            "required": ["score", "reasoning"],
+            "additionalProperties": False,
+        },
+    }
 
     def __init__(self, config: dict | None = None) -> None:
         super().__init__(config)
@@ -75,14 +85,12 @@ class CustomGraderComparer(BaseComparer):
                 f"Actual output:\n{actual}"
             )
 
-        # Append JSON response format instruction to the user message
-        user_message += self._RESPONSE_FORMAT_INSTRUCTION
-
         request_kwargs: dict = {
             "model": self.model,
             "input": [
                 {"role": "user", "content": user_message},
             ],
+            "text": {"format": self._RESPONSE_FORMAT},
         }
         if self.model not in REASONING_MODELS:
             request_kwargs["temperature"] = 0.0

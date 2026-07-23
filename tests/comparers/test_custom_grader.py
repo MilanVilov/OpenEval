@@ -180,10 +180,10 @@ async def test_custom_grader_auto_appends_context_when_no_placeholders():
 
 
 @pytest.mark.asyncio
-async def test_custom_grader_no_system_prompt_and_json_format_in_user_message():
-    """No system prompt; JSON response format instruction appended to user message."""
+async def test_custom_grader_uses_json_schema_response_format():
+    """Grader should use structured output via json_schema, not prompt instructions."""
     grader = CustomGraderComparer({
-        "name": "sys_check",
+        "name": "schema_check",
         "prompt": "Check: {expected} vs {actual}",
         "model": "gpt-4o-mini",
         "threshold": 0.5,
@@ -202,9 +202,14 @@ async def test_custom_grader_no_system_prompt_and_json_format_in_user_message():
     # Only one message (user), no system message
     assert len(messages) == 1
     assert messages[0]["role"] == "user"
-    # JSON format instruction is appended
-    assert "JSON" in messages[0]["content"]
-    assert "score" in messages[0]["content"]
+    # No JSON format instruction in the user message itself
+    assert "Respond with ONLY" not in messages[0]["content"]
+    # JSON schema enforced via text.format
+    text_format = call_args.kwargs["text"]["format"]
+    assert text_format["type"] == "json_schema"
+    assert text_format["strict"] is True
+    assert "score" in text_format["schema"]["properties"]
+    assert "reasoning" in text_format["schema"]["properties"]
 
 
 @pytest.mark.asyncio
