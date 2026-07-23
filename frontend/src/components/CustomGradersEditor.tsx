@@ -153,7 +153,8 @@ export function GradersEditor({
                   {' '}The LLM must return a JSON score.
                 </p>
                 <p className="text-xs text-foreground-secondary">
-                  If no placeholders are used, the expected and actual outputs are automatically appended to your prompt.
+                  If no placeholders are used, the expected and actual outputs are automatically appended to your prompt
+                  {' '}(e.g. <code className="font-mono bg-muted px-1 rounded">Your prompt...\n\nExpected output:\n...\n\nActual output:\n...</code>).
                   {' '}When using <code className="font-mono bg-muted px-1 rounded">{'{{ item.* }}'}</code> or <code className="font-mono bg-muted px-1 rounded">{'{{ sample.* }}'}</code> templates, only your prompt is sent — nothing is auto-appended.
                 </p>
               </>
