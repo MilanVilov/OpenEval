@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { exportRun, listRunsPage } from '@/api/runs';
 import type { EvalRun } from '@/types/run';
 import { PageHeader } from '@/components/PageHeader';
+import { ExpandableCell } from '@/components/ExpandableCell';
 import { Button } from '@/components/ui/button';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { StatusBadge } from '@/components/StatusBadge';
@@ -103,12 +104,18 @@ export function RunList() {
                   className="animate-fade-in-up hover:bg-background-hover transition-colors duration-150"
                   style={{ animationDelay: `${idx * 50}ms` }}
                 >
-                  <TableCell>
-                    <Link to={`/runs/${run.id}`} className="text-foreground-link hover:underline">
-                      {run.config_name ?? 'Unknown'}
-                    </Link>
+                  <TableCell className="align-top">
+                    <ExpandableCell className="max-w-[240px]">
+                      <Link to={`/runs/${run.id}`} className="text-foreground-link hover:underline">
+                        {run.config_name ?? 'Unknown'}
+                      </Link>
+                    </ExpandableCell>
                   </TableCell>
-                  <TableCell>{run.dataset_name ?? 'Unknown'}</TableCell>
+                  <TableCell className="align-top">
+                    <ExpandableCell className="max-w-[240px]">
+                      {run.dataset_name ?? 'Unknown'}
+                    </ExpandableCell>
+                  </TableCell>
                   <TableCell><StatusBadge status={run.status} /></TableCell>
                   <TableCell className="tabular-nums">{run.summary ? formatPercent(run.summary.accuracy) : '—'}</TableCell>
                   <TableCell className="tabular-nums">{run.summary?.avg_latency_ms != null ? formatLatency(run.summary.avg_latency_ms) : '—'}</TableCell>

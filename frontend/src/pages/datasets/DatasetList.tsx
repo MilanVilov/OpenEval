@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { exportDataset, listDatasetsPage } from '@/api/datasets';
 import type { Dataset } from '@/types/dataset';
 import { PageHeader } from '@/components/PageHeader';
+import { ExpandableCell } from '@/components/ExpandableCell';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -99,9 +100,11 @@ export function DatasetList() {
                   className="animate-fade-in-up hover:bg-background-hover transition-colors duration-150"
                   style={{ animationDelay: `${idx * 50}ms` }}
                 >
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Link to={`/datasets/${ds.id}`} className="text-foreground-link hover:underline">{ds.name}</Link>
+                  <TableCell className="align-top">
+                    <div className="flex items-start gap-2">
+                      <ExpandableCell className="max-w-[400px]">
+                        <Link to={`/datasets/${ds.id}`} className="text-foreground-link hover:underline">{ds.name}</Link>
+                      </ExpandableCell>
                       {ds.has_import_source ? <Badge variant="info">Imported</Badge> : null}
                     </div>
                   </TableCell>

@@ -32,7 +32,7 @@ def test_alembic_has_single_head() -> None:
 
     heads = sorted(set(revisions.values()) - down_revisions)
 
-    assert heads == ["019"]
+    assert heads == ["020"]
 
 
 def _load_revision_ids() -> dict[Path, str]:

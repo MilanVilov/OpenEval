@@ -4,6 +4,13 @@ import csv
 from io import StringIO
 from pathlib import Path
 
+CSV_FIELD_SIZE_LIMIT = 64 * 1024 * 1024
+
+
+def _create_dict_reader(csv_content: str) -> csv.DictReader:
+    csv.field_size_limit(CSV_FIELD_SIZE_LIMIT)
+    return csv.DictReader(StringIO(csv_content))
+
 
 async def parse_csv(file_path: str) -> dict:
     """Parse a CSV file and return metadata.
@@ -15,7 +22,7 @@ async def parse_csv(file_path: str) -> dict:
 
 def parse_csv_content(csv_content: str) -> dict:
     """Parse CSV text and return metadata."""
-    reader = csv.DictReader(StringIO(csv_content))
+    reader = _create_dict_reader(csv_content)
     columns = reader.fieldnames or []
     rows = list(reader)
     return {
@@ -37,7 +44,7 @@ async def read_csv_rows_text(csv_content: str) -> list[dict]:
 
 def read_csv_rows_content(csv_content: str) -> list[dict]:
     """Read all rows from CSV text as a list of dicts."""
-    reader = csv.DictReader(StringIO(csv_content))
+    reader = _create_dict_reader(csv_content)
     return list(reader)
 
 
