@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { deleteDataset, exportDataset, getDataset, updateDatasetRows } from '@/api/datasets';
 import { translateMappedRows } from '@/api/dataSources';
 import { InputTranslationActions } from '@/components/dataSources/InputTranslationActions';
+import { ExpandableCell } from '@/components/ExpandableCell';
 import { ListPagination } from '@/components/ListControls';
 import { PageHeader } from '@/components/PageHeader';
 import { Badge } from '@/components/ui/badge';
@@ -446,7 +447,7 @@ export function DatasetDetail() {
                                 />
                               ) : (
                                 <div
-                                  className={`px-2 py-1.5 min-h-[32px] whitespace-pre-wrap break-words max-w-[400px] text-sm ${
+                                  className={`px-2 py-1.5 min-h-[32px] min-w-[120px] max-w-[400px] text-sm ${
                                     translating
                                       ? 'cursor-default'
                                       : 'cursor-pointer hover:bg-background-secondary'
@@ -458,7 +459,9 @@ export function DatasetDetail() {
                                   }}
                                   title="Click to edit"
                                 >
-                                  {row[col] || <span className="text-foreground-disabled italic">empty</span>}
+                                  <ExpandableCell>
+                                    {row[col] || <span className="text-foreground-disabled italic">empty</span>}
+                                  </ExpandableCell>
                                 </div>
                               )}
                             </TableCell>

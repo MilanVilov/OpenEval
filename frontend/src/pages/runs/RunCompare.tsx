@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { ExpandableCell } from '@/components/ExpandableCell';
 import { StatCard } from '@/components/StatCard';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { LoadingSkeleton } from '@/components/LoadingSkeleton';
@@ -137,15 +138,25 @@ export function RunCompare() {
                   return (
                     <TableRow key={ra.id}>
                       <TableCell>{ra.row_index}</TableCell>
-                      <TableCell className="min-w-[150px] max-w-[300px] whitespace-pre-wrap break-words">{ra.input_data}</TableCell>
-                      <TableCell className="min-w-[150px] max-w-[300px] whitespace-pre-wrap break-words">{ra.expected_output}</TableCell>
-                      <TableCell className="min-w-[150px] max-w-[300px] whitespace-pre-wrap break-words">{ra.actual_output}</TableCell>
+                      <TableCell className="align-top">
+                        <ExpandableCell className="min-w-[150px] max-w-[300px]">{ra.input_data}</ExpandableCell>
+                      </TableCell>
+                      <TableCell className="align-top">
+                        <ExpandableCell className="min-w-[150px] max-w-[300px]">{ra.expected_output}</ExpandableCell>
+                      </TableCell>
+                      <TableCell className="align-top">
+                        <ExpandableCell className="min-w-[150px] max-w-[300px]">{ra.actual_output}</ExpandableCell>
+                      </TableCell>
                       <TableCell>
                         <Badge variant={runAStatus.variant}>
                           {runAStatus.label}
                         </Badge>
                       </TableCell>
-                      <TableCell className="min-w-[150px] max-w-[300px] whitespace-pre-wrap break-words">{rb?.actual_output ?? '—'}</TableCell>
+                      <TableCell className="align-top">
+                        <ExpandableCell className="min-w-[150px] max-w-[300px]">
+                          {rb?.actual_output ?? '—'}
+                        </ExpandableCell>
+                      </TableCell>
                       <TableCell>
                         {runBStatus ? (
                           <Badge variant={runBStatus.variant}>

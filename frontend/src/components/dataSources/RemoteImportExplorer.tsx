@@ -15,6 +15,7 @@ import {
   translateMappedRows,
 } from '@/api/dataSources';
 import { JsonTreeView } from '@/components/JsonTreeView';
+import { ExpandableCell } from '@/components/ExpandableCell';
 import { Spinner } from '@/components/Spinner';
 import { InputTranslationActions } from '@/components/dataSources/InputTranslationActions';
 import {
@@ -905,13 +906,20 @@ export function RemoteImportExplorer({
                         {Object.entries(row).map(([column, value]) => (
                           <TableCell
                             key={column}
-                            className="max-w-[240px] whitespace-pre-wrap break-words text-sm"
+                            className="align-top"
                           >
-                            {value || <span className="text-foreground-disabled italic">empty</span>}
+                            <ExpandableCell className="min-w-[160px] max-w-[240px]">
+                              {value || <span className="text-foreground-disabled italic">empty</span>}
+                            </ExpandableCell>
                           </TableCell>
                         ))}
-                        <TableCell className="max-w-[320px] whitespace-pre-wrap break-words text-xs text-foreground-secondary">
-                          {JSON.stringify(currentRecords[index])}
+                        <TableCell className="align-top">
+                          <ExpandableCell
+                            className="min-w-[200px] max-w-[320px]"
+                            contentClassName="font-mono text-xs text-foreground-secondary"
+                          >
+                            {JSON.stringify(currentRecords[index], null, 2)}
+                          </ExpandableCell>
                         </TableCell>
                       </TableRow>
                     );

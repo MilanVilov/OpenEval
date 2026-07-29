@@ -4,6 +4,7 @@ import { translateMappedRows } from '@/api/dataSources';
 import { deleteRun, exportRun, getRun, getRunProgress, getRunResults } from '@/api/runs';
 import { CodeBlock } from '@/components/CodeBlock';
 import { InputTranslationActions } from '@/components/dataSources/InputTranslationActions';
+import { ExpandableCell } from '@/components/ExpandableCell';
 import { ListPagination } from '@/components/ListControls';
 import { LoadingSkeleton } from '@/components/LoadingSkeleton';
 import { PageHeader } from '@/components/PageHeader';
@@ -652,20 +653,26 @@ export function RunDetail() {
                               )}
                             </TableCell>
                           ) : null}
-                          <TableCell className="min-w-[200px] max-w-[400px] whitespace-pre-wrap break-words">
-                            {displayRow.input}
+                          <TableCell className="align-top">
+                            <ExpandableCell className="min-w-[200px] max-w-[400px]">
+                              {displayRow.input}
+                            </ExpandableCell>
                           </TableCell>
-                          <TableCell className="min-w-[200px] max-w-[400px] whitespace-pre-wrap break-words">
-                            {displayRow.expected_output}
+                          <TableCell className="align-top">
+                            <ExpandableCell className="min-w-[200px] max-w-[400px]">
+                              {displayRow.expected_output}
+                            </ExpandableCell>
                           </TableCell>
-                          <TableCell className="min-w-[200px] max-w-[400px] whitespace-pre-wrap break-words">
-                            {displayRow.actual_output || result.actual_output
-                              ? displayRow.actual_output
-                              : (
-                                  result.error ? (
-                                    <span className="text-xs text-red-400">{result.error}</span>
-                                  ) : '—'
-                                )}
+                          <TableCell className="align-top">
+                            <ExpandableCell className="min-w-[200px] max-w-[400px]">
+                              {displayRow.actual_output || result.actual_output
+                                ? displayRow.actual_output
+                                : (
+                                    result.error ? (
+                                      <span className="text-xs text-red-400">{result.error}</span>
+                                    ) : '—'
+                                  )}
+                            </ExpandableCell>
                           </TableCell>
                           {comparerNames.length > 0 ? (
                             comparerNames.map((name) => {

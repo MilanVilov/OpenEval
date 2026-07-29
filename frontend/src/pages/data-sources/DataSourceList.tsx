@@ -6,6 +6,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { LoadingSkeleton } from '@/components/LoadingSkeleton';
+import { ExpandableCell } from '@/components/ExpandableCell';
 import { PageHeader } from '@/components/PageHeader';
 import { PageTransition } from '@/components/PageTransition';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -80,10 +81,12 @@ export function DataSourceList() {
             <TableBody>
               {sources.map((source) => (
                 <TableRow key={source.id} className="hover:bg-background-hover transition-colors duration-150">
-                  <TableCell>
-                    <Link to={`/data-sources/${source.id}`} className="text-foreground-link hover:underline">
-                      {source.name}
-                    </Link>
+                  <TableCell className="align-top">
+                    <ExpandableCell className="max-w-[320px]">
+                      <Link to={`/data-sources/${source.id}`} className="text-foreground-link hover:underline">
+                        {source.name}
+                      </Link>
+                    </ExpandableCell>
                   </TableCell>
                   <TableCell>{source.method}</TableCell>
                   <TableCell>{source.auth_type}</TableCell>

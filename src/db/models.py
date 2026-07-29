@@ -277,7 +277,9 @@ class EvalResult(Base):
         ForeignKey("eval_runs.id", ondelete="CASCADE"),
     )
     row_index: Mapped[int]
-    input_data: Mapped[str] = mapped_column(Text)
+    input_data: Mapped[str] = mapped_column(
+        Text().with_variant(mysql.LONGTEXT(), "mysql"),
+    )
     expected_output: Mapped[str] = mapped_column(Text)
     actual_output: Mapped[str | None] = mapped_column(Text, default=None)
     comparer_score: Mapped[float | None] = mapped_column(default=None)
