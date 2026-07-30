@@ -72,7 +72,7 @@ async def test_custom_grader_passes_above_threshold():
 
     # Verify prompt template was interpolated correctly
     call_args = mock_client.responses.create.call_args
-    user_msg = call_args.kwargs["input"][0]["content"]
+    user_msg = call_args.kwargs["input"][1]["content"]
     assert "Hello there" in user_msg
     assert "Hi there!" in user_msg
 
@@ -174,15 +174,15 @@ async def test_custom_grader_auto_appends_context_when_no_placeholders():
         await grader.compare(expected="foo", actual="bar")
 
     call_args = mock_client.responses.create.call_args
-    user_msg = call_args.kwargs["input"][0]["content"]
+    user_msg = call_args.kwargs["input"][1]["content"]
     assert "Rate the quality of the response." in user_msg
     assert "Expected output:\nfoo" in user_msg
     assert "Actual output:\nbar" in user_msg
 
 
 @pytest.mark.asyncio
-async def test_custom_grader_uses_json_schema_response_format():
-    """Grader should use structured output via json_schema, not prompt instructions."""
+async def test_custom_grader_uses_english_system_prompt_and_json_schema_response_format():
+    """Grader requests English reasoning through a system prompt and structured output."""
     grader = CustomGraderComparer({
         "name": "schema_check",
         "prompt": "Check: {expected} vs {actual}",
@@ -200,11 +200,16 @@ async def test_custom_grader_uses_json_schema_response_format():
 
     call_args = mock_client.responses.create.call_args
     messages = call_args.kwargs["input"]
-    # Only one message (user), no system message
-    assert len(messages) == 1
-    assert messages[0]["role"] == "user"
+    assert messages[0] == {
+        "role": "system",
+        "content": (
+            "You are an evaluation grader. Always answer in English, "
+            "including the reasoning field."
+        ),
+    }
+    assert messages[1]["role"] == "user"
     # No JSON format instruction in the user message itself
-    assert "Respond with ONLY" not in messages[0]["content"]
+    assert "Respond with ONLY" not in messages[1]["content"]
     # JSON schema enforced via text.format
     text_format = call_args.kwargs["text"]["format"]
     assert text_format["type"] == "json_schema"
@@ -328,7 +333,7 @@ async def test_custom_grader_renders_item_template_variables():
     assert passed is True
 
     call_args = mock_client.responses.create.call_args
-    user_msg = call_args.kwargs["input"][0]["content"]
+    user_msg = call_args.kwargs["input"][1]["content"]
     assert "What is the capital of France?" in user_msg
     assert "geography" in user_msg
     assert "Paris" in user_msg
@@ -353,7 +358,7 @@ async def test_custom_grader_renders_sample_output_text():
         await grader.compare(expected="42", actual="The answer is 42")
 
     call_args = mock_client.responses.create.call_args
-    user_msg = call_args.kwargs["input"][0]["content"]
+    user_msg = call_args.kwargs["input"][1]["content"]
     assert "The answer is 42" in user_msg
     assert "42" in user_msg
 
@@ -377,7 +382,7 @@ async def test_custom_grader_unresolved_template_left_as_is():
         await grader.compare(expected="a", actual="b", row_data={"input": "hello"})
 
     call_args = mock_client.responses.create.call_args
-    user_msg = call_args.kwargs["input"][0]["content"]
+    user_msg = call_args.kwargs["input"][1]["content"]
     assert "{ item.nonexistent }" in user_msg
 
 
@@ -404,7 +409,7 @@ async def test_custom_grader_template_vars_without_expected_actual_no_auto_appen
         )
 
     call_args = mock_client.responses.create.call_args
-    user_msg = call_args.kwargs["input"][0]["content"]
+    user_msg = call_args.kwargs["input"][1]["content"]
     # Template variable should be resolved
     assert "A very long input text that should be evaluated" in user_msg
     # Expected/actual should NOT be auto-appended

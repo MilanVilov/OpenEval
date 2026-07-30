@@ -9,6 +9,10 @@ from src.providers.openai import REASONING_MODELS
 
 logger = logging.getLogger(__name__)
 
+_SYSTEM_PROMPT = (
+    "You are an evaluation grader. Always answer in English, including the reasoning field."
+)
+
 
 class CustomGraderComparer(BaseComparer):
     """A dynamic, prompt-driven LLM grader.
@@ -88,6 +92,7 @@ class CustomGraderComparer(BaseComparer):
         request_kwargs: dict = {
             "model": self.model,
             "input": [
+                {"role": "system", "content": _SYSTEM_PROMPT},
                 {"role": "user", "content": user_message},
             ],
             "text": {"format": self._RESPONSE_FORMAT},
