@@ -75,6 +75,9 @@ interface GraderDetailPopoverProps {
 function GraderDetailPopover({ detail, status }: GraderDetailPopoverProps) {
   const [copied, setCopied] = useState(false);
   const detailJson = JSON.stringify(detail, null, 2);
+  const reasoning = typeof detail.reasoning === 'string' && detail.reasoning.trim()
+    ? detail.reasoning
+    : null;
 
   function handleCopy(e: React.MouseEvent) {
     e.stopPropagation();
@@ -109,7 +112,7 @@ function GraderDetailPopover({ detail, status }: GraderDetailPopoverProps) {
           <Info className="h-3 w-3 shrink-0 text-foreground-secondary" />
         </span>
       }
-      className="w-80 min-w-60 min-h-[200px] resize overflow-hidden flex flex-col"
+      className="w-80 min-w-60 min-h-[200px] resize overflow-hidden text-left flex flex-col"
       align="end"
     >
       <div className="flex flex-col flex-1 min-h-0 space-y-2">
@@ -126,9 +129,20 @@ function GraderDetailPopover({ detail, status }: GraderDetailPopoverProps) {
             {copied ? 'Copied' : 'Copy'}
           </button>
         </div>
-        <div className="flex-1 min-h-0 overflow-auto">
-          <CodeBlock code={detail} language="json" />
-        </div>
+        {reasoning ? (
+          <section className="space-y-1">
+            <h3 className="text-xs font-medium text-foreground">Reasoning</h3>
+            <p className="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded border border-border-muted bg-background-secondary p-2 text-sm leading-5 text-foreground">
+              {reasoning}
+            </p>
+          </section>
+        ) : null}
+        <section className="flex flex-1 min-h-0 flex-col space-y-1">
+          <h3 className="shrink-0 text-xs font-medium text-foreground-secondary">JSON details</h3>
+          <div className="flex-1 min-h-0 overflow-auto">
+            <CodeBlock code={detail} language="json" />
+          </div>
+        </section>
       </div>
     </Popover>
   );
