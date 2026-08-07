@@ -1,8 +1,11 @@
 """Tests for Alembic migration graph consistency."""
 
 import ast
+import importlib.util
 from collections import Counter
 from pathlib import Path
+from types import ModuleType, SimpleNamespace
+from unittest.mock import patch
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[1] / "alembic" / "versions"
 
@@ -32,7 +35,42 @@ def test_alembic_has_single_head() -> None:
 
     heads = sorted(set(revisions.values()) - down_revisions)
 
-    assert heads == ["020"]
+    assert heads == ["021"]
+
+
+def test_translation_cache_creation_uses_utf8mb4() -> None:
+    """Fresh MySQL tables should support four-byte Unicode text."""
+    migration = _load_migration("017_add_mapped_input_translation_cache.py")
+
+    with patch.object(migration.op, "create_table") as create_table:
+        migration.upgrade()
+
+    create_kwargs = create_table.call_args.kwargs
+    assert create_kwargs["mysql_charset"] == "utf8mb4"
+    assert create_kwargs["mysql_collate"] == "utf8mb4_unicode_ci"
+
+
+def test_translation_cache_unicode_repair_converts_existing_mysql_table() -> None:
+    """Existing MySQL cache columns should be converted without changing nullability."""
+    migration = _load_migration("021_ensure_translation_cache_utf8mb4.py")
+    mysql_context = SimpleNamespace(dialect=SimpleNamespace(name="mysql"))
+
+    with (
+        patch.object(migration.op, "get_context", return_value=mysql_context),
+        patch.object(migration.op, "execute") as execute,
+    ):
+        migration.upgrade()
+
+    assert [call.args[0] for call in execute.call_args_list] == [
+        "ALTER TABLE mapped_input_translations "
+        "DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci",
+        "ALTER TABLE mapped_input_translations "
+        "MODIFY source_text LONGTEXT "
+        "CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL",
+        "ALTER TABLE mapped_input_translations "
+        "MODIFY translated_text LONGTEXT "
+        "CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL",
+    ]
 
 
 def _load_revision_ids() -> dict[Path, str]:
@@ -51,6 +89,17 @@ def _load_revision_ids() -> dict[Path, str]:
         for migration_path, revision in revisions.items()
         if isinstance(revision, str)
     }
+
+
+def _load_migration(filename: str) -> ModuleType:
+    """Load one migration module from the versions directory."""
+    migration_path = MIGRATIONS_DIR / filename
+    spec = importlib.util.spec_from_file_location(migration_path.stem, migration_path)
+    assert spec is not None and spec.loader is not None
+
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+    return migration
 
 
 def _load_revision_values(variable_name: str) -> dict[Path, str | tuple[str, ...] | None]:
