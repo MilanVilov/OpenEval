@@ -37,6 +37,8 @@ def upgrade() -> None:
             "cache_key",
             name="uq_mapped_input_translations_cache_key",
         ),
+        mysql_charset="utf8mb4",
+        mysql_collate="utf8mb4_unicode_ci",
     )
 
 
