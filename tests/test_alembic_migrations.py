@@ -35,7 +35,7 @@ def test_alembic_has_single_head() -> None:
 
     heads = sorted(set(revisions.values()) - down_revisions)
 
-    assert heads == ["022"]
+    assert heads == ["023"]
 
 
 def test_translation_cache_creation_uses_utf8mb4() -> None:

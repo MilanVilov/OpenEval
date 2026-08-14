@@ -185,8 +185,13 @@ async def test_create_run_starts_tracked_async_task(client: AsyncClient):
     with patch("src.routers.runs.start_run_task") as mock_start_run_task:
         response = await client.post(
             "/api/runs",
-            json={"eval_config_id": config_id, "dataset_id": dataset_id},
+            json={
+                "eval_config_id": config_id,
+                "dataset_id": dataset_id,
+                "flex_enabled": True,
+            },
         )
 
     assert response.status_code == 201
+    assert response.json()["flex_enabled"] is True
     mock_start_run_task.assert_called_once()

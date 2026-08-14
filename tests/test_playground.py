@@ -10,8 +10,8 @@ from src.routers.schemas.playground import PlaygroundRequest
 
 
 @pytest.mark.asyncio
-async def test_playground_passes_config_flex_setting_to_provider():
-    """Playground should use Flex when its saved config enables it."""
+async def test_playground_uses_standard_processing():
+    """Playground should not inherit a Flex setting from the configuration."""
     config = MagicMock(
         system_prompt="You are helpful.",
         model="gpt-4.1",
@@ -21,7 +21,6 @@ async def test_playground_passes_config_flex_setting_to_provider():
         tool_options={},
         reasoning_config=None,
         response_format=None,
-        flex_enabled=True,
     )
     provider = MagicMock()
     provider.generate = AsyncMock(
@@ -41,4 +40,4 @@ async def test_playground_passes_config_flex_setting_to_provider():
         repository.return_value.get_by_id = AsyncMock(return_value=config)
         await run_playground(PlaygroundRequest(config_id="config", message="Hello"), AsyncMock())
 
-    assert provider.generate.await_args.kwargs["flex_enabled"] is True
+    assert "flex_enabled" not in provider.generate.await_args.kwargs

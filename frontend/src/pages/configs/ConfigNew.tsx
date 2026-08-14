@@ -39,7 +39,6 @@ export function ConfigNew() {
   const [systemPrompt, setSystemPrompt] = useState('');
   const [model, setModel] = useState('gpt-4.1');
   const [temperature, setTemperature] = useState('0.7');
-  const [flexEnabled, setFlexEnabled] = useState(false);
   const [graders, setGraders] = useState<Grader[]>([]);
   const [concurrency, setConcurrency] = useState('5');
   const [reasoningEffort, setReasoningEffort] = useState('medium');
@@ -160,7 +159,6 @@ export function ConfigNew() {
         concurrency: parseInt(concurrency, 10),
         reasoning_config: reasoningConfig,
         response_format: buildResponseFormat(),
-        flex_enabled: flexEnabled,
         readonly: isReadonly,
       });
       navigate(`/configs/${config.id}`);
@@ -210,21 +208,6 @@ export function ConfigNew() {
             <Label>Temperature</Label>
             <Input type="number" step="0.1" min="0" max="2" value={temperature} onChange={(e) => setTemperature(e.target.value)} />
           </div>
-        </div>
-
-        <div className="space-y-2 rounded-md border border-border p-4">
-          <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={flexEnabled}
-              onChange={(e) => setFlexEnabled(e.target.checked)}
-              className="rounded border-border"
-            />
-            Use Flex processing
-          </label>
-          <p className="text-xs text-foreground-secondary">
-            Uses lower-cost Flex processing for compatible OpenAI requests in this configuration. Runs can take longer.
-          </p>
         </div>
 
         {isReasoningModel && (

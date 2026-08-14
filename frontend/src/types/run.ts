@@ -67,4 +67,5 @@ export interface EvalResult {
 export interface CreateRunRequest {
   eval_config_id: string;
   dataset_id: string;
+  flex_enabled?: boolean;
 }

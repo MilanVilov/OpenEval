@@ -77,7 +77,6 @@ class ConfigRepository:
         readonly: bool = False,
         reasoning_config: dict | None = None,
         response_format: dict | None = None,
-        flex_enabled: bool = False,
     ) -> EvalConfig:
         """Insert a new evaluation configuration."""
         config = EvalConfig(
@@ -95,7 +94,6 @@ class ConfigRepository:
             readonly=readonly,
             reasoning_config=reasoning_config,
             response_format=response_format,
-            flex_enabled=flex_enabled,
         )
         self._session.add(config)
         await self._session.commit()
@@ -652,6 +650,7 @@ class RunRepository:
         eval_config_id: str,
         dataset_id: str,
         total_rows: int,
+        flex_enabled: bool = False,
         scheduled_by_id: str | None = None,
     ) -> EvalRun:
         """Insert a new evaluation run."""
@@ -660,6 +659,7 @@ class RunRepository:
             eval_config_id=eval_config_id,
             dataset_id=dataset_id,
             total_rows=total_rows,
+            flex_enabled=flex_enabled,
             scheduled_by_id=scheduled_by_id,
             heartbeat_at=heartbeat_at,
         )

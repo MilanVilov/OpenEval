@@ -5,8 +5,8 @@ from types import SimpleNamespace
 from src.routers.runs import _run_to_response
 
 
-def test_run_response_exposes_config_flex_setting() -> None:
-    """A run response should identify when its config uses Flex processing."""
+def test_run_response_exposes_run_flex_setting() -> None:
+    """A run response should identify when that run uses Flex processing."""
     run = SimpleNamespace(
         id="run-id",
         eval_config_id="config-id",
@@ -19,7 +19,8 @@ def test_run_response_exposes_config_flex_setting() -> None:
         started_at=None,
         completed_at=None,
         created_at="2026-08-14T10:00:00Z",
-        config=SimpleNamespace(name="Flex config", flex_enabled=True),
+        flex_enabled=True,
+        config=SimpleNamespace(name="Config"),
         dataset=SimpleNamespace(name="Dataset"),
     )
 

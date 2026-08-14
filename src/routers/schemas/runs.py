@@ -8,6 +8,7 @@ class CreateRunRequest(BaseModel):
 
     eval_config_id: str
     dataset_id: str
+    flex_enabled: bool = False
 
 
 class RunResponse(BaseModel):

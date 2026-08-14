@@ -40,7 +40,6 @@ def _config_to_response(
         readonly=config.readonly,
         reasoning_config=config.reasoning_config,
         response_format=config.response_format,
-        flex_enabled=config.flex_enabled,
         created_at=str(config.created_at),
         updated_at=str(config.updated_at),
     )
@@ -112,7 +111,6 @@ async def create_config(
         readonly=body.readonly,
         reasoning_config=body.reasoning_config,
         response_format=body.response_format,
-        flex_enabled=body.flex_enabled,
     )
     return _config_to_response(config)
 
@@ -183,7 +181,6 @@ async def duplicate_config(
         readonly=False,
         reasoning_config=original.reasoning_config,
         response_format=original.response_format,
-        flex_enabled=original.flex_enabled,
     )
     return _config_to_response(copy)
 

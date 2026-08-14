@@ -110,7 +110,6 @@ class CreateConfigRequest(BaseModel):
     readonly: bool = False
     reasoning_config: dict | None = None
     response_format: dict | None = None
-    flex_enabled: bool = False
 
     @field_validator("comment")
     @classmethod
@@ -148,7 +147,6 @@ class UpdateConfigRequest(BaseModel):
     readonly: bool | None = None
     reasoning_config: dict | None = None
     response_format: dict | None = None
-    flex_enabled: bool | None = None
 
     @field_validator("comment")
     @classmethod
@@ -177,7 +175,6 @@ class ConfigResponse(BaseModel):
     readonly: bool = False
     reasoning_config: dict | None = None
     response_format: dict | None = None
-    flex_enabled: bool = False
     created_at: str
     updated_at: str
 

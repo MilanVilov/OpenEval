@@ -36,7 +36,6 @@ def _make_config(
     config.concurrency = concurrency
     config.reasoning_config = None
     config.response_format = response_format
-    config.flex_enabled = False
     return config
 
 
@@ -46,6 +45,7 @@ def _make_run(run_id: str = "run1", config_id: str = "cfg1", dataset_id: str = "
     run.id = run_id
     run.eval_config_id = config_id
     run.dataset_id = dataset_id
+    run.flex_enabled = False
     return run
 
 
@@ -312,8 +312,9 @@ class TestFlexProcessing:
     async def test_flex_enabled_forwarded_to_llm(self, mock_repos):
         """A Flex-enabled config should request Flex for the primary response."""
         config = _make_config(concurrency=1)
-        config.flex_enabled = True
-        mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
+        run = _make_run()
+        run.flex_enabled = True
+        mock_repos["run_repo"].get_by_id = AsyncMock(return_value=run)
         mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
         mock_repos["dataset_repo"].get_by_id_with_content = AsyncMock(return_value=_make_dataset())
         mock_repos["read_csv"].return_value = [{"input": "Hello", "expected_output": "Hi"}]
