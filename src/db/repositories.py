@@ -77,6 +77,7 @@ class ConfigRepository:
         readonly: bool = False,
         reasoning_config: dict | None = None,
         response_format: dict | None = None,
+        flex_enabled: bool = False,
     ) -> EvalConfig:
         """Insert a new evaluation configuration."""
         config = EvalConfig(
@@ -94,6 +95,7 @@ class ConfigRepository:
             readonly=readonly,
             reasoning_config=reasoning_config,
             response_format=response_format,
+            flex_enabled=flex_enabled,
         )
         self._session.add(config)
         await self._session.commit()

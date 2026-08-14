@@ -53,6 +53,7 @@ class CustomGraderComparer(BaseComparer):
         self.prompt_template: str = self.config.get("prompt", "")
         self.model: str = self.config.get("model", "gpt-4o-mini")  # injected by eval runner
         self.threshold: float | None = self.config.get("threshold", 0.7)
+        self.flex_enabled: bool = self.config.get("flex_enabled", False)
 
     async def compare(
         self,
@@ -99,6 +100,8 @@ class CustomGraderComparer(BaseComparer):
         }
         if self.model not in REASONING_MODELS:
             request_kwargs["temperature"] = 0.0
+        if self.flex_enabled:
+            request_kwargs["service_tier"] = "flex"
 
         response = await client.responses.create(**request_kwargs)
 

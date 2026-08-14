@@ -36,6 +36,7 @@ async def run_playground(
         tool_options=config.tool_options or {},
         reasoning_config=config.reasoning_config,
         response_format=config.response_format,
+        flex_enabled=config.flex_enabled,
     )
 
     return PlaygroundResponse(

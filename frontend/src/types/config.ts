@@ -48,6 +48,7 @@ export interface EvalConfig {
   readonly: boolean;
   reasoning_config: Record<string, string> | null;
   response_format: Record<string, unknown> | null;
+  flex_enabled: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -67,4 +68,5 @@ export interface CreateConfigRequest {
   readonly?: boolean;
   reasoning_config?: Record<string, string> | null;
   response_format?: Record<string, unknown> | null;
+  flex_enabled?: boolean;
 }

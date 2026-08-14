@@ -101,12 +101,25 @@ async def test_duplicate_config_creates_copy_with_new_id(client: AsyncClient):
         "concurrency",
         "reasoning_config",
         "response_format",
+        "flex_enabled",
     ]:
         assert copy[field] == original[field], f"Mismatch on {field}"
 
     # Graders match
     assert len(copy["graders"]) == len(original["graders"])
     assert copy["graders"][0]["name"] == "tone"
+
+
+@pytest.mark.asyncio
+async def test_create_config_persists_flex_enabled(client: AsyncClient):
+    """Creating a config preserves the Flex processing selection."""
+    response = await client.post(
+        "/api/configs",
+        json=SAMPLE_CONFIG_PAYLOAD | {"flex_enabled": True},
+    )
+
+    assert response.status_code == 201
+    assert response.json()["flex_enabled"] is True
 
 
 @pytest.mark.asyncio
