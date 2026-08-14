@@ -12,6 +12,7 @@ export interface EvalRun {
   created_at: string;
   config_name: string | null;
   dataset_name: string | null;
+  flex_enabled: boolean;
 }
 
 export interface GraderStat {

@@ -45,6 +45,16 @@ function isActiveRun(status: string | undefined): boolean {
   return status === 'pending' || status === 'running' || status === 'finalizing';
 }
 
+function getFlexProgressMessage(status: string): string {
+  if (status === 'pending') {
+    return 'Preparing Flex evaluation';
+  }
+  if (status === 'finalizing') {
+    return 'Finalizing Flex evaluation';
+  }
+  return 'Processing Flex requests';
+}
+
 function getEmptyResultsMessage(run: EvalRun, results: EvalResult[]): string {
   if (results.length > 0) {
     return 'No failures found';
@@ -435,16 +445,32 @@ export function RunDetail() {
         }
       />
 
+      {isRunning && run.flex_enabled ? (
+        <Alert className="mb-4 border-warning/30 bg-warning/10 text-foreground">
+          <AlertDescription>
+            <span className="font-medium">Flex processing enabled.</span>{' '}
+            This evaluation uses OpenAI Flex processing. Requests are queued for cost-efficient processing, so results may take longer to appear.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
       {isRunning && progress ? (
         <Card className="mb-4">
           <CardContent className="pt-4">
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-sm text-foreground-secondary">Progress</span>
+              <span className="text-sm text-foreground-secondary">
+                {run.flex_enabled ? 'Flex progress' : 'Progress'}
+              </span>
               <span className="text-sm font-medium">{progress.progress}/{progress.total_rows}</span>
             </div>
             <Progress value={progressPct} />
             <div className="mt-2 flex gap-4 text-xs text-foreground-secondary">
-              <span>Status: {progress.status}</span>
+              {run.flex_enabled ? (
+                <span className="flex items-center gap-2">
+                  <Spinner />
+                  {getFlexProgressMessage(progress.status)}
+                </span>
+              ) : <span>Status: {progress.status}</span>}
             </div>
           </CardContent>
         </Card>

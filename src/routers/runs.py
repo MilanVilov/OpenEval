@@ -44,6 +44,7 @@ def _run_to_response(run: object) -> RunResponse:
         created_at=str(run.created_at),
         config_name=run.config.name if run.config else None,
         dataset_name=run.dataset.name if run.dataset else None,
+        flex_enabled=run.config.flex_enabled if run.config else False,
     )
 
 

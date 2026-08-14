@@ -26,6 +26,7 @@ class RunResponse(BaseModel):
     created_at: str
     config_name: str | None = None
     dataset_name: str | None = None
+    flex_enabled: bool = False
 
     model_config = {"from_attributes": True}
 
