@@ -110,6 +110,18 @@ async def test_duplicate_config_creates_copy_with_new_id(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_create_config_does_not_expose_flex_enabled(client: AsyncClient):
+    """Flex processing is selected per run, not stored on a config."""
+    response = await client.post(
+        "/api/configs",
+        json=SAMPLE_CONFIG_PAYLOAD,
+    )
+
+    assert response.status_code == 201
+    assert "flex_enabled" not in response.json()
+
+
+@pytest.mark.asyncio
 async def test_create_config_accepts_large_system_prompt(client: AsyncClient):
     """Creating a config accepts prompts larger than MySQL TEXT."""
     large_prompt = "# ROLE\n" + ("Use the verified support content.\n" * 2_500)

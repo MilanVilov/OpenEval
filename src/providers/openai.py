@@ -54,6 +54,7 @@ class OpenAIProvider(BaseLLMProvider):
         tool_options: dict | None = None,
         reasoning_config: dict | None = None,
         response_format: dict | None = None,
+        flex_enabled: bool = False,
     ) -> LLMResponse:
         """Call the OpenAI Responses API."""
         tool_options = tool_options or {}
@@ -93,6 +94,8 @@ class OpenAIProvider(BaseLLMProvider):
                 import re
                 fmt["name"] = re.sub(r"[^a-zA-Z0-9_-]", "_", fmt["name"])
             kwargs["text"] = {"format": fmt}
+        if flex_enabled:
+            kwargs["service_tier"] = "flex"
 
         # Log the request for debugging (tools, model, etc.)
         logger.info(

@@ -235,6 +235,7 @@ class EvalRun(Base):
     status: Mapped[str] = mapped_column(String(STATUS_LENGTH), default="pending")
     progress: Mapped[int] = mapped_column(default=0)
     total_rows: Mapped[int] = mapped_column(default=0)
+    flex_enabled: Mapped[bool] = mapped_column(default=False)
     summary: Mapped[dict | None] = mapped_column(JSON, default=None)
     error_message: Mapped[str | None] = mapped_column(Text, default=None)
     heartbeat_at: Mapped[datetime | None] = mapped_column(default=None)

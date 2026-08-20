@@ -21,6 +21,7 @@ export function RunNew() {
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [configId, setConfigId] = useState('');
   const [datasetId, setDatasetId] = useState('');
+  const [flexEnabled, setFlexEnabled] = useState(true);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +44,11 @@ export function RunNew() {
     setSubmitting(true);
     setError(null);
     try {
-      const run = await createRun({ eval_config_id: configId, dataset_id: datasetId });
+      const run = await createRun({
+        eval_config_id: configId,
+        dataset_id: datasetId,
+        flex_enabled: flexEnabled,
+      });
       navigate(`/runs/${run.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to start run');
@@ -84,6 +89,21 @@ export function RunNew() {
               <option key={d.id} value={d.id}>{d.name} ({d.row_count} rows)</option>
             ))}
           </Select>
+        </div>
+
+        <div className="space-y-2 rounded-md border border-border p-4">
+          <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={flexEnabled}
+              onChange={(e) => setFlexEnabled(e.target.checked)}
+              className="rounded border-border"
+            />
+            Use Flex processing
+          </label>
+          <p className="text-xs text-foreground-secondary">
+            Uses lower-cost Flex processing for compatible OpenAI requests in this run. Results may take longer to appear.
+          </p>
         </div>
 
         <div className="flex justify-end gap-2 pt-4">

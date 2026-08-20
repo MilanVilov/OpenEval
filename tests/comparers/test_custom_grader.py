@@ -416,3 +416,24 @@ async def test_custom_grader_template_vars_without_expected_actual_no_auto_appen
     assert "Expected output:" not in user_msg
     assert "Actual output:" not in user_msg
     assert "some expected" not in user_msg
+
+
+@pytest.mark.asyncio
+async def test_custom_grader_uses_flex_service_tier_when_enabled():
+    """A Flex-enabled prompt grader should request Flex processing."""
+    grader = CustomGraderComparer({
+        "name": "flex_grader",
+        "prompt": "Compare {expected} and {actual}",
+        "model": "gpt-4o-mini",
+        "threshold": 0.5,
+        "flex_enabled": True,
+    })
+    mock_client = AsyncMock()
+    mock_client.responses.create = AsyncMock(
+        return_value=_make_openai_response(1.0, "Matches"),
+    )
+
+    with patch(_PATCH_TARGET, return_value=mock_client):
+        await grader.compare(expected="same", actual="same")
+
+    assert mock_client.responses.create.await_args.kwargs["service_tier"] == "flex"

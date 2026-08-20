@@ -650,6 +650,7 @@ class RunRepository:
         eval_config_id: str,
         dataset_id: str,
         total_rows: int,
+        flex_enabled: bool = False,
         scheduled_by_id: str | None = None,
     ) -> EvalRun:
         """Insert a new evaluation run."""
@@ -658,6 +659,7 @@ class RunRepository:
             eval_config_id=eval_config_id,
             dataset_id=dataset_id,
             total_rows=total_rows,
+            flex_enabled=flex_enabled,
             scheduled_by_id=scheduled_by_id,
             heartbeat_at=heartbeat_at,
         )

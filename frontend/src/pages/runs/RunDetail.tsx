@@ -1,58 +1,96 @@
-import { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { translateMappedRows } from '@/api/dataSources';
-import { deleteRun, exportRun, getRun, getRunProgress, getRunResults } from '@/api/runs';
-import { CodeBlock } from '@/components/CodeBlock';
-import { InputTranslationActions } from '@/components/dataSources/InputTranslationActions';
-import { ExpandableCell } from '@/components/ExpandableCell';
-import { ListPagination } from '@/components/ListControls';
-import { LoadingSkeleton } from '@/components/LoadingSkeleton';
-import { PageHeader } from '@/components/PageHeader';
-import { PageTransition } from '@/components/PageTransition';
-import { Spinner } from '@/components/Spinner';
-import { StatCard } from '@/components/StatCard';
-import { StatusBadge } from '@/components/StatusBadge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Popover } from '@/components/ui/popover';
-import { Progress } from '@/components/ui/progress';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { usePolling } from '@/hooks/usePolling';
-import { getResultStatusBadge } from '@/lib/resultStatus';
-import { rowHasTranslatedChanges, toggleOriginalRowIndexes } from '@/lib/translatedPageRows';
+import { useCallback, useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { translateMappedRows } from "@/api/dataSources";
+import {
+  deleteRun,
+  exportRun,
+  getRun,
+  getRunProgress,
+  getRunResults,
+} from "@/api/runs";
+import { CodeBlock } from "@/components/CodeBlock";
+import { InputTranslationActions } from "@/components/dataSources/InputTranslationActions";
+import { ExpandableCell } from "@/components/ExpandableCell";
+import { ListPagination } from "@/components/ListControls";
+import { LoadingSkeleton } from "@/components/LoadingSkeleton";
+import { LatencyValue } from "@/components/LatencyValue";
+import { PageHeader } from "@/components/PageHeader";
+import { PageTransition } from "@/components/PageTransition";
+import { Spinner } from "@/components/Spinner";
+import { StatCard } from "@/components/StatCard";
+import { StatusBadge } from "@/components/StatusBadge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Popover } from "@/components/ui/popover";
+import { Progress } from "@/components/ui/progress";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { usePolling } from "@/hooks/usePolling";
+import { getResultStatusBadge } from "@/lib/resultStatus";
+import {
+  rowHasTranslatedChanges,
+  toggleOriginalRowIndexes,
+} from "@/lib/translatedPageRows";
 import {
   translateRowsSequentially,
   type RowTranslationProgress,
-} from '@/lib/translateRowsSequentially';
-import { formatDate, formatPercent, formatTokens } from '@/lib/utils';
-import type { EvalResult, EvalRun, GraderStat, RunProgress } from '@/types/run';
-import { ArrowDown, ArrowUp, ArrowUpDown, Check, Copy, Download, Info, Trash2 } from 'lucide-react';
-import { getNextGraderSort, sortResultsByGrader } from './runDetailSorting';
-import type { GraderSort } from './runDetailSorting';
+} from "@/lib/translateRowsSequentially";
+import { formatDate, formatPercent, formatTokens } from "@/lib/utils";
+import type { EvalResult, EvalRun, GraderStat, RunProgress } from "@/types/run";
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  Check,
+  Copy,
+  Download,
+  Info,
+  Trash2,
+} from "lucide-react";
+import { getNextGraderSort, sortResultsByGrader } from "./runDetailSorting";
+import type { GraderSort } from "./runDetailSorting";
 import {
   buildRunSourceRows,
   buildRunTranslationScope,
   getRunRowForDisplay,
   type RunResultTranslationState,
-} from './runDetailTranslations';
+} from "./runDetailTranslations";
 
 const DEFAULT_PAGE_SIZE = 50;
-const TRANSLATED_FIELDS = ['input', 'expected_output', 'actual_output'];
+const TRANSLATED_FIELDS = ["input", "expected_output", "actual_output"];
 
 function isActiveRun(status: string | undefined): boolean {
-  return status === 'pending' || status === 'running' || status === 'finalizing';
+  return (
+    status === "pending" || status === "running" || status === "finalizing"
+  );
+}
+
+function getFlexProgressMessage(status: string): string {
+  if (status === "pending") {
+    return "Preparing Flex evaluation";
+  }
+  if (status === "finalizing") {
+    return "Finalizing Flex evaluation";
+  }
+  return "Processing Flex requests";
 }
 
 function getEmptyResultsMessage(run: EvalRun, results: EvalResult[]): string {
   if (results.length > 0) {
-    return 'No failures found';
+    return "No failures found";
   }
-  if (run.status === 'finalizing') {
-    return 'Finalizing results...';
+  if (run.status === "finalizing") {
+    return "Finalizing results...";
   }
-  return 'No results yet';
+  return "No results yet";
 }
 
 function buildTranslationErrorMessage(
@@ -69,15 +107,16 @@ function buildTranslationErrorMessage(
 
 interface GraderDetailPopoverProps {
   detail: Record<string, unknown>;
-  status: { variant: 'default' | 'success' | 'error'; label: string };
+  status: { variant: "default" | "success" | "error"; label: string };
 }
 
 function GraderDetailPopover({ detail, status }: GraderDetailPopoverProps) {
   const [copied, setCopied] = useState(false);
   const detailJson = JSON.stringify(detail, null, 2);
-  const reasoning = typeof detail.reasoning === 'string' && detail.reasoning.trim()
-    ? detail.reasoning
-    : null;
+  const reasoning =
+    typeof detail.reasoning === "string" && detail.reasoning.trim()
+      ? detail.reasoning
+      : null;
 
   function handleCopy(e: React.MouseEvent) {
     e.stopPropagation();
@@ -89,13 +128,13 @@ function GraderDetailPopover({ detail, status }: GraderDetailPopoverProps) {
         setTimeout(() => setCopied(false), 2000);
       });
     } else {
-      const textarea = document.createElement('textarea');
+      const textarea = document.createElement("textarea");
       textarea.value = detailJson;
-      textarea.style.position = 'fixed';
-      textarea.style.opacity = '0';
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
       document.body.appendChild(textarea);
       textarea.select();
-      document.execCommand('copy');
+      document.execCommand("copy");
       document.body.removeChild(textarea);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -106,9 +145,7 @@ function GraderDetailPopover({ detail, status }: GraderDetailPopoverProps) {
     <Popover
       trigger={
         <span className="inline-flex items-center gap-1">
-          <Badge variant={status.variant}>
-            {status.label}
-          </Badge>
+          <Badge variant={status.variant}>{status.label}</Badge>
           <Info className="h-3 w-3 shrink-0 text-foreground-secondary" />
         </span>
       }
@@ -117,7 +154,9 @@ function GraderDetailPopover({ detail, status }: GraderDetailPopoverProps) {
     >
       <div className="flex flex-col flex-1 min-h-0 space-y-2">
         <div className="flex items-center justify-between shrink-0">
-          <span className="text-xs font-medium text-foreground">Grader Details</span>
+          <span className="text-xs font-medium text-foreground">
+            Grader Details
+          </span>
           <button
             type="button"
             onMouseDown={(e) => e.stopPropagation()}
@@ -125,8 +164,12 @@ function GraderDetailPopover({ detail, status }: GraderDetailPopoverProps) {
             className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-foreground-secondary hover:text-foreground hover:bg-background-hover transition-colors"
             title="Copy to clipboard"
           >
-            {copied ? <Check className="h-3 w-3 text-success" /> : <Copy className="h-3 w-3" />}
-            {copied ? 'Copied' : 'Copy'}
+            {copied ? (
+              <Check className="h-3 w-3 text-success" />
+            ) : (
+              <Copy className="h-3 w-3" />
+            )}
+            {copied ? "Copied" : "Copy"}
           </button>
         </div>
         {reasoning ? (
@@ -138,7 +181,9 @@ function GraderDetailPopover({ detail, status }: GraderDetailPopoverProps) {
           </section>
         ) : null}
         <section className="flex flex-1 min-h-0 flex-col space-y-1">
-          <h3 className="shrink-0 text-xs font-medium text-foreground-secondary">JSON details</h3>
+          <h3 className="shrink-0 text-xs font-medium text-foreground-secondary">
+            JSON details
+          </h3>
           <div className="flex-1 min-h-0 overflow-auto">
             <CodeBlock code={detail} language="json" />
           </div>
@@ -160,19 +205,24 @@ export function RunDetail() {
   const [showFailuresOnly, setShowFailuresOnly] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [graderSort, setGraderSort] = useState<GraderSort | null>(null);
-  const [targetLanguage, setTargetLanguage] = useState('English');
+  const [targetLanguage, setTargetLanguage] = useState("English");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [translating, setTranslating] = useState(false);
-  const [translationProgress, setTranslationProgress] = useState<RowTranslationProgress | null>(null);
-  const [translatedPages, setTranslatedPages] = useState<Record<string, RunResultTranslationState>>({});
+  const [translationProgress, setTranslationProgress] =
+    useState<RowTranslationProgress | null>(null);
+  const [translatedPages, setTranslatedPages] = useState<
+    Record<string, RunResultTranslationState>
+  >({});
 
   const loadResults = useCallback(async (runId: string) => {
     try {
       setResultsError(null);
       setResults(await getRunResults(runId));
     } catch (e) {
-      setResultsError(e instanceof Error ? e.message : 'Failed to load evaluation results');
+      setResultsError(
+        e instanceof Error ? e.message : "Failed to load evaluation results",
+      );
     }
   }, []);
 
@@ -186,7 +236,10 @@ export function RunDetail() {
     async function loadRunDetail(): Promise<void> {
       try {
         setError(null);
-        const [nextRun, nextProgress] = await Promise.all([getRun(runId), getRunProgress(runId)]);
+        const [nextRun, nextProgress] = await Promise.all([
+          getRun(runId),
+          getRunProgress(runId),
+        ]);
         if (cancelled) {
           return;
         }
@@ -198,7 +251,7 @@ export function RunDetail() {
         if (cancelled) {
           return;
         }
-        setError(e instanceof Error ? e.message : 'Failed to load evaluation');
+        setError(e instanceof Error ? e.message : "Failed to load evaluation");
         setLoading(false);
       }
     }
@@ -216,25 +269,30 @@ export function RunDetail() {
       return;
     }
     try {
-      const [updatedRun, nextProgress] = await Promise.all([getRun(id), getRunProgress(id)]);
+      const [updatedRun, nextProgress] = await Promise.all([
+        getRun(id),
+        getRunProgress(id),
+      ]);
       setRun(updatedRun);
       setProgress(nextProgress);
       if (!isActiveRun(updatedRun.status)) {
         void loadResults(id);
       }
     } catch (e) {
-      setResultsError(e instanceof Error ? e.message : 'Failed to refresh evaluation status');
+      setResultsError(
+        e instanceof Error ? e.message : "Failed to refresh evaluation status",
+      );
     }
   }, [id, loadResults]);
 
   usePolling(pollCallback, 2000, isRunning);
 
   async function handleDelete() {
-    if (!id || !confirm('Delete this run?')) {
+    if (!id || !confirm("Delete this run?")) {
       return;
     }
     await deleteRun(id);
-    navigate('/runs');
+    navigate("/runs");
   }
 
   async function handleExport() {
@@ -246,7 +304,7 @@ export function RunDetail() {
     try {
       await exportRun(id);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to export evaluation');
+      setError(e instanceof Error ? e.message : "Failed to export evaluation");
     } finally {
       setExporting(false);
     }
@@ -256,57 +314,77 @@ export function RunDetail() {
     return <LoadingSkeleton rows={6} />;
   }
   if (error) {
-    return <Alert variant="destructive" className="animate-fade-in"><AlertDescription>{error}</AlertDescription></Alert>;
+    return (
+      <Alert variant="destructive" className="animate-fade-in">
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
+    );
   }
   if (!run) {
-    return <Alert variant="destructive" className="animate-fade-in"><AlertDescription>Run not found</AlertDescription></Alert>;
+    return (
+      <Alert variant="destructive" className="animate-fade-in">
+        <AlertDescription>Run not found</AlertDescription>
+      </Alert>
+    );
   }
 
-  const filteredResults = showFailuresOnly ? results.filter((result) => result.passed === false) : results;
+  const filteredResults = showFailuresOnly
+    ? results.filter((result) => result.passed === false)
+    : results;
   const displayedResults = sortResultsByGrader(filteredResults, graderSort);
   const pages = Math.max(1, Math.ceil(displayedResults.length / pageSize));
   const safePage = Math.min(page, pages);
   const currentPageStart = (safePage - 1) * pageSize;
-  const currentPageResults = displayedResults.slice(currentPageStart, currentPageStart + pageSize);
+  const currentPageResults = displayedResults.slice(
+    currentPageStart,
+    currentPageStart + pageSize,
+  );
   const currentPageScope = buildRunTranslationScope(currentPageResults);
   const currentPageTranslation = translatedPages[currentPageScope] ?? null;
   const canTranslatePageText = currentPageResults.length > 0;
-  const progressPct = progress ? Math.round((progress.progress / Math.max(progress.total_rows, 1)) * 100) : 0;
+  const progressPct = progress
+    ? Math.round((progress.progress / Math.max(progress.total_rows, 1)) * 100)
+    : 0;
 
   const comparerNames = Array.from(
     new Set(
-      results.flatMap((result) => (
-        result.comparer_details && typeof result.comparer_details === 'object'
+      results.flatMap((result) =>
+        result.comparer_details && typeof result.comparer_details === "object"
           ? Object.keys(result.comparer_details)
-          : []
-      )),
+          : [],
+      ),
     ),
   );
 
-  const graderStats: Record<string, GraderStat> | undefined = run.summary?.grader_stats;
-  const hasMultipleGraders = !!graderStats && Object.keys(graderStats).length >= 2;
+  const graderStats: Record<string, GraderStat> | undefined =
+    run.summary?.grader_stats;
+  const hasMultipleGraders =
+    !!graderStats && Object.keys(graderStats).length >= 2;
 
   const weightByComparer: Record<string, number> = {};
   for (const result of results) {
     if (!result.comparer_details) {
       continue;
     }
-    for (const [comparerName, detail] of Object.entries(result.comparer_details)) {
+    for (const [comparerName, detail] of Object.entries(
+      result.comparer_details,
+    )) {
       if (comparerName in weightByComparer) {
         continue;
       }
       const typedDetail = detail as Record<string, unknown> | undefined;
-      weightByComparer[comparerName] = typeof typedDetail?.weight === 'number' ? typedDetail.weight : 1;
+      weightByComparer[comparerName] =
+        typeof typedDetail?.weight === "number" ? typedDetail.weight : 1;
     }
   }
 
   async function handleTranslatePage() {
     if (!currentPageResults.length) {
-      setResultsError('There are no run rows on this page to translate.');
+      setResultsError("There are no run rows on this page to translate.");
       return;
     }
     if (!targetLanguage.trim()) {
-      setResultsError('Enter a target language before translating this page.');
+      setResultsError("Enter a target language before translating this page.");
       return;
     }
 
@@ -314,7 +392,10 @@ export function RunDetail() {
     setResultsError(null);
     let latestProgress: RowTranslationProgress | null = null;
     try {
-      const sourceRows = buildRunSourceRows(currentPageResults, currentPageTranslation);
+      const sourceRows = buildRunSourceRows(
+        currentPageResults,
+        currentPageTranslation,
+      );
       setTranslatedPages((current) => ({
         ...current,
         [currentPageScope]: {
@@ -336,12 +417,14 @@ export function RunDetail() {
           });
           const translatedRow = result.mapped_rows[0];
           if (!translatedRow) {
-            throw new Error('Translation response was empty for one of the run rows.');
+            throw new Error(
+              "Translation response was empty for one of the run rows.",
+            );
           }
           return {
-            actual_output: translatedRow.actual_output ?? '',
-            expected_output: translatedRow.expected_output ?? '',
-            input: translatedRow.input ?? '',
+            actual_output: translatedRow.actual_output ?? "",
+            expected_output: translatedRow.expected_output ?? "",
+            input: translatedRow.input ?? "",
           };
         },
         onProgress: (progressUpdate) => {
@@ -354,9 +437,9 @@ export function RunDetail() {
             if (!existingPage) {
               return current;
             }
-            const nextTranslatedRows = existingPage.translatedRows.map((row, index) => (
-              index === rowIndex ? translatedRow : row
-            ));
+            const nextTranslatedRows = existingPage.translatedRows.map(
+              (row, index) => (index === rowIndex ? translatedRow : row),
+            );
             return {
               ...current,
               [currentPageScope]: {
@@ -368,7 +451,13 @@ export function RunDetail() {
         },
       });
     } catch (e) {
-      setResultsError(buildTranslationErrorMessage(e, latestProgress, 'Failed to translate the run page'));
+      setResultsError(
+        buildTranslationErrorMessage(
+          e,
+          latestProgress,
+          "Failed to translate the run page",
+        ),
+      );
     } finally {
       setTranslating(false);
       setTranslationProgress(null);
@@ -419,38 +508,73 @@ export function RunDetail() {
   return (
     <PageTransition>
       <PageHeader
-        title={`Run: ${run.config_name ?? 'Unknown'}`}
-        description={`Dataset: ${run.dataset_name ?? 'Unknown'} · ${formatDate(run.created_at)}`}
+        title={`Run: ${run.config_name ?? "Unknown"}`}
+        description={`Dataset: ${run.dataset_name ?? "Unknown"} · ${formatDate(run.created_at)}`}
         action={
           <div className="flex items-center gap-2">
             <StatusBadge status={run.status} />
-            <Button variant="outline" size="sm" onClick={() => void handleExport()} disabled={exporting || translating}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void handleExport()}
+              disabled={exporting || translating}
+            >
               <Download className="mr-2 h-4 w-4" />
-              {exporting ? 'Exporting...' : 'Export CSV'}
+              {exporting ? "Exporting..." : "Export CSV"}
             </Button>
-            <Button variant="destructive" size="sm" onClick={handleDelete} disabled={translating}>
-              <Trash2 className="mr-2 h-4 w-4" />Delete
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleDelete}
+              disabled={translating}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete
             </Button>
           </div>
         }
       />
 
+      {isRunning && run.flex_enabled ? (
+        <Alert className="mb-4 border-warning/30 bg-warning/10 text-foreground">
+          <AlertDescription>
+            <span className="font-medium">
+              Reminder: Flex processing enabled.
+            </span>{" "}
+            This evaluation uses OpenAI Flex processing. Requests are queued for
+            cost-efficient processing, so results may take longer to appear.
+            Latency is not reliable in this mode anymore.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
       {isRunning && progress ? (
         <Card className="mb-4">
           <CardContent className="pt-4">
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-sm text-foreground-secondary">Progress</span>
-              <span className="text-sm font-medium">{progress.progress}/{progress.total_rows}</span>
+              <span className="text-sm text-foreground-secondary">
+                {run.flex_enabled ? "Flex progress" : "Progress"}
+              </span>
+              <span className="text-sm font-medium">
+                {progress.progress}/{progress.total_rows}
+              </span>
             </div>
             <Progress value={progressPct} />
             <div className="mt-2 flex gap-4 text-xs text-foreground-secondary">
-              <span>Status: {progress.status}</span>
+              {run.flex_enabled ? (
+                <span className="flex items-center gap-2">
+                  <Spinner />
+                  {getFlexProgressMessage(progress.status)}
+                </span>
+              ) : (
+                <span>Status: {progress.status}</span>
+              )}
             </div>
           </CardContent>
         </Card>
       ) : null}
 
-      {run.status === 'failed' && run.error_message ? (
+      {run.status === "failed" && run.error_message ? (
         <Alert variant="destructive" className="mb-4">
           <AlertDescription className="whitespace-pre-wrap">
             <span className="font-medium">Run failed:</span> {run.error_message}
@@ -464,21 +588,26 @@ export function RunDetail() {
             <Popover
               align="start"
               className="min-w-[200px]"
-              trigger={(
+              trigger={
                 <StatCard
                   label="Accuracy"
                   value={formatPercent(run.summary.accuracy)}
                   icon={<Info className="h-3 w-3 text-foreground-secondary" />}
                 />
-              )}
+              }
             >
               <div className="mb-2 text-xs font-medium uppercase tracking-wide text-foreground-secondary">
                 Avg Score by Grader
               </div>
               <div className="space-y-1.5">
                 {Object.entries(graderStats).map(([name, stat]) => (
-                  <div key={name} className="flex items-center justify-between gap-4 text-sm">
-                    <span className="truncate text-foreground-secondary">{name}</span>
+                  <div
+                    key={name}
+                    className="flex items-center justify-between gap-4 text-sm"
+                  >
+                    <span className="truncate text-foreground-secondary">
+                      {name}
+                    </span>
                     <span className="font-mono font-medium tabular-nums text-foreground">
                       {stat.avg_score.toFixed(2)}
                     </span>
@@ -487,7 +616,10 @@ export function RunDetail() {
               </div>
             </Popover>
           ) : (
-            <StatCard label="Accuracy" value={formatPercent(run.summary.accuracy)} />
+            <StatCard
+              label="Accuracy"
+              value={formatPercent(run.summary.accuracy)}
+            />
           )}
           <StatCard label="Total" value={String(run.summary.total)} />
           <StatCard label="Passed" value={String(run.summary.passed)} />
@@ -495,9 +627,22 @@ export function RunDetail() {
           {run.summary.unjudged ? (
             <StatCard label="Unjudged" value={String(run.summary.unjudged)} />
           ) : null}
-          <StatCard label="Avg Latency" value={`${run.summary.avg_latency_ms}ms`} />
-          <StatCard label="Avg Input Tokens" value={formatTokens(run.summary.avg_input_tokens ?? 0)} />
-          <StatCard label="Avg Output Tokens" value={formatTokens(run.summary.avg_output_tokens ?? 0)} />
+          <StatCard
+            label="Avg Latency"
+            value={
+              <LatencyValue unreliable={run.flex_enabled}>
+                {`${run.summary.avg_latency_ms}ms`}
+              </LatencyValue>
+            }
+          />
+          <StatCard
+            label="Avg Input Tokens"
+            value={formatTokens(run.summary.avg_input_tokens ?? 0)}
+          />
+          <StatCard
+            label="Avg Output Tokens"
+            value={formatTokens(run.summary.avg_output_tokens ?? 0)}
+          />
         </div>
       ) : null}
 
@@ -507,11 +652,12 @@ export function RunDetail() {
             <div>
               <CardTitle>Results</CardTitle>
               <p className="mt-1 text-xs text-foreground-secondary">
-                CSV export includes row outputs, grader reasoning, latency, token usage, and raw comparer details.
+                CSV export includes row outputs, grader reasoning, latency,
+                token usage, and raw comparer details.
               </p>
             </div>
             <Button
-              variant={showFailuresOnly ? 'default' : 'outline'}
+              variant={showFailuresOnly ? "default" : "outline"}
               size="sm"
               onClick={() => {
                 if (translating) {
@@ -522,14 +668,16 @@ export function RunDetail() {
               }}
               disabled={translating}
             >
-              {showFailuresOnly ? 'Show All' : 'Failures Only'}
+              {showFailuresOnly ? "Show All" : "Failures Only"}
             </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {canTranslatePageText ? (
             <InputTranslationActions
-              currentTranslationLanguage={currentPageTranslation?.targetLanguage ?? null}
+              currentTranslationLanguage={
+                currentPageTranslation?.targetLanguage ?? null
+              }
               translatedFields={TRANSLATED_FIELDS}
               loading={translating}
               progress={translationProgress}
@@ -557,7 +705,9 @@ export function RunDetail() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-12">#</TableHead>
-                      {currentPageTranslation ? <TableHead className="w-36">Text View</TableHead> : null}
+                      {currentPageTranslation ? (
+                        <TableHead className="w-36">Text View</TableHead>
+                      ) : null}
                       <TableHead>Input</TableHead>
                       <TableHead>Expected</TableHead>
                       <TableHead>Actual</TableHead>
@@ -565,17 +715,19 @@ export function RunDetail() {
                         comparerNames.map((name) => {
                           const weight = weightByComparer[name] ?? 1;
                           const isSorted = graderSort?.graderName === name;
-                          const sortDirection = isSorted ? graderSort.direction : null;
+                          const sortDirection = isSorted
+                            ? graderSort.direction
+                            : null;
                           return (
                             <TableHead
                               key={name}
                               className="w-28 text-center"
                               aria-sort={
-                                sortDirection === 'fail-first'
-                                  ? 'ascending'
-                                  : sortDirection === 'pass-first'
-                                    ? 'descending'
-                                    : 'none'
+                                sortDirection === "fail-first"
+                                  ? "ascending"
+                                  : sortDirection === "pass-first"
+                                    ? "descending"
+                                    : "none"
                               }
                             >
                               <Button
@@ -586,32 +738,48 @@ export function RunDetail() {
                                   if (translating) {
                                     return;
                                   }
-                                  setGraderSort((currentSort) => getNextGraderSort(currentSort, name));
+                                  setGraderSort((currentSort) =>
+                                    getNextGraderSort(currentSort, name),
+                                  );
                                   setPage(1);
                                 }}
                                 disabled={translating}
                                 title={
                                   !isSorted
                                     ? `Sort ${name}: failed rows first`
-                                    : sortDirection === 'fail-first'
+                                    : sortDirection === "fail-first"
                                       ? `Sort ${name}: passed rows first`
                                       : `Clear ${name} sorting`
                                 }
                               >
-                                <span className={weight === 0 ? 'opacity-50' : ''}>{name}</span>
+                                <span
+                                  className={weight === 0 ? "opacity-50" : ""}
+                                >
+                                  {name}
+                                </span>
                                 {weight !== 1 ? (
-                                  <Badge variant="default" className="px-1 py-0 text-[10px]">
+                                  <Badge
+                                    variant="default"
+                                    className="px-1 py-0 text-[10px]"
+                                  >
                                     w:{weight}
                                   </Badge>
                                 ) : null}
                                 {hasMultipleGraders && graderStats?.[name] ? (
-                                  <Badge variant="default" className="px-1.5 py-0 text-[10px]">
-                                    {graderStats[name].judged === 0 ? 'Score only' : formatPercent(graderStats[name].accuracy)}
+                                  <Badge
+                                    variant="default"
+                                    className="px-1.5 py-0 text-[10px]"
+                                  >
+                                    {graderStats[name].judged === 0
+                                      ? "Score only"
+                                      : formatPercent(
+                                          graderStats[name].accuracy,
+                                        )}
                                   </Badge>
                                 ) : null}
-                                {sortDirection === 'fail-first' ? (
+                                {sortDirection === "fail-first" ? (
                                   <ArrowUp className="h-3.5 w-3.5 shrink-0" />
-                                ) : sortDirection === 'pass-first' ? (
+                                ) : sortDirection === "pass-first" ? (
                                   <ArrowDown className="h-3.5 w-3.5 shrink-0" />
                                 ) : (
                                   <ArrowUpDown className="h-3.5 w-3.5 shrink-0 text-foreground-secondary" />
@@ -630,15 +798,32 @@ export function RunDetail() {
                   </TableHeader>
                   <TableBody>
                     {currentPageResults.map((result, rowIndex) => {
-                      const rowChanged = rowHasTranslatedChanges(currentPageTranslation, rowIndex, TRANSLATED_FIELDS);
-                      const showingOriginalInput = currentPageTranslation?.originalRowIndexes.includes(rowIndex) ?? false;
-                      const activeTranslationRowIndex = translationProgress?.activeRowIndex ?? null;
-                      const activeTranslationRow = translating && activeTranslationRowIndex === rowIndex;
-                      const pendingTranslationRow = translating
-                        && activeTranslationRowIndex !== null
-                        && rowIndex > activeTranslationRowIndex;
-                      const displayRow = getRunRowForDisplay(result, rowIndex, currentPageTranslation);
-                      const rowStatus = getResultStatusBadge(result.passed, result.error);
+                      const rowChanged = rowHasTranslatedChanges(
+                        currentPageTranslation,
+                        rowIndex,
+                        TRANSLATED_FIELDS,
+                      );
+                      const showingOriginalInput =
+                        currentPageTranslation?.originalRowIndexes.includes(
+                          rowIndex,
+                        ) ?? false;
+                      const activeTranslationRowIndex =
+                        translationProgress?.activeRowIndex ?? null;
+                      const activeTranslationRow =
+                        translating && activeTranslationRowIndex === rowIndex;
+                      const pendingTranslationRow =
+                        translating &&
+                        activeTranslationRowIndex !== null &&
+                        rowIndex > activeTranslationRowIndex;
+                      const displayRow = getRunRowForDisplay(
+                        result,
+                        rowIndex,
+                        currentPageTranslation,
+                      );
+                      const rowStatus = getResultStatusBadge(
+                        result.passed,
+                        result.error,
+                      );
 
                       return (
                         <TableRow key={result.id}>
@@ -655,12 +840,18 @@ export function RunDetail() {
                               ) : rowChanged ? (
                                 <Button
                                   type="button"
-                                  variant={showingOriginalInput ? 'default' : 'outline'}
+                                  variant={
+                                    showingOriginalInput ? "default" : "outline"
+                                  }
                                   size="sm"
-                                  onClick={() => toggleShowOriginalRow(rowIndex)}
+                                  onClick={() =>
+                                    toggleShowOriginalRow(rowIndex)
+                                  }
                                   disabled={translating}
                                 >
-                                  {showingOriginalInput ? 'Original' : 'Translated'}
+                                  {showingOriginalInput
+                                    ? "Original"
+                                    : "Translated"}
                                 </Button>
                               ) : (
                                 <Badge>Same text</Badge>
@@ -679,29 +870,43 @@ export function RunDetail() {
                           </TableCell>
                           <TableCell className="align-top">
                             <ExpandableCell className="min-w-[200px] max-w-[400px]">
-                              {displayRow.actual_output || result.actual_output
-                                ? displayRow.actual_output
-                                : (
-                                    result.error ? (
-                                      <span className="text-xs text-red-400">{result.error}</span>
-                                    ) : '—'
-                                  )}
+                              {displayRow.actual_output ||
+                              result.actual_output ? (
+                                displayRow.actual_output
+                              ) : result.error ? (
+                                <span className="text-xs text-red-400">
+                                  {result.error}
+                                </span>
+                              ) : (
+                                "—"
+                              )}
                             </ExpandableCell>
                           </TableCell>
                           {comparerNames.length > 0 ? (
                             comparerNames.map((name) => {
-                              const detail = result.comparer_details?.[name] as Record<string, unknown> | undefined;
+                              const detail = result.comparer_details?.[name] as
+                                | Record<string, unknown>
+                                | undefined;
                               if (!detail) {
-                                return <TableCell key={name} className="text-center">—</TableCell>;
+                                return (
+                                  <TableCell key={name} className="text-center">
+                                    —
+                                  </TableCell>
+                                );
                               }
                               const passed = detail.passed;
                               const status = getResultStatusBadge(
-                                typeof passed === 'boolean' ? passed : null,
-                                typeof detail.error === 'string' ? detail.error : null,
+                                typeof passed === "boolean" ? passed : null,
+                                typeof detail.error === "string"
+                                  ? detail.error
+                                  : null,
                               );
                               return (
                                 <TableCell key={name} className="text-center">
-                                  <GraderDetailPopover detail={detail} status={status} />
+                                  <GraderDetailPopover
+                                    detail={detail}
+                                    status={status}
+                                  />
                                 </TableCell>
                               );
                             })
@@ -712,12 +917,24 @@ export function RunDetail() {
                               </Badge>
                             </TableCell>
                           )}
-                          <TableCell>{result.comparer_score != null ? result.comparer_score.toFixed(2) : '—'}</TableCell>
-                          <TableCell>{result.latency_ms != null ? `${result.latency_ms}ms` : '—'}</TableCell>
+                          <TableCell>
+                            {result.comparer_score != null
+                              ? result.comparer_score.toFixed(2)
+                              : "—"}
+                          </TableCell>
+                          <TableCell>
+                            {result.latency_ms != null
+                              ? (
+                                <LatencyValue unreliable={run.flex_enabled}>
+                                  {`${result.latency_ms}ms`}
+                                </LatencyValue>
+                              )
+                              : "—"}
+                          </TableCell>
                           <TableCell className="tabular-nums">
                             {result.token_usage
                               ? `${formatTokens(result.token_usage.input_tokens)} / ${formatTokens(result.token_usage.output_tokens)}`
-                              : '—'}
+                              : "—"}
                           </TableCell>
                         </TableRow>
                       );

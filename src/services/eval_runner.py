@@ -143,7 +143,7 @@ async def _run_evaluation(run_id: str) -> None:
                 total_rows=len(rows),
                 heartbeat_at=datetime.now(UTC),
             )
-            grader_bundle = _build_grader_bundle(context.config)
+            grader_bundle = _build_grader_bundle(context.config, context.run.flex_enabled)
             results = await _process_rows(context, rows, grader_bundle)
             summary = await _mark_run_completed(context.run_repo, run_id, results)
             logger.info("Run %s completed: %s", run_id, summary)
@@ -218,18 +218,22 @@ async def _read_rows(
         return None
 
 
-def _build_grader_bundle(config: EvalConfig) -> GraderBundle:
+def _build_grader_bundle(config: EvalConfig, flex_enabled: bool) -> GraderBundle:
     """Instantiate graders and collect their configured weights."""
     comparers: list[tuple[str, BaseComparer]] = []
     weights: dict[str, float] = {}
     for grader_def in config.graders or []:
-        grader = _build_grader(grader_def, config.model)
+        grader = _build_grader(grader_def, config.model, flex_enabled)
         comparers.append((grader.grader_name, grader))
         weights[grader.grader_name] = grader_def.get("weight", 1.0)
     return GraderBundle(comparers=comparers, weights=weights)
 
 
-def _build_grader(grader_def: dict, default_model: str) -> BaseComparer:
+def _build_grader(
+    grader_def: dict,
+    default_model: str,
+    flex_enabled: bool,
+) -> BaseComparer:
     """Create one grader instance from a grader definition."""
     from src.comparers.custom_grader import CustomGraderComparer
     from src.comparers.json_field_match import JsonFieldMatchComparer
@@ -251,6 +255,7 @@ def _build_grader(grader_def: dict, default_model: str) -> BaseComparer:
     if grader_type == "json_field":
         return JsonFieldMatchComparer(grader_cfg)
     grader_cfg["model"] = grader_def.get("model") or default_model
+    grader_cfg["flex_enabled"] = flex_enabled
     return CustomGraderComparer(grader_cfg)
 
 
@@ -470,6 +475,7 @@ async def _populate_row_result(
             tool_options=context.config.tool_options,
             reasoning_config=context.config.reasoning_config,
             response_format=context.config.response_format,
+            flex_enabled=context.run.flex_enabled,
         )
         result.actual_output = llm_response.text
         result.latency_ms = llm_response.latency_ms

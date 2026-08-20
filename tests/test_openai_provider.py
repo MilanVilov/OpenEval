@@ -173,3 +173,54 @@ class TestLatencyMeasurement:
         assert captured_kwargs["tools"] == [
             {"type": "file_search", "vector_store_ids": ["vs_123"]}
         ]
+
+    async def test_flex_enabled_uses_flex_service_tier(self):
+        """Flex-enabled generation should request the Flex service tier."""
+        mock_client = AsyncMock()
+        captured_kwargs = {}
+
+        async def capture_create(**kwargs):
+            captured_kwargs.update(kwargs)
+            response = MagicMock()
+            response.output = []
+            response.usage = MagicMock(input_tokens=5, output_tokens=10)
+            response.id = "resp_test"
+            response.model = "gpt-4.1"
+            return response
+
+        mock_client.responses.create = capture_create
+        provider = OpenAIProvider(client=mock_client)
+
+        await provider.generate(
+            system_prompt="test",
+            user_input="hello",
+            model="gpt-4.1",
+            flex_enabled=True,
+        )
+
+        assert captured_kwargs["service_tier"] == "flex"
+
+    async def test_flex_disabled_omits_service_tier(self):
+        """Default generation should leave OpenAI service-tier selection unchanged."""
+        mock_client = AsyncMock()
+        captured_kwargs = {}
+
+        async def capture_create(**kwargs):
+            captured_kwargs.update(kwargs)
+            response = MagicMock()
+            response.output = []
+            response.usage = MagicMock(input_tokens=5, output_tokens=10)
+            response.id = "resp_test"
+            response.model = "gpt-4.1"
+            return response
+
+        mock_client.responses.create = capture_create
+        provider = OpenAIProvider(client=mock_client)
+
+        await provider.generate(
+            system_prompt="test",
+            user_input="hello",
+            model="gpt-4.1",
+        )
+
+        assert "service_tier" not in captured_kwargs
