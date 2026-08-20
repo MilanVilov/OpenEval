@@ -4,13 +4,15 @@ import { useCountUp } from '@/hooks/useCountUp';
 
 interface StatCardProps {
   label: string;
-  value: string | number;
+  value: ReactNode;
   icon?: ReactNode;
 }
 
 export function StatCard({ label, value, icon }: StatCardProps) {
   // Animate numeric values
-  const numericValue = typeof value === 'number' ? value : parseFloat(value);
+  const numericValue = typeof value === 'number' || typeof value === 'string'
+    ? parseFloat(String(value))
+    : NaN;
   const isAnimatable = !isNaN(numericValue) && Number.isInteger(numericValue) && numericValue >= 0;
   const animated = useCountUp(isAnimatable ? numericValue : 0);
 
@@ -21,7 +23,7 @@ export function StatCard({ label, value, icon }: StatCardProps) {
         className={`font-semibold text-foreground tabular-nums ${
           isAnimatable ? 'text-2xl' : 'text-sm font-mono truncate'
         }`}
-        title={String(value)}
+        title={typeof value === 'string' || typeof value === 'number' ? String(value) : undefined}
       >
         {isAnimatable ? animated : value}
       </div>

@@ -4,6 +4,7 @@ import { exportRun, listRunsPage } from '@/api/runs';
 import type { EvalRun } from '@/types/run';
 import { PageHeader } from '@/components/PageHeader';
 import { ExpandableCell } from '@/components/ExpandableCell';
+import { LatencyValue } from '@/components/LatencyValue';
 import { Button } from '@/components/ui/button';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { StatusBadge } from '@/components/StatusBadge';
@@ -118,7 +119,13 @@ export function RunList() {
                   </TableCell>
                   <TableCell><StatusBadge status={run.status} /></TableCell>
                   <TableCell className="tabular-nums">{run.summary ? formatPercent(run.summary.accuracy) : '—'}</TableCell>
-                  <TableCell className="tabular-nums">{run.summary?.avg_latency_ms != null ? formatLatency(run.summary.avg_latency_ms) : '—'}</TableCell>
+                  <TableCell className="tabular-nums">
+                    {run.summary?.avg_latency_ms != null ? (
+                      <LatencyValue unreliable={run.flex_enabled}>
+                        {formatLatency(run.summary.avg_latency_ms)}
+                      </LatencyValue>
+                    ) : '—'}
+                  </TableCell>
                   <TableCell className="tabular-nums">{run.summary?.avg_input_tokens != null ? `${formatTokens(run.summary.avg_input_tokens)} / ${formatTokens(run.summary.avg_output_tokens)}` : '—'}</TableCell>
                   <TableCell>{formatDate(run.created_at)}</TableCell>
                   <TableCell className="text-right">

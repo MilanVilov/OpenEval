@@ -21,7 +21,7 @@ export function RunNew() {
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [configId, setConfigId] = useState('');
   const [datasetId, setDatasetId] = useState('');
-  const [flexEnabled, setFlexEnabled] = useState(false);
+  const [flexEnabled, setFlexEnabled] = useState(true);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
