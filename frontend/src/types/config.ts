@@ -52,6 +52,11 @@ export interface EvalConfig {
   updated_at: string;
 }
 
+export interface ConfigOption {
+  id: string;
+  name: string;
+}
+
 export interface CreateConfigRequest {
   name: string;
   comment?: string | null;

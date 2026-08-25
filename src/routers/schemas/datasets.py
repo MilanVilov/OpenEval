@@ -18,6 +18,14 @@ class DatasetResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class DatasetOptionResponse(BaseModel):
+    """Response model for a dataset used in a run selector."""
+
+    id: str
+    name: str
+    row_count: int
+
+
 class PaginatedDatasetResponse(BaseModel):
     """Response model for a paginated dataset list."""
 

@@ -181,6 +181,13 @@ class ConfigResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ConfigOptionResponse(BaseModel):
+    """Response model for a config used in a run selector."""
+
+    id: str
+    name: str
+
+
 class PaginatedConfigResponse(BaseModel):
     """Response model for a paginated config list."""
 
