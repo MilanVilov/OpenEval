@@ -21,7 +21,7 @@ export function RunNew() {
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [configId, setConfigId] = useState('');
   const [datasetId, setDatasetId] = useState('');
-  const [flexEnabled, setFlexEnabled] = useState(true);
+  const [flexEnabled, setFlexEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -102,7 +102,7 @@ export function RunNew() {
             Use Flex processing
           </label>
           <p className="text-xs text-foreground-secondary">
-            Uses lower-cost Flex processing for compatible OpenAI requests in this run. Results may take longer to appear.
+            Uses Flex for all main and grader models in this config.
           </p>
         </div>
 
