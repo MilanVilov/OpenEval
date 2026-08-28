@@ -95,7 +95,7 @@ async def list_configs(
 async def list_config_options(
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> list[ConfigOptionResponse]:
-    """List the config fields required to start an evaluation run."""
+    """List the config fields required by configuration selectors."""
     return await ConfigRepository(session).list_options()
 
 

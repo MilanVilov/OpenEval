@@ -169,8 +169,8 @@ async def test_list_datasets_paginates_and_searches(client: AsyncClient, tmp_pat
 
 
 @pytest.mark.asyncio
-async def test_run_options_return_only_selector_fields(client: AsyncClient, tmp_path: Path):
-    """Run selectors return the fields needed to start a run."""
+async def test_config_options_return_only_selector_fields(client: AsyncClient, tmp_path: Path):
+    """Configuration selectors return their required config and dataset fields."""
     async with get_session_context() as session:
         config = await ConfigRepository(session).create(
             name="Support Eval",
@@ -189,7 +189,15 @@ async def test_run_options_return_only_selector_fields(client: AsyncClient, tmp_
     dataset_response = await client.get("/api/datasets/options")
 
     assert config_response.status_code == 200
-    assert config_response.json() == [{"id": config.id, "name": "Support Eval"}]
+    assert config_response.json() == [
+        {
+            "id": config.id,
+            "name": "Support Eval",
+            "model": "gpt-4.1",
+            "tools": [],
+            "reasoning_config": None,
+        }
+    ]
     assert dataset_response.status_code == 200
     assert dataset_response.json() == [
         {"id": dataset.id, "name": "Support Tickets", "row_count": 42}

@@ -1,7 +1,7 @@
 import { useState, useEffect, type FormEvent } from 'react';
-import { listConfigs } from '@/api/configs';
+import { listConfigOptions } from '@/api/configs';
 import { runPlayground, type PlaygroundResponse } from '@/api/playground';
-import type { EvalConfig } from '@/types/config';
+import type { ConfigOption } from '@/types/config';
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -16,7 +16,7 @@ import { CodeBlock } from '@/components/CodeBlock';
 import { Send, Clock, Zap, FileSearch, Terminal as TerminalIcon, MessageSquare, Brain, ChevronRight, CheckCircle2, XCircle } from 'lucide-react';
 
 export function Playground() {
-  const [configs, setConfigs] = useState<EvalConfig[]>([]);
+  const [configs, setConfigs] = useState<ConfigOption[]>([]);
   const [configId, setConfigId] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
@@ -25,7 +25,7 @@ export function Playground() {
   const [rawTab, setRawTab] = useState<'request' | 'response'>('response');
 
   useEffect(() => {
-    listConfigs()
+    listConfigOptions()
       .then((list) => {
         setConfigs(list);
         if (list.length > 0) setConfigId(list[0].id);

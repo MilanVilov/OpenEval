@@ -41,10 +41,13 @@ class PageResult[ModelT]:
 
 @dataclass(frozen=True)
 class ConfigOption:
-    """The config fields required by a run selector."""
+    """The config fields required by configuration selectors."""
 
     id: str
     name: str
+    model: str
+    tools: list
+    reasoning_config: dict | None
 
 
 @dataclass(frozen=True)
@@ -128,10 +131,25 @@ class ConfigRepository:
         return list(result.scalars().all())
 
     async def list_options(self) -> list[ConfigOption]:
-        """Return only the config fields required by run selectors."""
-        stmt = select(EvalConfig.id, EvalConfig.name).order_by(EvalConfig.created_at.desc())
+        """Return only the config fields required by configuration selectors."""
+        stmt = select(
+            EvalConfig.id,
+            EvalConfig.name,
+            EvalConfig.model,
+            EvalConfig.tools,
+            EvalConfig.reasoning_config,
+        ).order_by(EvalConfig.created_at.desc())
         result = await self._session.execute(stmt)
-        return [ConfigOption(id=config_id, name=name) for config_id, name in result.all()]
+        return [
+            ConfigOption(
+                id=config_id,
+                name=name,
+                model=model,
+                tools=tools,
+                reasoning_config=reasoning_config,
+            )
+            for config_id, name, model, tools, reasoning_config in result.all()
+        ]
 
     async def list_page(
         self,

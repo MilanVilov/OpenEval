@@ -182,10 +182,13 @@ class ConfigResponse(BaseModel):
 
 
 class ConfigOptionResponse(BaseModel):
-    """Response model for a config used in a run selector."""
+    """Response model for a config used in a configuration selector."""
 
     id: str
     name: str
+    model: str
+    tools: list[str]
+    reasoning_config: dict | None
 
 
 class PaginatedConfigResponse(BaseModel):
