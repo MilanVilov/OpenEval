@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.db.repositories import ConfigRepository
 from src.db.session import get_session
 from src.routers.schemas.configs import (
+    ConfigOptionResponse,
     ConfigResponse,
     CreateConfigRequest,
     PaginatedConfigResponse,
@@ -88,6 +89,14 @@ async def list_configs(
         pages=pages,
         search=search.strip() if search else None,
     )
+
+
+@router.get("/options", response_model=list[ConfigOptionResponse])
+async def list_config_options(
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[ConfigOptionResponse]:
+    """List the config fields required by configuration selectors."""
+    return await ConfigRepository(session).list_options()
 
 
 @router.post("", response_model=ConfigResponse, status_code=201)

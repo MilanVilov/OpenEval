@@ -16,6 +16,7 @@ from src.routers.schemas.data_sources import (
 )
 from src.routers.schemas.datasets import (
     DatasetDetailResponse,
+    DatasetOptionResponse,
     DatasetResponse,
     PaginatedDatasetResponse,
     UpdateRowsRequest,
@@ -90,6 +91,14 @@ async def list_datasets(
         pages=pages,
         search=search.strip() if search else None,
     )
+
+
+@router.get("/options", response_model=list[DatasetOptionResponse])
+async def list_dataset_options(
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[DatasetOptionResponse]:
+    """List the dataset fields required to start an evaluation run."""
+    return await DatasetRepository(session).list_options()
 
 
 @router.post("", response_model=DatasetResponse, status_code=201)

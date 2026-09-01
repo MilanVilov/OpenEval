@@ -15,6 +15,12 @@ export interface Dataset {
   created_at: string;
 }
 
+export interface DatasetOption {
+  id: string;
+  name: string;
+  row_count: number;
+}
+
 export interface DatasetDetail extends Dataset {
   import_source_snapshot: ImportSourceSnapshot | null;
   rows: DatasetRow[];

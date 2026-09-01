@@ -1,5 +1,5 @@
 import { apiFetch } from './client';
-import type { EvalConfig, CreateConfigRequest } from '../types/config';
+import type { ConfigOption, EvalConfig, CreateConfigRequest } from '../types/config';
 import { buildPaginationQuery } from './pagination';
 import type { PaginatedResponse, PaginationParams } from '../types/pagination';
 
@@ -9,6 +9,10 @@ export interface ConfigPaginationParams extends PaginationParams {
 
 export function listConfigs(): Promise<EvalConfig[]> {
   return apiFetch('/configs');
+}
+
+export function listConfigOptions(): Promise<ConfigOption[]> {
+  return apiFetch('/configs/options');
 }
 
 export function listConfigsPage(

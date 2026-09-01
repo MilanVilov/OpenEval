@@ -39,6 +39,26 @@ class PageResult[ModelT]:
     total: int
 
 
+@dataclass(frozen=True)
+class ConfigOption:
+    """The config fields required by configuration selectors."""
+
+    id: str
+    name: str
+    model: str
+    tools: list
+    reasoning_config: dict | None
+
+
+@dataclass(frozen=True)
+class DatasetOption:
+    """The dataset fields required by a run selector."""
+
+    id: str
+    name: str
+    row_count: int
+
+
 def _search_pattern(search: str | None) -> str | None:
     """Return a SQL LIKE pattern for a user search string."""
     if search is None:
@@ -109,6 +129,27 @@ class ConfigRepository:
         stmt = select(EvalConfig).order_by(EvalConfig.created_at.desc())
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
+
+    async def list_options(self) -> list[ConfigOption]:
+        """Return only the config fields required by configuration selectors."""
+        stmt = select(
+            EvalConfig.id,
+            EvalConfig.name,
+            EvalConfig.model,
+            EvalConfig.tools,
+            EvalConfig.reasoning_config,
+        ).order_by(EvalConfig.created_at.desc())
+        result = await self._session.execute(stmt)
+        return [
+            ConfigOption(
+                id=config_id,
+                name=name,
+                model=model,
+                tools=tools,
+                reasoning_config=reasoning_config,
+            )
+            for config_id, name, model, tools, reasoning_config in result.all()
+        ]
 
     async def list_page(
         self,
@@ -382,6 +423,15 @@ class DatasetRepository:
         stmt = select(Dataset).order_by(Dataset.created_at.desc())
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
+
+    async def list_options(self) -> list[DatasetOption]:
+        """Return only the dataset fields required by run selectors."""
+        stmt = select(Dataset.id, Dataset.name, Dataset.row_count).order_by(Dataset.created_at.desc())
+        result = await self._session.execute(stmt)
+        return [
+            DatasetOption(id=dataset_id, name=name, row_count=row_count)
+            for dataset_id, name, row_count in result.all()
+        ]
 
     async def list_page(
         self,

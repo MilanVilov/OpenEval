@@ -1,10 +1,10 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createRun } from '@/api/runs';
-import { listConfigs } from '@/api/configs';
-import { listDatasets } from '@/api/datasets';
-import type { EvalConfig } from '@/types/config';
-import type { Dataset } from '@/types/dataset';
+import { listConfigOptions } from '@/api/configs';
+import { listDatasetOptions } from '@/api/datasets';
+import type { ConfigOption } from '@/types/config';
+import type { DatasetOption } from '@/types/dataset';
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -17,8 +17,8 @@ import { Spinner } from '@/components/Spinner';
 
 export function RunNew() {
   const navigate = useNavigate();
-  const [configs, setConfigs] = useState<EvalConfig[]>([]);
-  const [datasets, setDatasets] = useState<Dataset[]>([]);
+  const [configs, setConfigs] = useState<ConfigOption[]>([]);
+  const [datasets, setDatasets] = useState<DatasetOption[]>([]);
   const [configId, setConfigId] = useState('');
   const [datasetId, setDatasetId] = useState('');
   const [flexEnabled, setFlexEnabled] = useState(true);
@@ -27,7 +27,7 @@ export function RunNew() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([listConfigs(), listDatasets()])
+    Promise.all([listConfigOptions(), listDatasetOptions()])
       .then(([c, d]) => {
         setConfigs(c);
         setDatasets(d);

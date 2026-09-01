@@ -52,6 +52,14 @@ export interface EvalConfig {
   updated_at: string;
 }
 
+export interface ConfigOption {
+  id: string;
+  name: string;
+  model: string;
+  tools: string[];
+  reasoning_config: Record<string, string> | null;
+}
+
 export interface CreateConfigRequest {
   name: string;
   comment?: string | null;
