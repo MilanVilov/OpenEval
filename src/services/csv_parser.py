@@ -1,6 +1,7 @@
 """CSV parsing service for dataset uploads."""
 
 import csv
+from collections.abc import Iterator
 from io import StringIO
 from pathlib import Path
 
@@ -40,6 +41,17 @@ async def read_csv_rows(file_path: str) -> list[dict]:
 async def read_csv_rows_text(csv_content: str) -> list[dict]:
     """Read all rows from CSV text as a list of dicts."""
     return read_csv_rows_content(csv_content)
+
+
+def iter_csv_rows(file_path: str) -> Iterator[dict]:
+    """Yield rows from a CSV file without materializing the whole dataset."""
+    with Path(file_path).open(encoding="utf-8", newline="") as csv_file:
+        yield from csv.DictReader(csv_file)
+
+
+def iter_csv_rows_text(csv_content: str) -> Iterator[dict]:
+    """Yield rows from CSV text without materializing parsed rows."""
+    return _create_dict_reader(csv_content)
 
 
 def read_csv_rows_content(csv_content: str) -> list[dict]:
