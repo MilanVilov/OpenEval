@@ -1,3 +1,6 @@
+<img width="1796" height="1005" alt="image" src="https://github.com/user-attachments/assets/61e92725-29ad-41ac-b0ba-b8864a192c52" />
+
+
 # OpenEval
 
 **Ship better AI workflows with evidence, not vibes.** OpenEval is an open-source workspace for testing prompts, models, and tools against real data—then seeing exactly where they succeed, fail, and improve.
