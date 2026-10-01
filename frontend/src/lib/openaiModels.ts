@@ -9,7 +9,7 @@ export interface ModelGroup {
 }
 
 export interface ReasoningEffortOption {
-  value: 'none' | 'low' | 'medium' | 'high' | 'xhigh';
+  value: 'none' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
   label: string;
 }
 
@@ -22,6 +22,7 @@ const OPENAI_CONFIG_MODEL_GROUPS: ModelGroup[] = [
   {
     group: 'Frontier',
     models: [
+      { value: 'gpt-6.1-sol', label: 'GPT-6.1 Sol' },
       { value: 'gpt-5.6', label: 'GPT-5.6' },
       { value: 'gpt-5.6-sol', label: 'GPT-5.6 Sol' },
       { value: 'gpt-5.6-terra', label: 'GPT-5.6 Terra' },
@@ -69,6 +70,13 @@ const OPENAI_CONFIG_MODEL_GROUPS: ModelGroup[] = [
 ];
 
 const REASONING_EFFORT_OPTIONS: Record<string, ReasoningEffortOption[]> = {
+  'gpt-6.1-sol': [
+    { value: 'low', label: 'Low' },
+    { value: 'medium', label: 'Medium' },
+    { value: 'high', label: 'High' },
+    { value: 'xhigh', label: 'Extra High' },
+    { value: 'max', label: 'Max' },
+  ],
   'gpt-5.6': [
     { value: 'none', label: 'None' },
     { value: 'low', label: 'Low' },

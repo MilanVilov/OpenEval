@@ -19,6 +19,7 @@ function flattenModelValues(
 test('config model options include the latest OpenAI frontier models', () => {
   const values = flattenModelValues(OPENAI_CONFIG_MODEL_OPTIONS);
 
+  assert.ok(values.includes('gpt-6.1-sol'));
   assert.ok(values.includes('gpt-5.6'));
   assert.ok(values.includes('gpt-5.6-sol'));
   assert.ok(values.includes('gpt-5.6-terra'));
@@ -39,6 +40,10 @@ test('grader model options reuse the config model catalog', () => {
 });
 
 test('reasoning effort options reflect model-specific constraints', () => {
+  assert.deepEqual(
+    getReasoningEffortOptions('gpt-6.1-sol').map((option) => option.value),
+    ['low', 'medium', 'high', 'xhigh', 'max'],
+  );
   assert.deepEqual(
     getReasoningEffortOptions('gpt-5.6').map((option) => option.value),
     ['none', 'low', 'medium', 'high', 'xhigh'],
