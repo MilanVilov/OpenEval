@@ -11,6 +11,7 @@ from src.providers.base import BaseLLMProvider, LLMResponse
 logger = logging.getLogger(__name__)
 
 REASONING_MODELS = {
+    "gpt-6.1-sol",
     "o3",
     "o3-pro",
     "o3-mini",
