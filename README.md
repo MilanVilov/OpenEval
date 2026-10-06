@@ -2,7 +2,7 @@
 
 Test your prompts against real data. Write a system prompt, pick a model and tools, upload a CSV of expected answers, add graders, and see exactly where it passes and fails. Re-run after each change and compare.
 
-![Eval config with graders](docs/screenshots/config.png)
+![OpenEval running an evaluation](docs/screenshots/demo.gif)
 
 ## What it does
 
@@ -13,7 +13,9 @@ Test your prompts against real data. Write a system prompt, pick a model and too
 - **Iterate:** side-by-side run comparison, a playground, recurring schedules, and custom grader plugins.
 - **Self-hosted:** one `docker compose up`. Only OpenAI calls leave your machine.
 
-![Dataset](docs/screenshots/dataset.png)
+| Config with graders | Run results |
+| --- | --- |
+| ![Config](docs/screenshots/config.png) | ![Run results](docs/screenshots/run.png) |
 
 **Stack:** FastAPI, SQLAlchemy, MySQL, React, Tailwind, OpenAI Responses API.
 
@@ -29,7 +31,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Open http://localhost:8000, create a config, upload a dataset (try `misc/sample-dataset.csv`) and start a run.
+Open http://localhost:8000, create a config, upload a dataset (try `misc/sample-dataset.csv`) and start a run. For the sample prompt, set the response format to JSON object so the JSON field grader can read the answer.
 
 Stop with `docker compose down`. If port 3306 is taken, set `MYSQL_PORT=3307` in `.env`.
 
