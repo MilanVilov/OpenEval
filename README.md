@@ -1,124 +1,49 @@
-<img width="1796" height="1005" alt="image" src="https://github.com/user-attachments/assets/61e92725-29ad-41ac-b0ba-b8864a192c52" />
-
-
 # OpenEval
 
-**Ship better AI workflows with evidence, not vibes.** OpenEval is an open-source workspace for testing prompts, models, and tools against real data—then seeing exactly where they succeed, fail, and improve.
+Test your prompts against real data. Write a system prompt, pick a model and tools, upload a CSV of expected answers, add graders, and see exactly where it passes and fails. Re-run after each change and compare.
 
-Bring a CSV, configure your prompt and OpenAI tools, add the graders that matter, and run a repeatable evaluation in minutes. No accounts or multi-tenant setup required.
+![Eval config with graders](docs/screenshots/config.png)
 
-## What you can do
+## What it does
 
-- **Test real AI workflows** — Combine system prompts, models, structured outputs, reasoning settings, and hosted tools such as file search, code interpreter, and containers.
-- **Turn data into useful test cases** — Upload CSVs, import remote data, map fields into datasets, and translate input, expected-output, and model-output rows when you need a shared language for review.
-- **Grade what actually matters** — Use prompt graders with your own rubric and CSV-field context, or combine string, Python, semantic-similarity, JSON-schema, and JSON-field checks with thresholds and weights.
-- **Find the signal quickly** — Run rows in parallel, watch live progress, inspect per-row outputs and grader reasoning, sort failures first, and export the details.
-- **Improve with confidence** — Compare runs side by side, experiment in the playground, schedule recurring evaluations, and extend the system with custom comparer plugins.
+- **Configs:** system prompt, model, structured output, reasoning settings, and OpenAI file search, shell and container tools.
+- **Datasets:** upload a CSV (`input`, `expected_output`) or import from a data source, then edit rows in the browser.
+- **Graders:** combine prompt (LLM rubric), string, Python, semantic similarity, JSON schema and JSON field checks, each with a threshold and weight.
+- **Runs:** parallel execution with live progress, per-row output and grader reasoning, failures sorted first, CSV export.
+- **Iterate:** side-by-side run comparison, a playground, recurring schedules, and custom grader plugins.
+- **Self-hosted:** one `docker compose up`. Only OpenAI calls leave your machine.
 
-## Get started
+![Dataset](docs/screenshots/dataset.png)
+
+**Stack:** FastAPI, SQLAlchemy, MySQL, React, Tailwind, OpenAI Responses API.
+
+## Quick start
+
+Needs Docker with Compose v2 and an OpenAI API key.
 
 ```bash
-git clone https://github.com/your-org/OpenEval.git
+git clone https://github.com/MilanVilov/OpenEval.git
 cd OpenEval
 cp .env.example .env
-# Add OPENAI_API_KEY, APP_MYSQL_CLIENT_PASS, and MYSQL_ROOT_PASSWORD to .env
+# Set OPENAI_API_KEY, APP_MYSQL_CLIENT_PASS and MYSQL_ROOT_PASSWORD in .env
 docker compose up --build
 ```
 
-Open [http://localhost:8000](http://localhost:8000), then create a config, upload a dataset, and launch your first run.
+Open http://localhost:8000, create a config, upload a dataset (try `misc/sample-dataset.csv`) and start a run.
 
-## Features
+Stop with `docker compose down`. If port 3306 is taken, set `MYSQL_PORT=3307` in `.env`.
 
-- **Configurable evaluations** — Define prompts, models, hosted tools, response formats, concurrency, and reusable configurations
-- **Flexible data** — Build datasets from CSV uploads or data sources, map fields, and translate rows for review
-- **Multiple graders per run** — Combine prompt, string, Python, semantic, JSON schema, and JSON field graders with custom thresholds and weights
-- **Fast, explainable results** — Parallel execution, live progress, per-grader statistics and reasoning, failure sorting, and CSV export
-- **Experiment and automate** — Playground, side-by-side run comparisons, recurring schedules, vector stores, and containers
-- **Extensible by design** — Add custom comparers through Python entry points
-
-## Tech Stack
-
-- **Backend**: Python 3.12+, FastAPI, SQLAlchemy (async), MySQL, Alembic
-- **Frontend**: React 19 (Vite + TypeScript) + Tailwind CSS
-- **AI**: OpenAI Responses API
-- **Package Manager**: uv
-- **Container**: Docker (multi-stage build with Node.js + Python)
-
-## Quick Start
-
-### Docker (recommended)
-
-Requires Docker with Compose v2. Check with `docker compose version`.
+## Local development
 
 ```bash
-# Clone the repo
-git clone https://github.com/your-org/OpenEval.git
-cd OpenEval
-
-# Copy the local env template. .env is gitignored and must never be committed.
-cp .env.example .env
-
-# Edit .env and set at least:
-# - OPENAI_API_KEY
-# - APP_MYSQL_CLIENT_PASS
-# - MYSQL_ROOT_PASSWORD
-
-# If using Colima (macOS without Docker Desktop):
-colima start
-
-# Build and run the app with MySQL
-# Install docker compose if you do not have it by running 'brew install docker-compose'
-docker compose up --build
-```
-
-Open http://localhost:8000
-
-To run in the background, use `docker compose up --build -d`. Stop the stack with:
-
-```bash
-docker compose down
-```
-
-If host port `3306` is already used by another MySQL server, change `MYSQL_PORT`
-in `.env`, for example `MYSQL_PORT=3307`, then run `docker compose up --build`
-again. The app still connects to MySQL through the private Compose network.
-
-Use Compose for the Docker quick start. A one-off `docker run` needs a separately
-reachable MySQL server and matching credentials.
-
-### Local Development
-
-```bash
-# Install uv
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Install dependencies
 uv sync
-
-# Create an ignored env file.
-cp .env.example .env
-# Edit .env and set OPENAI_API_KEY, APP_MYSQL_CLIENT_PASS, and MYSQL_ROOT_PASSWORD.
-# Docker Compose requires MYSQL_ROOT_PASSWORD before it can start MySQL.
-
-# Start MySQL
+cp .env.example .env            # then fill in the secrets
 docker compose up -d mysql
+mkdir -p data && uv run alembic upgrade head
+uv run uvicorn src.app:create_app --factory --reload --port 8000
 
-# Set local app secrets in .env or export them in this shell.
-export OPENAI_API_KEY=sk-...
-export APP_MYSQL_CLIENT_PASS=<local-mysql-password>
-
-# Run database migrations
-mkdir -p data
-uv run alembic upgrade head
-
-# Start the backend dev server
-uv run uvicorn src.app:create_app --factory --reload --host 0.0.0.0 --port 8000
-
-# In a separate terminal, start the React frontend dev server
-cd frontend
-npm install
-npm run dev
-# Frontend runs at http://localhost:5173 with API proxy to :8000
+# in another terminal
+cd frontend && npm install && npm run dev   # http://localhost:5173, proxies /api to :8000
 ```
 
 ## Usage
@@ -194,7 +119,7 @@ my_comparer = "my_package.comparers:MyComparer"
 Never commit a real `.env` file. Commit only `.env.example` with placeholders; use shell
 environment variables, a local ignored `.env`, or a deployment secret manager for real values.
 When `DATABASE_URL` is unset and `~/.my.cnf` exists, OpenEval reads MySQL connection details
-from the `client` group and uses the `customer_info` user, matching `cw-customer-info`.
+from its `client` group.
 
 ## Project Structure
 
@@ -203,7 +128,7 @@ openeval/
 ├── src/
 │   ├── app.py              # FastAPI app factory
 │   ├── config.py           # Pydantic Settings
-│   ├── comparers/          # Comparer framework + 5 built-in
+│   ├── comparers/          # Comparer framework + built-ins
 │   ├── db/                 # Models, session, repositories
 │   ├── providers/          # LLM provider abstraction
 │   ├── routers/            # FastAPI route handlers
@@ -217,4 +142,4 @@ openeval/
 
 ## License
 
-OSASSY License. See [LICENSE](LICENSE) for details.
+See [LICENSE](LICENSE). Free to use and modify; the license does not allow offering it as a competing hosted service.
