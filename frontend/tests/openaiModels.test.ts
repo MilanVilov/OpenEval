@@ -31,12 +31,18 @@ test('config model options include the latest OpenAI frontier models', () => {
   assert.ok(values.includes('gpt-5-pro'));
 });
 
-test('grader model options reuse the config model catalog', () => {
+test('grader model options reuse Responses models and exclude Decisions-only models', () => {
   const configValues = flattenModelValues(OPENAI_CONFIG_MODEL_OPTIONS);
   const graderValues = flattenModelValues(OPENAI_GRADER_MODEL_OPTIONS);
 
   assert.equal(graderValues[0], '');
-  assert.deepEqual(graderValues.slice(1), configValues);
+  assert.ok(configValues.includes('gpt-6-luna'));
+  assert.deepEqual(graderValues.slice(1), configValues.filter((model) => model !== 'gpt-6-luna'));
+});
+
+test('Decisions model does not offer Responses reasoning controls', () => {
+  assert.equal(supportsReasoning('gpt-6-luna'), false);
+  assert.equal(supportsReasoningMode('gpt-6-luna'), false);
 });
 
 test('reasoning effort options reflect model-specific constraints', () => {

@@ -118,7 +118,7 @@ async def create_run(
         eval_config_id=body.eval_config_id,
         dataset_id=body.dataset_id,
         total_rows=dataset.row_count,
-        flex_enabled=body.flex_enabled,
+        flex_enabled=body.flex_enabled and config.model != "gpt-6-luna",
     )
     start_run_task(run.id)
 

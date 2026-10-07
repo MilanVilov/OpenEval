@@ -31,6 +31,7 @@ class BaseLLMProvider(ABC):
         tool_options: dict | None = None,
         reasoning_config: dict | None = None,
         response_format: dict | None = None,
+        decision_config: dict | None = None,
     ) -> LLMResponse:
         """Send a prompt to the LLM and return a standardized response.
 
@@ -44,6 +45,7 @@ class BaseLLMProvider(ABC):
             tool_options: Additional tool config (e.g. {"vector_store_id": "vs_xxx"}).
             reasoning_config: Reasoning configuration (e.g. {"effort": "medium"}).
             response_format: Response format configuration (e.g. {"type": "json_object"}).
+            decision_config: Named predicate, choice, or score questions for Decisions.
 
         Returns:
             LLMResponse with generated text and metadata.

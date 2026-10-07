@@ -7,6 +7,8 @@ import { listVectorStores } from '@/api/vectorStores';
 import { listContainers } from '@/api/containers';
 import type { VectorStore } from '@/types/vectorStore';
 import type { Container } from '@/types/container';
+import { DecisionConfigEditor } from '@/components/DecisionConfigEditor';
+import { decisionQuestionExample, parseDecisionConfig } from '@/lib/decisionConfig';
 import { ConfigNotesField } from '@/components/ConfigNotesField';
 import { GradersEditor } from '@/components/CustomGradersEditor';
 import type { Grader } from '@/types/config';
@@ -23,6 +25,7 @@ import { Spinner } from '@/components/Spinner';
 import { TagInput } from '@/components/TagInput';
 import { buildGradersPayload } from '@/lib/configGraders';
 import {
+  isDecisionModel,
   getReasoningEffortOptions,
   getReasoningModeOptions,
   OPENAI_CONFIG_MODEL_OPTIONS,
@@ -40,6 +43,7 @@ export function ConfigEdit() {
   const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
   const [systemPrompt, setSystemPrompt] = useState('');
   const [model, setModel] = useState('gpt-4.1');
+  const [decisionQuestions, setDecisionQuestions] = useState(decisionQuestionExample('predicate'));
   const [temperature, setTemperature] = useState('0.7');
   const [graders, setGraders] = useState<Grader[]>([]);
   const [concurrency, setConcurrency] = useState('5');
@@ -65,6 +69,7 @@ export function ConfigEdit() {
   const [error, setError] = useState<string | null>(null);
   const [isReadonly, setIsReadonly] = useState(false);
 
+  const isDecision = isDecisionModel(model);
   const reasoningEffortOptions = getReasoningEffortOptions(model);
   const reasoningModeOptions = getReasoningModeOptions(model);
   const isReasoningModel = supportsReasoning(model);
@@ -94,6 +99,9 @@ export function ConfigEdit() {
         setTags(config.tags || []);
         setSystemPrompt(config.system_prompt);
         setModel(config.model);
+        if (config.decision_config) {
+          setDecisionQuestions(JSON.stringify(config.decision_config.questions, null, 2));
+        }
         setTemperature(String(config.temperature));
         setGraders(config.graders || []);
         setConcurrency(String(config.concurrency));
@@ -156,6 +164,7 @@ export function ConfigEdit() {
   }, [reasoningMode, reasoningModeOptions]);
 
   function buildResponseFormat(): Record<string, unknown> | null {
+    if (isDecision) return null;
     if (responseFormatType === 'text') return null;
     if (responseFormatType === 'json_object') return { type: 'json_object' };
     if (responseFormatType === 'json_schema') {
@@ -178,13 +187,13 @@ export function ConfigEdit() {
     try {
       const tools: string[] = [];
       const toolOptions: Record<string, unknown> = {};
-      if (fileSearchEnabled) {
+      if (!isDecision && fileSearchEnabled) {
         tools.push('file_search');
         if (vectorStoreId) {
           toolOptions.vector_store_id = vectorStoreId;
         }
       }
-      if (shellEnabled) {
+      if (!isDecision && shellEnabled) {
         tools.push('shell');
         if (containerId) {
           toolOptions.container_id = containerId;
@@ -207,6 +216,7 @@ export function ConfigEdit() {
         system_prompt: systemPrompt,
         model,
         temperature: parseFloat(temperature),
+        ...(isDecision ? { max_tokens: null } : {}),
         graders: gradersPayload,
         tags,
         tools,
@@ -214,6 +224,7 @@ export function ConfigEdit() {
         concurrency: parseInt(concurrency, 10),
         reasoning_config: reasoningConfig,
         response_format: buildResponseFormat(),
+        decision_config: isDecision ? parseDecisionConfig(decisionQuestions) : null,
         readonly: isReadonly,
       });
       navigate(`/configs/${id}`);
@@ -244,8 +255,8 @@ export function ConfigEdit() {
         </div>
 
         <div className="space-y-2">
-          <Label>System Prompt</Label>
-          <Textarea value={systemPrompt} onChange={(e) => setSystemPrompt(e.target.value)} required className="font-mono min-h-[120px]" disabled={isReadonly} />
+          <Label>{isDecision ? 'Shared Question Instructions (optional)' : 'System Prompt'}</Label>
+          <Textarea value={systemPrompt} onChange={(e) => setSystemPrompt(e.target.value)} required={!isDecision} className="font-mono min-h-[120px]" disabled={isReadonly} />
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -261,10 +272,12 @@ export function ConfigEdit() {
               ))}
             </Select>
           </div>
+          {!isDecision && (
           <div className="space-y-2">
             <Label>Temperature</Label>
             <Input type="number" step="0.1" min="0" max="2" value={temperature} onChange={(e) => setTemperature(e.target.value)} disabled={isReadonly} />
           </div>
+          )}
         </div>
 
         {isReasoningModel && (
@@ -302,6 +315,10 @@ export function ConfigEdit() {
           </>
         )}
 
+        {isDecision ? (
+          <DecisionConfigEditor value={decisionQuestions} onChange={setDecisionQuestions} disabled={isReadonly} />
+        ) : (
+          <>
         <div className="space-y-2">
           <Label>Response Format</Label>
           <Select value={responseFormatType} onChange={(e) => setResponseFormatType(e.target.value)} disabled={isReadonly}>
@@ -433,6 +450,9 @@ export function ConfigEdit() {
           </div>
         )}
 
+          </>
+        )}
+
         <div className="space-y-2">
           <Label>Concurrency</Label>
           <Input type="number" min="1" max="20" value={concurrency} onChange={(e) => setConcurrency(e.target.value)} disabled={isReadonly} />
@@ -441,6 +461,7 @@ export function ConfigEdit() {
         <GradersEditor
           graders={graders}
           onChange={setGraders}
+          defaultPromptModel={isDecision ? 'gpt-4.1' : undefined}
           disabled={isReadonly}
         />
 

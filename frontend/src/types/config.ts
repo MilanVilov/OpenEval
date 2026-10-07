@@ -48,6 +48,7 @@ export interface EvalConfig {
   readonly: boolean;
   reasoning_config: Record<string, string> | null;
   response_format: Record<string, unknown> | null;
+  decision_config?: DecisionConfig | null;
   created_at: string;
   updated_at: string;
 }
@@ -75,4 +76,9 @@ export interface CreateConfigRequest {
   readonly?: boolean;
   reasoning_config?: Record<string, string> | null;
   response_format?: Record<string, unknown> | null;
+  decision_config?: DecisionConfig | null;
+}
+
+export interface DecisionConfig {
+  questions: Record<string, unknown>[];
 }

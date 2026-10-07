@@ -20,6 +20,10 @@ export interface ReasoningModeOption {
 
 const OPENAI_CONFIG_MODEL_GROUPS: ModelGroup[] = [
   {
+    group: 'Decisions API',
+    models: [{ value: 'gpt-6-luna', label: 'GPT-6 Luna (Decisions API)' }],
+  },
+  {
     group: 'Frontier',
     models: [
       { value: 'gpt-6.1-sol', label: 'GPT-6.1 Sol' },
@@ -229,8 +233,12 @@ export const OPENAI_GRADER_MODEL_OPTIONS: ModelGroup[] = [
     group: '',
     models: [{ value: '', label: 'Same as config model (default)' }],
   },
-  ...OPENAI_CONFIG_MODEL_GROUPS,
+  ...OPENAI_CONFIG_MODEL_GROUPS.filter((group) => group.group !== 'Decisions API'),
 ];
+
+export function isDecisionModel(model: string): boolean {
+  return model === 'gpt-6-luna';
+}
 
 export function getReasoningEffortOptions(model: string): ReasoningEffortOption[] {
   return REASONING_EFFORT_OPTIONS[model] ?? [];
