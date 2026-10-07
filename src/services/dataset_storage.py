@@ -1,12 +1,19 @@
 """Dataset CSV storage helpers."""
 
 import logging
+from collections.abc import Iterator
 from pathlib import Path
 from uuid import uuid4
 
 from src import config
 from src.db.models import Dataset
-from src.services.csv_parser import read_csv_rows, read_csv_rows_text, serialize_csv_rows
+from src.services.csv_parser import (
+    iter_csv_rows,
+    iter_csv_rows_text,
+    read_csv_rows,
+    read_csv_rows_text,
+    serialize_csv_rows,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +34,13 @@ async def read_dataset_rows(dataset: Dataset) -> list[dict]:
     if dataset.csv_content is not None:
         return await read_csv_rows_text(dataset.csv_content)
     return await read_csv_rows(dataset.file_path)
+
+
+async def iter_dataset_rows(dataset: Dataset) -> Iterator[dict]:
+    """Return an iterator over the stored dataset CSV snapshot."""
+    if dataset.csv_content is not None:
+        return iter_csv_rows_text(dataset.csv_content)
+    return iter_csv_rows(dataset.file_path)
 
 
 def serialize_dataset_rows(columns: list[str], rows: list[dict]) -> str:

@@ -2,7 +2,8 @@
 
 import asyncio
 import logging
-from dataclasses import dataclass
+from collections.abc import Iterator
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
 from src.comparers.base import BaseComparer
@@ -16,14 +17,13 @@ from src.db.repositories import (
 )
 from src.db.session import get_session_context
 from src.services import slack_notifier
-from src.services.dataset_storage import read_dataset_rows
+from src.services.dataset_storage import iter_dataset_rows
 from src.services.error_monitoring import report_exception
 from src.services.eval_client import call_llm
 
 logger = logging.getLogger(__name__)
 
 MAX_ERROR_MESSAGE_LENGTH = 2000
-RESULT_PERSIST_BATCH_SIZE = 1
 RUN_HEARTBEAT_INTERVAL = timedelta(seconds=30)
 
 
@@ -44,6 +44,126 @@ class GraderBundle:
 
     comparers: list[tuple[str, BaseComparer]]
     weights: dict[str, float]
+
+
+@dataclass
+class _GraderStats:
+    """Accumulate one grader's run statistics without retaining row results."""
+
+    total: int = 0
+    passed: int = 0
+    failed: int = 0
+    unjudged: int = 0
+    score_total: float = 0.0
+    scored_count: int = 0
+
+    def add(self, detail: dict) -> None:
+        """Record one grader result."""
+        self.total += 1
+        if detail.get("passed") is True:
+            self.passed += 1
+        elif detail.get("passed") is False:
+            self.failed += 1
+        else:
+            self.unjudged += 1
+        score = detail.get("score")
+        if isinstance(score, (int, float)):
+            self.score_total += score
+            self.scored_count += 1
+
+    def build(self) -> dict:
+        """Return the persisted summary shape for this grader."""
+        judged = self.passed + self.failed
+        return {
+            "total": self.total,
+            "passed": self.passed,
+            "failed": self.failed,
+            "unjudged": self.unjudged,
+            "judged": judged,
+            "accuracy": self.passed / max(judged, 1),
+            "avg_score": round(self.score_total / self.scored_count, 4)
+            if self.scored_count
+            else 0.0,
+        }
+
+
+@dataclass
+class _RunSummary:
+    """Accumulate run summary values while completed rows are persisted."""
+
+    total: int = 0
+    passed: int = 0
+    failed: int = 0
+    unjudged: int = 0
+    errors: int = 0
+    latency_total: int = 0
+    score_total: float = 0.0
+    scored_count: int = 0
+    input_token_total: int = 0
+    input_token_count: int = 0
+    output_token_total: int = 0
+    output_token_count: int = 0
+    graders: dict[str, _GraderStats] = field(default_factory=dict)
+
+    def add(self, result: EvalResult) -> None:
+        """Record one persisted result."""
+        self.total += 1
+        self.passed += result.passed is True
+        self.failed += result.passed is False
+        self.unjudged += result.passed is None and not result.error
+        self.errors += bool(result.error)
+        self.latency_total += result.latency_ms or 0
+        self._add_score(result)
+        self._add_token_usage(result)
+        self._add_grader_details(result)
+
+    def _add_score(self, result: EvalResult) -> None:
+        if result.comparer_score is not None:
+            self.score_total += result.comparer_score
+            self.scored_count += 1
+
+    def _add_token_usage(self, result: EvalResult) -> None:
+        usage = result.token_usage or {}
+        self._add_tokens(usage, "input_tokens")
+        self._add_tokens(usage, "output_tokens")
+
+    def _add_tokens(self, usage: dict, key: str) -> None:
+        value = usage.get(key)
+        if not isinstance(value, int):
+            return
+        if key == "input_tokens":
+            self.input_token_total += value
+            self.input_token_count += 1
+        else:
+            self.output_token_total += value
+            self.output_token_count += 1
+
+    def _add_grader_details(self, result: EvalResult) -> None:
+        for name, detail in (result.comparer_details or {}).items():
+            if isinstance(detail, dict):
+                self.graders.setdefault(name, _GraderStats()).add(detail)
+
+    def build(self) -> dict:
+        """Return the persisted run summary."""
+        judged = self.passed + self.failed
+        return {
+            "total": self.total,
+            "judged": judged,
+            "passed": self.passed,
+            "failed": self.failed,
+            "unjudged": self.unjudged,
+            "errors": self.errors,
+            "accuracy": self.passed / max(judged, 1),
+            "avg_latency_ms": round(self.latency_total / max(self.total, 1)),
+            "avg_score": round(self.score_total / max(self.scored_count, 1), 4),
+            "avg_input_tokens": round(self.input_token_total / self.input_token_count)
+            if self.input_token_count
+            else 0,
+            "avg_output_tokens": round(self.output_token_total / self.output_token_count)
+            if self.output_token_count
+            else 0,
+            "grader_stats": {name: stats.build() for name, stats in self.graders.items()},
+        }
 
 
 def _run_tags(run_id: str, stage: str) -> dict[str, str]:
@@ -140,12 +260,11 @@ async def _run_evaluation(run_id: str) -> None:
             await context.run_repo.update_status(
                 run_id,
                 status="running",
-                total_rows=len(rows),
                 heartbeat_at=datetime.now(UTC),
             )
             grader_bundle = _build_grader_bundle(context.config, context.run.flex_enabled)
-            results = await _process_rows(context, rows, grader_bundle)
-            summary = await _mark_run_completed(context.run_repo, run_id, results)
+            summary = await _process_rows(context, rows, grader_bundle)
+            summary = await _mark_run_completed(context.run_repo, run_id, summary)
             logger.info("Run %s completed: %s", run_id, summary)
             slack_payload = await _gather_slack_payload(session, run_id)
         finally:
@@ -201,10 +320,10 @@ async def _mark_run_started(run_repo: RunRepository, run_id: str) -> None:
 
 async def _read_rows(
     context: RunExecutionContext,
-) -> list[dict] | None:
-    """Load CSV rows for a run or mark the run failed."""
+) -> Iterator[dict] | None:
+    """Open the dataset row iterator or mark the run failed."""
     try:
-        return await read_dataset_rows(context.dataset)
+        return await iter_dataset_rows(context.dataset)
     except Exception as exc:
         _report_run_exception(exc, run_id=context.run.id, stage="read_dataset", context=context)
         logger.exception("Failed to read dataset for run %s", context.run.id)
@@ -261,19 +380,13 @@ def _build_grader(
 
 async def _process_rows(
     context: RunExecutionContext,
-    rows: list[dict],
+    rows: Iterator[dict],
     grader_bundle: GraderBundle,
-) -> list[EvalResult]:
-    """Process all rows and persist committed result batches incrementally."""
-    semaphore = asyncio.Semaphore(context.config.concurrency)
-    tasks = {
-        asyncio.create_task(
-            _process_row(context.run.id, index, row, context, grader_bundle, semaphore)
-        )
-        for index, row in enumerate(rows)
-    }
-    persisted_results: list[EvalResult] = []
-    pending_results: list[EvalResult] = []
+) -> dict:
+    """Process rows with no more than the configured number in flight."""
+    row_iterator = enumerate(rows)
+    tasks = _start_row_tasks(row_iterator, context, grader_bundle)
+    summary = _RunSummary()
     committed_count = 0
 
     try:
@@ -288,27 +401,48 @@ async def _process_rows(
                 continue
 
             for task in done:
-                pending_results.append(await task)
-                if len(pending_results) < RESULT_PERSIST_BATCH_SIZE:
-                    continue
+                result = await task
                 committed_count = await _flush_result_batch(
                     context,
-                    pending_results,
+                    result,
                     committed_count,
-                    persisted_results,
+                    summary,
                 )
-                pending_results = []
-        if pending_results:
-            await _flush_result_batch(
-                context,
-                pending_results,
-                committed_count,
-                persisted_results,
-            )
-        return persisted_results
+                next_task = _next_row_task(row_iterator, context, grader_bundle)
+                if next_task is not None:
+                    tasks.add(next_task)
+        return summary.build()
     except Exception:
         await _cancel_tasks(list(tasks))
         raise
+
+
+def _start_row_tasks(
+    rows: Iterator[tuple[int, dict]],
+    context: RunExecutionContext,
+    grader_bundle: GraderBundle,
+) -> set[asyncio.Task[EvalResult]]:
+    """Start up to the configured number of row tasks."""
+    tasks: set[asyncio.Task[EvalResult]] = set()
+    for _ in range(context.config.concurrency):
+        task = _next_row_task(rows, context, grader_bundle)
+        if task is None:
+            break
+        tasks.add(task)
+    return tasks
+
+
+def _next_row_task(
+    rows: Iterator[tuple[int, dict]],
+    context: RunExecutionContext,
+    grader_bundle: GraderBundle,
+) -> asyncio.Task[EvalResult] | None:
+    """Create one task from the next dataset row when one is available."""
+    try:
+        index, row = next(rows)
+    except StopIteration:
+        return None
+    return asyncio.create_task(_process_row(context.run.id, index, row, context, grader_bundle))
 
 
 async def _process_row(
@@ -317,25 +451,23 @@ async def _process_row(
     row: dict,
     context: RunExecutionContext,
     grader_bundle: GraderBundle,
-    semaphore: asyncio.Semaphore,
 ) -> EvalResult:
     """Process one row through the provider and grader pipeline."""
     result = _build_result(run_id, index, row)
-    async with semaphore:
-        await _populate_row_result(result, row, context, grader_bundle)
+    await _populate_row_result(result, row, context, grader_bundle)
     return result
 
 
 async def _flush_result_batch(
     context: RunExecutionContext,
-    pending_results: list[EvalResult],
+    result: EvalResult,
     committed_count: int,
-    persisted_results: list[EvalResult],
+    summary: _RunSummary,
 ) -> int:
-    """Persist one result batch and advance progress only after commit succeeds."""
-    await context.result_repo.upsert_batch(pending_results)
-    persisted_results.extend(pending_results)
-    committed_count += len(pending_results)
+    """Persist one result and advance progress only after commit succeeds."""
+    await context.result_repo.upsert_batch([result])
+    summary.add(result)
+    committed_count += 1
     await _persist_run_progress(context, committed_count)
     return committed_count
 
@@ -425,11 +557,10 @@ async def _stop_heartbeat(
 async def _mark_run_completed(
     run_repo: RunRepository,
     run_id: str,
-    results: list[EvalResult],
+    summary: dict,
 ) -> dict:
     """Store the final summary and mark the run completed."""
     now = datetime.now(UTC)
-    summary = _build_summary(results)
     await run_repo.update_status(
         run_id,
         status="finalizing",
@@ -584,88 +715,6 @@ def _combine_grader_results(
     if total_weight > 0:
         return score, None, details
     return score, False, details
-
-
-def _build_summary(results: list[EvalResult]) -> dict:
-    """Build the run summary JSON from all row results."""
-    total = len(results)
-    passed = sum(1 for result in results if result.passed)
-    failed = sum(1 for result in results if result.passed is False)
-    unjudged = sum(1 for result in results if result.passed is None and not result.error)
-    errors = sum(1 for result in results if result.error)
-    scored = [result.comparer_score for result in results if result.comparer_score is not None]
-    avg_score = sum(scored) / max(len(scored), 1)
-    avg_input_tokens, avg_output_tokens = _average_token_usage(results)
-    judged = passed + failed
-    return {
-        "total": total,
-        "judged": judged,
-        "passed": passed,
-        "failed": failed,
-        "unjudged": unjudged,
-        "errors": errors,
-        "accuracy": passed / max(judged, 1),
-        "avg_latency_ms": _average_latency(results),
-        "avg_score": round(avg_score, 4),
-        "avg_input_tokens": avg_input_tokens,
-        "avg_output_tokens": avg_output_tokens,
-        "grader_stats": _build_grader_stats(results),
-    }
-
-
-def _average_latency(results: list[EvalResult]) -> int:
-    """Return the mean latency across all result rows."""
-    total_latency = sum(result.latency_ms or 0 for result in results)
-    return round(total_latency / max(len(results), 1))
-
-
-def _average_token_usage(results: list[EvalResult]) -> tuple[int, int]:
-    """Return average input and output tokens across rows with usage data."""
-    input_tokens = [
-        result.token_usage["input_tokens"]
-        for result in results
-        if result.token_usage and "input_tokens" in result.token_usage
-    ]
-    output_tokens = [
-        result.token_usage["output_tokens"]
-        for result in results
-        if result.token_usage and "output_tokens" in result.token_usage
-    ]
-    avg_input = round(sum(input_tokens) / len(input_tokens)) if input_tokens else 0
-    avg_output = round(sum(output_tokens) / len(output_tokens)) if output_tokens else 0
-    return avg_input, avg_output
-
-
-def _build_grader_stats(results: list[EvalResult]) -> dict[str, dict]:
-    """Aggregate pass/fail counts and average scores per grader."""
-    grader_stats: dict[str, dict] = {}
-    for result in results:
-        for name, detail in (result.comparer_details or {}).items():
-            if not isinstance(detail, dict):
-                continue
-            stats = grader_stats.setdefault(name, _new_grader_stats())
-            stats["total"] += 1
-            if detail.get("passed") is True:
-                stats["passed"] += 1
-            elif detail.get("passed") is False:
-                stats["failed"] += 1
-            else:
-                stats["unjudged"] += 1
-            if isinstance(detail.get("score"), (int, float)):
-                stats["scores"].append(detail["score"])
-
-    for stats in grader_stats.values():
-        scores = stats.pop("scores")
-        judged = stats["passed"] + stats["failed"]
-        stats["judged"] = judged
-        stats["accuracy"] = stats["passed"] / max(judged, 1)
-        stats["avg_score"] = round(sum(scores) / len(scores), 4) if scores else 0.0
-    return grader_stats
-
-
-def _new_grader_stats() -> dict:
-    """Return the initial accumulator structure for one grader."""
-    return {"total": 0, "passed": 0, "failed": 0, "unjudged": 0, "scores": []}
 
 
 async def _cancel_tasks(tasks: list[asyncio.Task[EvalResult]]) -> None:

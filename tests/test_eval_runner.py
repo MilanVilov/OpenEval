@@ -75,7 +75,7 @@ def mock_repos():
         patch("src.services.eval_runner.ConfigRepository") as mock_config_repo_cls,
         patch("src.services.eval_runner.DatasetRepository") as mock_dataset_repo_cls,
         patch("src.services.eval_runner.ResultRepository") as mock_result_repo_cls,
-        patch("src.services.eval_runner.read_dataset_rows") as mock_read_csv,
+        patch("src.services.eval_runner.iter_dataset_rows") as mock_read_csv,
         patch("src.services.eval_runner.call_llm") as mock_call_llm,
     ):
         session_mock = AsyncMock()
@@ -545,6 +545,50 @@ class TestProgressTracking:
         mock_repos["run_repo"].rollback.assert_awaited_once()
         final_call = mock_repos["run_repo"].update_status.call_args_list[-1]
         assert final_call.kwargs["status"] == "completed"
+
+    async def test_large_run_does_not_schedule_rows_beyond_concurrency(self, mock_repos):
+        """Only consume more dataset rows after an in-flight row completes."""
+        config = _make_config(concurrency=2)
+        mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
+        mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
+        mock_repos["dataset_repo"].get_by_id_with_content = AsyncMock(return_value=_make_dataset())
+        allow_more_rows = asyncio.Event()
+        rows = _RowsBlockedAfterConcurrency(allow_more_rows)
+        mock_repos["read_csv"].return_value = rows
+
+        async def blocked_llm(**kwargs: object) -> LLMResponse:
+            await allow_more_rows.wait()
+            return _make_llm_response("a", latency_ms=50)
+
+        mock_repos["call_llm"].side_effect = blocked_llm
+
+        task = asyncio.create_task(run_evaluation("run1"))
+        await asyncio.sleep(0.05)
+
+        assert task.done() is False
+        assert rows.rows_read == config.concurrency
+
+        allow_more_rows.set()
+        await task
+
+
+class _RowsBlockedAfterConcurrency:
+    """Yield two rows, then reject eager consumption until explicitly released."""
+
+    def __init__(self, allow_more_rows: asyncio.Event) -> None:
+        self._allow_more_rows = allow_more_rows
+        self.rows_read = 0
+
+    def __iter__(self) -> "_RowsBlockedAfterConcurrency":
+        return self
+
+    def __next__(self) -> dict[str, str]:
+        if self.rows_read >= 2 and not self._allow_more_rows.is_set():
+            raise AssertionError("Rows were scheduled before a worker completed")
+        if self.rows_read >= 3:
+            raise StopIteration
+        self.rows_read += 1
+        return {"input": f"q{self.rows_read}", "expected_output": f"a{self.rows_read}"}
 
 
 class TestExceptionReporting:
