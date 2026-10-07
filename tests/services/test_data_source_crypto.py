@@ -30,6 +30,22 @@ def test_encrypt_and_decrypt_secret_payload_round_trip() -> None:
     assert decrypted["secret_headers"] == {"X-Api-Key": "123"}
 
 
+def test_decrypt_secret_payload_supports_legacy_fernet_token() -> None:
+    """Secrets encrypted before the cryptography upgrade should remain readable."""
+    settings = SimpleNamespace(
+        data_source_encryption_key="9R-yJJFd_SXJrXbXPFHyWUILxB43nao6V00Fn9ZiKng=",
+    )
+    legacy_token = (
+        "gAAAAABqjVBVd1RwaKX18BWLh1E0aF2zgQNCEzgKkQqTAjIAkjI99VdkT43QuGUoM-0-"
+        "YicPgB_KweOzC7UEo8jr9zvM3VRVfQ0tpb2KVIheQfPhQWK-6A21hBDKIK7xFDdGwm2451dI"
+    )
+
+    with patch("src.services.data_source_crypto.get_settings", return_value=settings):
+        decrypted = decrypt_secret_payload(legacy_token)
+
+    assert decrypted == {"bearer_token": "legacy-token"}
+
+
 def test_encrypt_secret_payload_requires_key() -> None:
     """Missing encryption key should raise a clear error."""
     settings = SimpleNamespace(data_source_encryption_key="")
