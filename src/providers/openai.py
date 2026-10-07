@@ -1,12 +1,15 @@
-"""OpenAI Responses API provider."""
+"""OpenAI Responses and Decisions API provider."""
 
+import json
 import logging
+import re
 import time
 
 from openai import AsyncOpenAI
 
 from src.config import get_settings
 from src.providers.base import BaseLLMProvider, LLMResponse
+from src.schemas.decisions import DECISION_MODEL, DecisionConfig
 
 logger = logging.getLogger(__name__)
 
@@ -56,8 +59,11 @@ class OpenAIProvider(BaseLLMProvider):
         reasoning_config: dict | None = None,
         response_format: dict | None = None,
         flex_enabled: bool = False,
+        decision_config: dict | None = None,
     ) -> LLMResponse:
-        """Call the OpenAI Responses API."""
+        """Call the API appropriate for the selected OpenAI model."""
+        if model == DECISION_MODEL:
+            return await self._generate_decision(system_prompt, user_input, decision_config)
         tool_options = tool_options or {}
 
         # Build input messages
@@ -80,21 +86,11 @@ class OpenAIProvider(BaseLLMProvider):
             kwargs["temperature"] = temperature
         if max_tokens is not None:
             kwargs["max_output_tokens"] = max_tokens
-        if api_tools:
-            kwargs["tools"] = api_tools
-            # tool_choice: "auto" (default), "required", or "none"
-            tool_choice = tool_options.get("tool_choice")
-            if tool_choice and tool_choice != "auto":
-                kwargs["tool_choice"] = tool_choice
+        kwargs.update(_tool_parameters(api_tools, tool_options))
         if reasoning_config:
             kwargs["reasoning"] = reasoning_config
         if response_format:
-            fmt = dict(response_format)
-            # OpenAI requires name to match ^[a-zA-Z0-9_-]+$
-            if "name" in fmt:
-                import re
-                fmt["name"] = re.sub(r"[^a-zA-Z0-9_-]", "_", fmt["name"])
-            kwargs["text"] = {"format": fmt}
+            kwargs["text"] = {"format": _response_format(response_format)}
         if flex_enabled:
             kwargs["service_tier"] = "flex"
 
@@ -124,12 +120,7 @@ class OpenAIProvider(BaseLLMProvider):
         }
 
         # Serialize output items for full response visibility
-        output_items = []
-        for item in response.output:
-            try:
-                output_items.append(item.model_dump())
-            except Exception:
-                output_items.append({"type": getattr(item, "type", "unknown")})
+        output_items = _serialize_output(response.output)
 
         return LLMResponse(
             text=text,
@@ -141,6 +132,34 @@ class OpenAIProvider(BaseLLMProvider):
                 "output": output_items,
             },
             raw_request=raw_request,
+        )
+
+    async def _generate_decision(
+        self,
+        system_prompt: str,
+        user_input: str,
+        decision_config: dict | None,
+    ) -> LLMResponse:
+        """Evaluate questions using the SDK's generic endpoint transport."""
+        config = DecisionConfig.model_validate(decision_config or {})
+        questions = config.model_dump(exclude_none=True)["questions"]
+        for question in questions:
+            if system_prompt.strip():
+                question["instructions"] = f"{system_prompt}\n\n{question['instructions']}"
+        request = {"model": DECISION_MODEL, "input": user_input, "questions": questions}
+        start = time.perf_counter()
+        # Generic SDK transport supports Decisions without requiring the newer generated resource.
+        response = await self._client.post("/decisions", cast_to=dict[str, object], body=request)
+        latency_ms = int((time.perf_counter() - start) * 1000)
+        return LLMResponse(
+            text=json.dumps({"answers": response["answers"]}, ensure_ascii=False),
+            latency_ms=latency_ms,
+            token_usage={
+                "input_tokens": (response.get("usage") or {}).get("input_tokens", 0),
+                "output_tokens": (response.get("usage") or {}).get("output_tokens", 0),
+            },
+            raw_request=request,
+            raw_response=response,
         )
 
     def _build_tools(self, tools: list, tool_options: dict) -> list:
@@ -177,3 +196,33 @@ class OpenAIProvider(BaseLLMProvider):
                     if content.type == "output_text":
                         parts.append(content.text)
         return "\n".join(parts) if parts else ""
+
+
+def _tool_parameters(api_tools: list, tool_options: dict) -> dict:
+    """Include tool selection only when tools are enabled."""
+    if not api_tools:
+        return {}
+    parameters = {"tools": api_tools}
+    tool_choice = tool_options.get("tool_choice")
+    if tool_choice and tool_choice != "auto":
+        parameters["tool_choice"] = tool_choice
+    return parameters
+
+
+def _response_format(response_format: dict) -> dict:
+    """Sanitize the schema name for the Responses API."""
+    result = dict(response_format)
+    if "name" in result:
+        result["name"] = re.sub(r"[^a-zA-Z0-9_-]", "_", result["name"])
+    return result
+
+
+def _serialize_output(output: list) -> list[dict]:
+    """Retain full output items for request debugging."""
+    items = []
+    for item in output:
+        try:
+            items.append(item.model_dump())
+        except (AttributeError, TypeError):
+            items.append({"type": getattr(item, "type", "unknown")})
+    return items

@@ -49,6 +49,7 @@ class EvalConfig(Base):
     tags: Mapped[list | None] = mapped_column(JSON, default=list)
     reasoning_config: Mapped[dict | None] = mapped_column(JSON, default=None)
     response_format: Mapped[dict | None] = mapped_column(JSON, default=None)
+    decision_config: Mapped[dict | None] = mapped_column(JSON, default=None)
     concurrency: Mapped[int] = mapped_column(default=5)
     readonly: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())

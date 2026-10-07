@@ -14,6 +14,7 @@ import { Play } from 'lucide-react';
 import { PageTransition } from '@/components/PageTransition';
 import { LoadingSkeleton } from '@/components/LoadingSkeleton';
 import { Spinner } from '@/components/Spinner';
+import { isDecisionModel } from '@/lib/openaiModels';
 
 export function RunNew() {
   const navigate = useNavigate();
@@ -25,6 +26,7 @@ export function RunNew() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isDecision = isDecisionModel(configs.find((config) => config.id === configId)?.model ?? '');
 
   useEffect(() => {
     Promise.all([listConfigOptions(), listDatasetOptions()])
@@ -47,7 +49,7 @@ export function RunNew() {
       const run = await createRun({
         eval_config_id: configId,
         dataset_id: datasetId,
-        flex_enabled: flexEnabled,
+        flex_enabled: !isDecision && flexEnabled,
       });
       navigate(`/runs/${run.id}`);
     } catch (err) {
@@ -91,7 +93,7 @@ export function RunNew() {
           </Select>
         </div>
 
-        <div className="space-y-2 rounded-md border border-border p-4">
+        {!isDecision && <div className="space-y-2 rounded-md border border-border p-4">
           <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
             <input
               type="checkbox"
@@ -104,7 +106,7 @@ export function RunNew() {
           <p className="text-xs text-foreground-secondary">
             Uses lower-cost Flex processing for compatible OpenAI requests in this run. Results may take longer to appear.
           </p>
-        </div>
+        </div>}
 
         <div className="flex justify-end gap-2 pt-4">
           <Button type="button" variant="outline" onClick={() => navigate('/runs')}>Cancel</Button>

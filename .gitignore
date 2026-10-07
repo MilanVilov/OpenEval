@@ -24,3 +24,5 @@ uploads/
 # OS
 .DS_Store
 node_modules/
+frontend/test-results/
+frontend/playwright-report/

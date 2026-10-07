@@ -254,7 +254,9 @@ def _build_grader(
         return JsonSchemaMatchComparer(grader_cfg)
     if grader_type == "json_field":
         return JsonFieldMatchComparer(grader_cfg)
-    grader_cfg["model"] = grader_def.get("model") or default_model
+    grader_cfg["model"] = grader_def.get("model") or (
+        "gpt-4.1" if default_model == "gpt-6-luna" else default_model
+    )
     grader_cfg["flex_enabled"] = flex_enabled
     return CustomGraderComparer(grader_cfg)
 
@@ -475,6 +477,7 @@ async def _populate_row_result(
             tool_options=context.config.tool_options,
             reasoning_config=context.config.reasoning_config,
             response_format=context.config.response_format,
+            decision_config=context.config.decision_config,
             flex_enabled=context.run.flex_enabled,
         )
         result.actual_output = llm_response.text

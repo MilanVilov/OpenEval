@@ -11,6 +11,7 @@ import { LoadingSkeleton } from '@/components/LoadingSkeleton';
 import { PageTransition } from '@/components/PageTransition';
 import { CodeBlock } from '@/components/CodeBlock';
 import { formatDate } from '@/lib/utils';
+import { isDecisionModel } from '@/lib/openaiModels';
 import { Copy, Lock, MessageSquare, Pencil, Trash2 } from 'lucide-react';
 
 export function ConfigDetail() {
@@ -106,10 +107,16 @@ export function ConfigDetail() {
               <p className="text-xs text-foreground-secondary uppercase">Model</p>
               <Badge>{config.model}</Badge>
             </div>
-            <div>
+            {!isDecisionModel(config.model) && <div>
               <p className="text-xs text-foreground-secondary uppercase">Temperature</p>
               <p className="text-sm">{config.temperature}</p>
-            </div>
+            </div>}
+            {config.decision_config && (
+              <div className="space-y-2">
+                <p className="text-xs text-foreground-secondary uppercase">Decisions API Questions</p>
+                <CodeBlock code={JSON.stringify(config.decision_config.questions, null, 2)} language="json" />
+              </div>
+            )}
             {config.graders && config.graders.length > 0 && (
               <div>
                 <p className="text-xs text-foreground-secondary uppercase">Graders</p>

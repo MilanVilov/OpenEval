@@ -16,6 +16,7 @@ async def call_llm(
     reasoning_config: dict | None = None,
     response_format: dict | None = None,
     flex_enabled: bool = False,
+    decision_config: dict | None = None,
 ) -> LLMResponse:
     """Call the LLM provider with the given parameters.
 
@@ -33,4 +34,5 @@ async def call_llm(
         reasoning_config=reasoning_config,
         response_format=response_format,
         flex_enabled=flex_enabled,
+        decision_config=decision_config,
     )

@@ -14,6 +14,7 @@ from src.routers.schemas.configs import (
     PaginatedConfigResponse,
     UpdateConfigRequest,
 )
+from src.schemas.decisions import validate_decision_model
 
 router = APIRouter(prefix="/api/configs", tags=["configs"])
 SYSTEM_PROMPT_PREVIEW_LENGTH = 240
@@ -41,6 +42,7 @@ def _config_to_response(
         readonly=config.readonly,
         reasoning_config=config.reasoning_config,
         response_format=config.response_format,
+        decision_config=config.decision_config,
         created_at=str(config.created_at),
         updated_at=str(config.updated_at),
     )
@@ -120,6 +122,9 @@ async def create_config(
         readonly=body.readonly,
         reasoning_config=body.reasoning_config,
         response_format=body.response_format,
+        decision_config=body.decision_config.model_dump(exclude_none=True)
+        if body.decision_config
+        else None,
     )
     return _config_to_response(config)
 
@@ -159,7 +164,18 @@ async def update_config(
     fields = body.model_dump(exclude_unset=True, by_alias=True)
     if not fields:
         raise HTTPException(status_code=422, detail="No fields to update")
-    config = await ConfigRepository(session).update(config_id, **fields)
+    repo = ConfigRepository(session)
+    current = await repo.get_by_id(config_id)
+    if not current:
+        raise HTTPException(status_code=404, detail="Configuration not found")
+    try:
+        validate_decision_model(
+            fields.get("model", current.model),
+            fields.get("decision_config", current.decision_config),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    config = await repo.update(config_id, **fields)
     if not config:
         raise HTTPException(status_code=404, detail="Configuration not found")
     return _config_to_response(config)
@@ -190,6 +206,7 @@ async def duplicate_config(
         readonly=False,
         reasoning_config=original.reasoning_config,
         response_format=original.response_format,
+        decision_config=original.decision_config,
     )
     return _config_to_response(copy)
 

@@ -2,6 +2,7 @@
 
 import asyncio
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -36,6 +37,7 @@ def _make_config(
     config.concurrency = concurrency
     config.reasoning_config = None
     config.response_format = response_format
+    config.decision_config = None
     return config
 
 
@@ -736,3 +738,52 @@ class TestResponseFormatForwarding:
         assert mock_repos["call_llm"].await_args.kwargs["response_format"] == {
             "type": "json_object",
         }
+
+
+@pytest.mark.parametrize("grader_model, expected_model", [(None, "gpt-4.1"), ("gpt-4o", "gpt-4o")])
+async def test_decision_run_forwards_questions_and_uses_responses_prompt_grader(
+    mock_repos,
+    grader_model: str | None,
+    expected_model: str,
+) -> None:
+    """Decision answers can be evaluated by a Responses prompt grader."""
+    config = _make_config(
+        graders=[
+            {
+                "type": "prompt",
+                "name": "quality",
+                "prompt": "Rate the answer",
+                "model": grader_model,
+            }
+        ]
+    )
+    config.model = "gpt-6-luna"
+    config.decision_config = {
+        "questions": [
+            {
+                "type": "predicate",
+                "name": "relevant",
+                "instructions": "Is it relevant?",
+            }
+        ]
+    }
+    mock_repos["run_repo"].get_by_id = AsyncMock(return_value=_make_run())
+    mock_repos["config_repo"].get_by_id = AsyncMock(return_value=config)
+    mock_repos["dataset_repo"].get_by_id_with_content = AsyncMock(return_value=_make_dataset())
+    mock_repos["read_csv"].return_value = [{"input": "Hello", "expected_output": ""}]
+    mock_repos["call_llm"].return_value = _make_llm_response('{"answers":[]}', latency_ms=20)
+    grader_client = AsyncMock()
+    grader_client.responses.create.return_value = SimpleNamespace(
+        output=[
+            SimpleNamespace(
+                type="message",
+                content=[SimpleNamespace(type="output_text", text='{"score":1}')],
+            )
+        ]
+    )
+    with patch("src.services.openai_client.get_openai_client", return_value=grader_client):
+        await run_evaluation("run1")
+    results = [call.args[0][0] for call in mock_repos["result_repo"].upsert_batch.await_args_list]
+    assert results[0].passed is True
+    assert grader_client.responses.create.await_args.kwargs["model"] == expected_model
+    assert mock_repos["call_llm"].await_args.kwargs["decision_config"] == config.decision_config

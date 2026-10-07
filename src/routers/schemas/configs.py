@@ -6,6 +6,8 @@ from jsonschema import SchemaError
 from jsonschema.validators import validator_for
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from src.schemas.decisions import DecisionConfig, validate_decision_model
+
 GraderType = Literal[
     "prompt",
     "string_check",
@@ -110,6 +112,13 @@ class CreateConfigRequest(BaseModel):
     readonly: bool = False
     reasoning_config: dict | None = None
     response_format: dict | None = None
+    decision_config: DecisionConfig | None = None
+
+    @model_validator(mode="after")
+    def _validate_decision_model(self) -> "CreateConfigRequest":
+        """Require API-specific questions for the Decisions model."""
+        validate_decision_model(self.model, self.decision_config)
+        return self
 
     @field_validator("comment")
     @classmethod
@@ -147,6 +156,7 @@ class UpdateConfigRequest(BaseModel):
     readonly: bool | None = None
     reasoning_config: dict | None = None
     response_format: dict | None = None
+    decision_config: DecisionConfig | None = None
 
     @field_validator("comment")
     @classmethod
@@ -175,6 +185,7 @@ class ConfigResponse(BaseModel):
     readonly: bool = False
     reasoning_config: dict | None = None
     response_format: dict | None = None
+    decision_config: DecisionConfig | None = None
     created_at: str
     updated_at: str
 

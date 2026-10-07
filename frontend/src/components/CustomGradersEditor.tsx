@@ -37,12 +37,14 @@ interface GradersEditorProps {
   graders: Grader[];
   onChange: (graders: Grader[]) => void;
   disabled?: boolean;
+  defaultPromptModel?: string;
 }
 
 export function GradersEditor({
   graders,
   onChange,
   disabled,
+  defaultPromptModel,
 }: GradersEditorProps) {
   function addGrader() {
     onChange([
@@ -300,13 +302,18 @@ export function GradersEditor({
                         </optgroup>
                       ) : (
                         group.models.map((m) => (
-                          <option key={m.value} value={m.value}>{m.label}</option>
+                          <option key={m.value} value={m.value}>{
+                            !m.value && graderType === 'prompt' && defaultPromptModel
+                              ? `${defaultPromptModel} (default)` : m.label
+                          }</option>
                         ))
                       )
                     )}
                   </Select>
                   <p className="text-xs text-foreground-secondary">
-                    {graderType === 'semantic_similarity' ? 'Embedding model' : 'Leave default to use config model'}
+                    {graderType === 'semantic_similarity' ? 'Embedding model'
+                      : defaultPromptModel ? `Default prompt grader model: ${defaultPromptModel}`
+                        : 'Leave default to use config model'}
                   </p>
                 </div>
               )}

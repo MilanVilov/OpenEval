@@ -21,6 +21,9 @@ async def test_playground_uses_standard_processing():
         tool_options={},
         reasoning_config=None,
         response_format=None,
+        decision_config={
+            "questions": [{"type": "predicate", "name": "test", "instructions": "Test"}]
+        },
     )
     provider = MagicMock()
     provider.generate = AsyncMock(
@@ -41,3 +44,4 @@ async def test_playground_uses_standard_processing():
         await run_playground(PlaygroundRequest(config_id="config", message="Hello"), AsyncMock())
 
     assert "flex_enabled" not in provider.generate.await_args.kwargs
+    assert provider.generate.await_args.kwargs["decision_config"] == config.decision_config
